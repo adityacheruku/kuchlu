@@ -76,16 +76,6 @@ export default function AppearanceSettingsPage() {
                                 </RadioGroup>
                             </SettingsItem>
                          </div>
-                         <SettingsRow href="/settings/appearance/moods">
-                             <Label className="font-medium flex items-center gap-4 cursor-pointer">
-                                <Droplets className="w-5 h-5 text-primary" />
-                                <div>
-                                    Customize Quick Moods
-                                    <p className="text-xs text-muted-foreground font-normal">Choose which moods appear in your picker.</p>
-                                </div>
-                             </Label>
-                             <ChevronRight className="text-muted-foreground" />
-                         </SettingsRow>
                          <div className="p-4 space-y-4">
                             <Label className="font-semibold flex items-center gap-2"><Type/> Text Size</Label>
                             <p style={{ fontSize: `${textSize[0]}px` }} className="p-3 bg-muted rounded-md text-center transition-all">The quick brown fox jumps over the lazy dog.</p>
