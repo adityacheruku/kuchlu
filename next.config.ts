@@ -13,25 +13,10 @@ const withPWA = withPWAImport({
 
 
 const nextConfig: NextConfig = {
-  async headers() {
-    return [
-      {
-        // This applies the headers to all routes
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
-        ],
-      },
-    ];
-  },
+  output: 'export',
+  trailingSlash: true,
   images: {
+    unoptimized: true, // Required for static export with next/image
     remotePatterns: [
       {
         protocol: 'https',
