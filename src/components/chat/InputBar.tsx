@@ -107,7 +107,6 @@ function InputBar({
   const [emojiSearch, setEmojiSearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
 
-  // New state for voice recording
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -127,7 +126,11 @@ function InputBar({
     if (textarea) {
         textarea.style.height = 'auto';
         const scrollHeight = textarea.scrollHeight;
-        textarea.style.height = `${scrollHeight}px`;
+        if (scrollHeight > 120) {
+            textarea.style.height = `120px`;
+        } else {
+            textarea.style.height = `${scrollHeight}px`;
+        }
     }
   }, [messageText, replyingTo]);
 
@@ -136,7 +139,6 @@ function InputBar({
       const savedEmojis = localStorage.getItem('kuchlu_recentEmojis');
       if (savedEmojis) setRecentEmojis(JSON.parse(savedEmojis));
     }
-    // Add keyframes for wave animation to the document head
     const styleSheet = document.createElement("style");
     styleSheet.innerText = `
         @keyframes wave {
@@ -211,7 +213,6 @@ function InputBar({
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.onstop = null;
         mediaRecorderRef.current.stop();
-        // Stop the media stream tracks
         mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       }
       mediaRecorderRef.current = null; audioChunksRef.current = [];
@@ -229,43 +230,28 @@ function InputBar({
 
   const handleStartRecording = useCallback(async () => {
     if (isRecording) return;
-    
-    // --- START NEW PERMISSION LOGIC ---
     if (Capacitor.isNativePlatform()) {
         try {
             const permStatus = await Capacitor.Plugins.Permissions.requestPermissions({ permissions: ['microphone'] });
-            
             if (permStatus.microphone.state !== 'granted') {
-                toast({
-                    variant: 'destructive',
-                    title: 'Permission Denied',
-                    description: 'Microphone access is required to record audio. Please enable it in your device settings.',
-                });
+                toast({ variant: 'destructive', title: 'Permission Denied', description: 'Microphone access is required to record audio. Please enable it in your device settings.' });
                 return;
             }
         } catch (e) {
             console.error("Failed to check/request microphone permission", e);
-            toast({
-                variant: 'destructive',
-                title: 'Permission Error',
-                description: 'Could not request microphone permission. Please check your app settings.',
-            });
+            toast({ variant: 'destructive', title: 'Permission Error', description: 'Could not request microphone permission. Please check your app settings.' });
             return;
         }
     }
-    // --- END NEW PERMISSION LOGIC ---
-
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       toast({ variant: 'destructive', title: 'Unsupported Device', description: 'Your browser does not support voice recording.' }); return;
     }
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         await Haptics.vibrate();
-        
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
         mediaRecorderRef.current.ondataavailable = (event) => audioChunksRef.current.push(event.data);
-        
         mediaRecorderRef.current.onstop = () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
             if (audioBlob.size > 0) {
@@ -274,19 +260,16 @@ function InputBar({
             }
             stream.getTracks().forEach(track => track.stop());
         };
-
         mediaRecorderRef.current.start();
         setIsRecording(true);
         setRecordingSeconds(0);
         timerIntervalRef.current = setInterval(() => setRecordingSeconds(prev => prev + 1), 1000);
-        
         setTimeout(() => {
             if (mediaRecorderRef.current?.state === "recording") {
               toast({ title: "Recording Limit Reached", description: `Maximum duration is ${MAX_RECORDING_SECONDS} seconds.`});
               handleStopAndSendRecording();
             }
         }, MAX_RECORDING_SECONDS * 1000);
-
     } catch (err) {
         toast({ variant: 'destructive', title: 'Microphone Access Denied', description: 'Please enable microphone permissions in your browser settings.' });
         cleanupRecording();
@@ -413,9 +396,6 @@ function InputBar({
       handleStopAndSendRecording();
     } else if (showSendButton) {
       handleCompositeSend();
-    } else {
-      // This case is for the mic button, which is now handled by pointer events
-      // So this onClick for the mic state is effectively a no-op
     }
   }
 
@@ -448,65 +428,71 @@ function InputBar({
         )}
         
         <div className={cn(
-          "flex-grow relative flex items-end min-h-[44px] bg-input rounded-2xl transition-all duration-300 ring-2 ring-transparent focus-within:ring-ring",
+          "flex-grow flex items-end min-h-[44px] bg-input rounded-2xl transition-all duration-300 ring-2 ring-transparent focus-within:ring-ring",
           chatMode === 'fight' && 'ring-destructive',
-          chatMode === 'incognito' && 'ring-muted-foreground ring-offset-2 ring-offset-card'
+          chatMode === 'incognito' && 'ring-muted-foreground ring-offset-2 ring-offset-card',
+          isRecording && 'p-1'
         )}>
             {isRecording ? (
-                 <div className="flex items-center w-full px-3 h-[44px]">
+                 <div className="flex items-center w-full px-2 h-full">
                      <Button type="button" variant="ghost" size="icon" onClick={cleanupRecording} className="text-destructive h-8 w-8"><Trash2 size={20} /></Button>
                      <div className="flex-grow flex items-center justify-center h-full"><SoundWave /></div>
                      <span className="font-mono text-sm text-muted-foreground w-12 text-center">{new Date(recordingSeconds * 1000).toISOString().substr(14, 5)}</span>
                  </div>
             ) : (
-                <>
-                    <Textarea
-                      ref={textareaRef}
-                      placeholder={getPlaceholderText()}
-                      value={messageText}
-                      onChange={handleTypingChange}
-                      onBlur={handleBlur}
-                      className="w-full bg-transparent border-none focus-visible:ring-0 pr-10 resize-none min-h-[44px] max-h-[120px] pt-[11px]"
-                      autoComplete="off"
-                      disabled={isSending || disabled}
-                      rows={1}
-                      aria-label="Message input"
-                    />
-                    <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
-                        <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon" type="button" className="absolute right-1 bottom-1 h-9 w-9 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded-full focus-visible:ring-ring" aria-label="Open emoji and sticker panel" disabled={isSending || disabled}><Smile size={22} /></Button>
-                        </SheetTrigger>
-                        <SheetContent side="bottom" className="p-0 border-t bg-card h-[60%] rounded-t-lg flex flex-col">
-                            <SheetHeader className="sr-only">
-                                <SheetTitle>Emoji and Sticker Picker</SheetTitle>
-                                <SheetDescription>Select an emoji, sticker, or GIF to send.</SheetDescription>
-                            </SheetHeader>
-                            <ToolsPicker />
-                        </SheetContent>
-                    </Sheet>
-                </>
+                <Textarea
+                  ref={textareaRef}
+                  placeholder={getPlaceholderText()}
+                  value={messageText}
+                  onChange={handleTypingChange}
+                  onBlur={handleBlur}
+                  className="w-full bg-transparent border-none focus-visible:ring-0 resize-none min-h-[44px] max-h-[120px] py-2.5 px-3.5"
+                  autoComplete="off"
+                  disabled={isSending || disabled}
+                  rows={1}
+                  aria-label="Message input"
+                />
             )}
         </div>
         
+        {!isRecording && (
+            <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
+                <SheetTrigger asChild>
+                    <Button
+                        variant="ghost" size="icon" type="button"
+                        className={cn(
+                            'rounded-full h-11 w-11 flex-shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-accent transition-all duration-300 ease-in-out',
+                            showSendButton ? 'scale-100 opacity-100' : 'scale-0 opacity-0 w-0'
+                        )}
+                        disabled={!showSendButton || disabled} aria-label="Open emoji and sticker panel"
+                    >
+                        <Smile size={22} />
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="p-0 border-t bg-card h-[60%] rounded-t-lg flex flex-col">
+                    <SheetHeader className="sr-only"><SheetTitle>Emoji and Sticker Picker</SheetTitle><SheetDescription>Select an emoji, sticker, or GIF to send.</SheetDescription></SheetHeader>
+                    <ToolsPicker />
+                </SheetContent>
+            </Sheet>
+        )}
+
         <Button 
           type="button" 
           onClick={handleActionButtonClick}
           onPointerDown={!showSendButton && !isRecording ? handleStartRecording : undefined}
-          onPointerUp={!showSendButton && !isRecording ? handleStopAndSendRecording : undefined}
+          onPointerUp={!showSendButton && isRecording ? handleStopAndSendRecording : undefined}
           onPointerLeave={!showSendButton && isRecording ? cleanupRecording : undefined}
           size="icon" 
-          className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0 animate-pop" 
+          className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0" 
           disabled={isSending || disabled} 
-          aria-label={isRecording ? "Send voice message" : showSendButton ? "Send message" : "Record voice message"}
+          aria-label={isRecording ? "Stop and send voice message" : showSendButton ? "Send message" : "Press and hold to record voice message"}
         >
           {isSending ? (
             <Spinner />
-          ) : isRecording ? (
-            <Send size={22} />
           ) : showSendButton ? (
-            <Send size={22} />
+            <Send size={22} className="animate-pop" key="send"/>
           ) : (
-            <Mic size={22} />
+            <Mic size={22} className="animate-pop" key="mic"/>
           )}
         </Button>
       </div>
@@ -520,3 +506,5 @@ function InputBar({
 }
 
 export default memo(InputBar);
+
+    
