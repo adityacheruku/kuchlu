@@ -20,15 +20,18 @@ const config: CapacitorConfig = {
       androidScaleType: "CENTER_CROP",
       showSpinner: false,
     },
-    android: {
-      permissions: [
-        {
-          name: 'android.permission.RECORD_AUDIO',
-          alias: 'MICROPHONE',
-        },
-      ],
+    Permissions: {
+      permissions: ["microphone"],
     },
   },
+  android: {
+    permissions: [
+      {
+        name: "android.permission.RECORD_AUDIO",
+        alias: "MICROPHONE"
+      }
+    ]
+  }
 };
 
 export default config;
