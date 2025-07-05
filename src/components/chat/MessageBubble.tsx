@@ -8,7 +8,7 @@ import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { PlayCircle, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck } from 'lucide-react';
+import { PlayCircle, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck, Pause } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -159,10 +159,18 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     const [currentTime, setCurrentTime] = useState(0);
     const [hasBeenPlayed, setHasBeenPlayed] = useState(false);
     const [hasError, setHasError] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
     const { toast } = useToast();
 
     const version = message.file_metadata?.urls?.mp3_audio ? 'mp3_audio' : 'original';
     const { displayUrl: signedAudioUrl, isLoading } = useCachedMediaUrl(message, version);
+    
+    const handleTogglePlaybackRate = () => {
+        const rates = [1, 1.5, 2];
+        const currentIndex = rates.indexOf(playbackRate);
+        const nextIndex = (currentIndex + 1) % rates.length;
+        setPlaybackRate(rates[nextIndex]);
+    };
 
     const handlePlayPause = () => {
         if (!audioRef.current || !signedAudioUrl) return;
@@ -196,6 +204,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
         if (!audio || !signedAudioUrl) return;
         
         audio.src = signedAudioUrl;
+        audio.playbackRate = playbackRate;
 
         const handleGlobalPlay = (event: Event) => {
             if ((event as CustomEvent).detail.player !== audio) {
@@ -226,15 +235,8 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
             audio.removeEventListener('error', handleError);
             document.removeEventListener('audio-play', handleGlobalPlay);
         };
-    }, [toast, signedAudioUrl]);
+    }, [toast, signedAudioUrl, playbackRate]);
     
-    let formattedTime = "sending...";
-    try {
-        if (message.created_at && message.status !== 'sending' && message.status !== 'uploading') {
-            formattedTime = format(parseISO(message.created_at), 'p');
-        }
-    } catch(e) { console.warn("Could not parse message timestamp:", message.created_at) }
-
     const playerColorClass = isCurrentUser ? 'text-primary-foreground' : 'text-secondary-foreground';
     const sliderThumbClass = isCurrentUser ? '[&>span]:bg-primary-foreground' : '[&>span]:bg-primary';
     const sliderTrackClass = isCurrentUser ? 'bg-primary-foreground/30' : 'bg-secondary-foreground/30';
@@ -245,7 +247,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     if (hasError) return <div className={cn("flex items-center gap-2 p-2", isCurrentUser ? "text-red-300" : "text-red-500")}><AlertTriangle size={18} /><span className="text-sm">Audio error</span></div>;
 
     return (
-        <div className={cn("flex items-center gap-2 p-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
+        <div className={cn("flex items-center gap-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
             <audio ref={audioRef} preload="metadata" />
             <div className="relative flex-shrink-0">
                 <Avatar className="w-10 h-10">
@@ -279,15 +281,14 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
                  />
                  <span className="text-xs opacity-70">{new Date(duration * 1000).toISOString().substr(14, 5)}</span>
             </div>
-
-            <div className="self-end text-xs opacity-70 whitespace-nowrap pl-2 flex items-center">
-                <span>{formattedTime}</span>
-            </div>
+            
+            <Button variant="ghost" size="sm" onClick={handleTogglePlaybackRate} className={cn("w-12 h-8 rounded-full text-xs font-mono", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')}>
+                {playbackRate.toFixed(1)}x
+            </Button>
         </div>
     );
 });
 AudioPlayer.displayName = "AudioPlayer";
-
 
 const AudioFilePlayer = memo(({ message, isCurrentUser, allUsers }: { message: Message; isCurrentUser: boolean; allUsers: Record<string, User> }) => {
     const { title, artist } = message.file_metadata || {};
@@ -338,14 +339,16 @@ const parseMarkdown = (text: string = ''): string => {
 const StatusDots = ({ status, isCurrentUser }: { status: MessageStatus, isCurrentUser: boolean }) => {
   const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
   const fadedDot = cn(baseDot, "bg-muted-foreground/30");
-  const sentDot = cn(baseDot, "bg-yellow-400");
+  const sendingDot = cn(baseDot, "bg-muted-foreground/50", "animate-dot-pulse");
+  const sentDot = cn(baseDot, "bg-amber-400");
+  const deliveredDot = cn(baseDot, "bg-amber-400");
   const readDot = cn(baseDot, "bg-amber-500");
   
   const getDots = () => {
     switch (status) {
-      case "sending": return <div className="flex items-center gap-0.5 animate-pulse"><div className={fadedDot}/><div className={fadedDot}/><div className={fadedDot}/></div>;
+      case "sending": return <div className="flex items-center gap-0.5"><div className={sendingDot} /><div className={sendingDot} style={{animationDelay: '0.2s'}} /><div className={sendingDot} style={{animationDelay: '0.4s'}} /></div>;
       case "sent": return <div className="flex items-center gap-0.5"><div className={sentDot}/><div className={fadedDot}/><div className={fadedDot}/></div>;
-      case "delivered": return <div className="flex items-center gap-0.5"><div className={sentDot}/><div className={sentDot}/><div className={fadedDot}/></div>;
+      case "delivered": return <div className="flex items-center gap-0.5"><div className={deliveredDot}/><div className={deliveredDot}/><div className={fadedDot}/></div>;
       case "read": return <div className="flex items-center gap-0.5"><div className={readDot}/><div className={readDot}/><div className={readDot}/></div>;
       case "failed": return <AlertTriangle className="h-4 w-4 text-destructive" />;
       default: return null;
@@ -460,7 +463,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     const isUploadingOrFailed = message.status === 'uploading' || (message.status === 'failed' && message.file);
     if (isUploadingOrFailed) {
       return (
-        <div className="w-[280px] aspect-square rounded-lg overflow-hidden">
+        <div className="w-full aspect-square rounded-lg overflow-hidden">
           <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />
         </div>
       );
@@ -469,20 +472,11 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     switch (message.message_subtype) {
       case 'image': return <SecureMediaImage message={message} onShowMedia={() => onShowMedia(message)} alt={`Image from ${sender.display_name}`} />;
       case 'clip': return <VideoPlayer message={message} />;
-      // other cases...
-      default: return null; // Should be handled by other bubble types
+      default: return null;
     }
   };
 
   const renderBubbleContent = () => {
-    if (isMediaMessage) {
-        return (
-            <div className="max-w-[320px] w-[80vw]">
-                {renderContent()}
-            </div>
-        )
-    }
-    // ... Other message types
     if (isTextMessage) {
         return message.text ? (
             <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}
@@ -491,7 +485,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     }
     if (isAudioMessage) return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
     
-    // ... other types
     return <p>Unsupported message</p>;
   }
 
@@ -500,15 +493,17 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 
   return (
     <div id={wrapperId} className={cn('flex w-full group animate-in fade-in-0 slide-in-from-bottom-2', isCurrentUser ? 'justify-end' : 'justify-start', isShaking && 'animate-shake')}>
-        <div className={cn('flex items-center gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-            {/* Bubble structure */}
-            <div className="flex flex-col">
-                <div className={cn(
-                    'relative rounded-xl shadow-md transition-all',
-                    isTextMessage && 'p-3',
-                    isMediaMessage && 'p-1.5',
-                    bubbleColorClass
-                )}>
+        <div className={cn('flex items-end gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
+             <div className="flex flex-col">
+                <div 
+                    className={cn(
+                        'relative rounded-xl shadow-md transition-all',
+                        isTextMessage && 'p-3',
+                        isAudioMessage && 'p-3',
+                        isMediaMessage && 'p-0 bg-transparent shadow-none',
+                        !isMediaMessage && bubbleColorClass
+                    )}
+                >
                     {isMediaMessage ? (
                          <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
                              {renderContent()}
@@ -535,3 +530,5 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
+
+
