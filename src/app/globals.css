@@ -38,25 +38,25 @@ body {
   }
 
   .dark {
-    --background: 222 47% 11%;      /* Dark Blue */
-    --foreground: 210 40% 98%;      /* Almost white */
-    --card: 222 47% 14%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 207 26% 67%;         /* #90AFC5 - The user's requested soft blue, works well on dark */
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 278 20% 64%;          /* #A991B5 - The user's requested pale violet */
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 207 26% 67%;
+    --background: 240 10% 3.9%; /* black */
+    --foreground: 0 0% 98%; /* white */
+    --card: 240 5.9% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 51 100% 50%; /* gold */
+    --primary-foreground: 240 5.9% 10%; /* black for text on gold buttons */
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 51 100% 50%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 51 100% 50%;
     
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
