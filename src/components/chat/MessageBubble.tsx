@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Message, User, SupportedEmoji, DeleteType, MessageStatus } from '@/types';
@@ -24,7 +23,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
-import { useState, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useDoubleTap } from '@/hooks/useDoubleTap';
 import DeleteMessageDialog from './DeleteMessageDialog';
@@ -35,6 +34,7 @@ import UploadProgressIndicator from './UploadProgressIndicator';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import dynamic from 'next/dynamic';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import StatusDots from './StatusDots';
 
 const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
@@ -95,11 +95,11 @@ const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onS
     const { displayUrl: imageUrl, isLoading } = useCachedMediaUrl(message, version);
     const { displayUrl: thumbnailUrl, isLoading: isLoadingThumb } = useCachedMediaUrl(message, 'thumbnail_250');
 
-    if ((isLoadingThumb || isLoading) && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
+    if ((isLoadingThumb || isLoading) && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-lg"><Spinner/></div>;
     
     if (!isLoading && !imageUrl && !thumbnailUrl) {
       return (
-        <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex flex-col items-center justify-center rounded-md text-destructive">
+        <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex flex-col items-center justify-center rounded-lg text-destructive">
           <ImageOff size={24} />
           <p className="text-xs mt-1">Image unavailable</p>
         </div>
@@ -250,17 +250,19 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message
     return (
         <div className={cn("flex items-center gap-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
             <audio ref={audioRef} preload="metadata" />
-            <div className="relative flex-shrink-0">
-                <Avatar className="w-10 h-10">
-                    <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
-                    <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                {!hasBeenPlayed && !isCurrentUser && (
-                  <div className={cn("absolute bottom-[-2px] right-[-2px] w-4 h-4 rounded-full flex items-center justify-center border-2", isCurrentUser ? "border-primary" : "border-secondary", micIndicatorBg)}>
-                    <Mic size={10} className={micIndicatorIcon} />
-                  </div>
-                )}
-            </div>
+             {!isCurrentUser && (
+                <div className="relative flex-shrink-0">
+                    <Avatar className="w-10 h-10">
+                        <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
+                        <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    {!hasBeenPlayed && !isCurrentUser && (
+                      <div className={cn("absolute bottom-[-2px] right-[-2px] w-4 h-4 rounded-full flex items-center justify-center border-2", isCurrentUser ? "border-primary" : "border-secondary", micIndicatorBg)}>
+                        <Mic size={10} className={micIndicatorIcon} />
+                      </div>
+                    )}
+                </div>
+             )}
 
             <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl || isLoading}>
                 {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
@@ -296,9 +298,9 @@ const parseMarkdown = (text: string = ''): string => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
     
-  // Bold: *text* or **text**
+  // Bold: *text*
   html = html.replace(/\*([^\*]+)\*/g, '<strong>$1</strong>');
-  // Italic: _text_ or __text__
+  // Italic: _text_
   html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
   // Strikethrough: ~text~
   html = html.replace(/~([^~]+)~/g, '<del>$1</del>');
@@ -307,64 +309,10 @@ const parseMarkdown = (text: string = ''): string => {
   return html;
 };
 
-const StatusDots = ({ status }: { status: MessageStatus }) => {
-    const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
-    const fadedDot = cn(baseDot, "bg-muted-foreground/30");
-    const sendingDot = cn(baseDot, "bg-muted-foreground/50", "animate-dot-pulse");
-    const sentDot = cn(baseDot, "bg-yellow-400");
-    const readDot = cn(baseDot, "bg-amber-500");
-  
-    const renderDots = () => {
-      switch (status) {
-        case "sending":
-          return (
-            <div className="flex items-center gap-0.5 animate-pulse">
-              <div className={sendingDot} /> <div className={sendingDot} /> <div className={sendingDot} />
-            </div>
-          );
-        case "sent":
-          return <><div className={sentDot} /><div className={fadedDot} /><div className={fadedDot} /></>;
-        case "delivered":
-          return <><div className={sentDot} /><div className={sentDot} /><div className={fadedDot} /></>;
-        case "read":
-          return <><div className={readDot} /><div className={readDot} /><div className={readDot} /></>;
-        case "failed":
-          return <AlertTriangle className="h-4 w-4 text-destructive" />;
-        default:
-          return null;
-      }
-    };
-  
-    return (
-      <div className="flex items-center gap-0.5">
-          {renderDots()}
-      </div>
-    );
-};
-
 function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, onMarkAsRead, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected, isInfoOpen }: MessageBubbleProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const { toast } = useToast();
-  const ref = useRef<HTMLDivElement>(null);
-
-  const swipeHandlers = useSwipe({
-    onSwipeRight: () => {
-      if (isSelectionMode) return;
-      isCurrentUser ? setIsDeleteDialogOpen(true) : onSetReplyingTo(message);
-    },
-    onSwipeLeft: () => {
-      if (isSelectionMode) return;
-      isCurrentUser ? onSetReplyingTo(message) : setIsDeleteDialogOpen(true);
-    },
-    onSwipeStart: () => Haptics.impact({ style: ImpactStyle.Light }),
-  });
-  
-  const longPressHandlers = useLongPress(() => {
-    if (!isSelectionMode) onEnterSelectionMode(message.id);
-  }, {
-    onStart: () => Haptics.impact({ style: ImpactStyle.Medium })
-  });
 
   const handleCopy = () => {
     if (message.text) {
@@ -379,10 +327,47 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     }
   }, [message.id, message.status, message.mode, onToggleReaction, isSelectionMode]);
   
-  const doubleTapEvents = useDoubleTap(handleDoubleTap, { timeout: 300 });
+  const handleConfirmDelete = (deleteType: DeleteType) => {
+    onDelete(message.id, deleteType);
+    setIsDeleteDialogOpen(false);
+  }
   
+  const handleRetry = (message: Message) => {
+      setIsShaking(true);
+      onRetrySend(message);
+      setTimeout(() => setIsShaking(false), 600);
+  };
+  
+  const isTextMessage = message.message_subtype === 'text' || message.message_subtype === 'emoji_only';
+  const isMediaMessage = ['image', 'clip'].includes(message.message_subtype || '');
+  const isStickerMessage = message.message_subtype === 'sticker';
+  const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
+  const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
+  const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
+  const reactionsDisabled = message.mode === 'incognito' || isSelectionMode;
+  
+  const { translateX, isDragging, events: swipeEvents } = useSwipe({
+    onSwipeLeft: () => {
+      if (swipeDisabled) return;
+      isCurrentUser ? setIsDeleteDialogOpen(true) : onSetReplyingTo(message);
+    },
+    onSwipeRight: () => {
+      if (swipeDisabled) return;
+      isCurrentUser ? onSetReplyingTo(message) : setIsDeleteDialogOpen(true);
+    },
+    onSwipeStart: () => Haptics.impact({ style: ImpactStyle.Light }),
+  });
+
+  const longPressHandlers = useLongPress(() => {
+    if (!isSelectionMode) onEnterSelectionMode(message.id);
+  }, {
+    onStart: () => Haptics.impact({ style: ImpactStyle.Medium })
+  });
+
+  const doubleTapEvents = useDoubleTap(handleDoubleTap, { timeout: 300 });
+
   const handleBubbleClick = (e: React.MouseEvent) => {
-    if (swipeHandlers.isSwiping()) {
+    if (Math.abs(translateX) > 20) { // If swiping, don't trigger click
       e.preventDefault();
       return;
     }
@@ -395,26 +380,9 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       return;
     }
   };
-  
-  const handleConfirmDelete = (deleteType: DeleteType) => {
-    onDelete(message.id, deleteType);
-    setIsDeleteDialogOpen(false);
-  }
-  
-  const handleRetry = (message: Message) => {
-      setIsShaking(true);
-      onRetrySend(message);
-      setTimeout(() => setIsShaking(false), 600);
-  };
-  
-  const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground';
-  
-  const isTextMessage = message.message_subtype === 'text' || message.message_subtype === 'emoji_only';
-  const isMediaMessage = ['image', 'clip'].includes(message.message_subtype || '');
-  const isStickerMessage = message.message_subtype === 'sticker';
-  const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
-  const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
 
+  const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground';
+  
   let formattedTime = "";
   try {
     if (message.created_at) {
@@ -456,61 +424,89 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     return <p>Unsupported message</p>;
   }
 
-  const reactionsDisabled = message.mode === 'incognito' || isSelectionMode;
-  const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
-
   return (
     <div
-      ref={ref}
       id={wrapperId}
       className={cn(
-        'group flex w-full animate-in fade-in-0 slide-in-from-bottom-2 transition-all duration-300 ease-out',
+        'w-full flex items-start',
         isCurrentUser ? 'justify-end' : 'justify-start',
-        isSelectionMode && !isSelected ? 'opacity-50 grayscale-[50%]' : 'opacity-100 grayscale-0',
-        isInfoOpen && 'z-40 relative info-highlight',
-        isShaking && 'animate-shake'
       )}
-      {...longPressHandlers}
-      {...doubleTapEvents}
-      {...swipeHandlers}
-      onClick={handleBubbleClick}
     >
-      <div className={cn('flex items-end gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-        <div className="flex flex-col">
-          <div
-            className={cn(
-              'relative rounded-xl shadow-md transition-all',
-              bubbleColorClass,
-              (isTextMessage || isAudioMessage) && !isMediaMessage && 'p-3',
-              isMediaMessage && 'p-1',
-              isSelected && 'scale-[1.02] ring-2 ring-offset-2 ring-offset-card ring-primary'
-            )}
-          >
-             {isSelected && (
-                <div className="absolute -top-1 -right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground">
-                    <Check className="h-3 w-3" />
-                </div>
-            )}
-            {isMediaMessage ? (
-              <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
-                {renderContent()}
-                {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
+      <div className={cn("flex items-end gap-2 max-w-[85vw] sm:max-w-md", isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
+        {!isCurrentUser && (
+            <Avatar className="w-8 h-8 self-end mb-2">
+                <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
+                <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
+            </Avatar>
+        )}
+        <div className="flex flex-col w-full">
+            <div 
+              className={cn(
+                'relative overflow-hidden rounded-xl w-full',
+                isShaking && 'animate-shake'
+              )}
+              {...longPressHandlers}
+            >
+              <div
+                className={cn(
+                  'absolute inset-y-0 flex items-center transition-opacity',
+                  { 'bg-destructive': (isCurrentUser && translateX < 0) || (!isCurrentUser && translateX > 0) },
+                  { 'bg-secondary': (isCurrentUser && translateX > 0) || (!isCurrentUser && translateX < 0) },
+                  translateX > 0 ? 'left-0' : 'right-0',
+                )}
+                style={{
+                    width: `${Math.abs(translateX)}px`,
+                    opacity: Math.min(Math.abs(translateX) / 60, 1),
+                }}
+              >
+                  {((isCurrentUser && translateX > 0) || (!isCurrentUser && translateX < 0)) && <Reply className="absolute left-4 text-secondary-foreground" size={20} />}
+                  {((isCurrentUser && translateX < 0) || (!isCurrentUser && translateX > 0)) && <Trash2 className="absolute right-4 text-destructive-foreground" size={20} />}
               </div>
-            ) : (
-                <div className="flex flex-col">
-                    {renderBubbleContent()}
-                </div>
-            )}
-          </div>
-          <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
-            <span className="text-xs text-muted-foreground">{formattedTime}</span>
-            {isCurrentUser && <StatusDots status={message.status} />}
-            {isCurrentUser && message.status !== 'sending' && message.status !== 'failed' && (
-                <button onClick={() => onShowInfo(message)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                    <Info size={14}/>
-                </button>
-            )}
-          </div>
+
+              <div
+                className={cn(
+                  'relative transition-transform',
+                  !isDragging && 'duration-300 ease-out',
+                  'w-full'
+                )}
+                style={{ transform: `translateX(${translateX}px)` }}
+                {...swipeEvents}
+                {...doubleTapEvents}
+                onClick={handleBubbleClick}
+              >
+                  <div
+                    className={cn(
+                      'rounded-xl shadow-md transition-all flex flex-col',
+                      isCurrentUser 
+                        ? 'bg-primary text-primary-foreground rounded-br-none' 
+                        : 'bg-card text-card-foreground rounded-bl-none',
+                      isSelected && 'ring-2 ring-offset-2 ring-offset-card ring-primary',
+                      (isAudioMessage && !isCurrentUser) && 'bg-card'
+                    )}
+                  >
+                     {isMediaMessage ? (
+                      <div className="relative rounded-t-lg overflow-hidden max-w-[320px] w-[80vw]">
+                        {renderContent()}
+                      </div>
+                    ) : (
+                        <div className="p-3">
+                            {renderBubbleContent()}
+                        </div>
+                    )}
+                     {message.caption && isMediaMessage && <p className="text-sm px-3 py-2">{message.caption}</p>}
+                  </div>
+              </div>
+
+            </div>
+            <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
+                <span className="text-xs text-muted-foreground">{formattedTime}</span>
+                {isCurrentUser && <StatusDots status={message.status} />}
+                {isCurrentUser && message.status !== 'sending' && message.status !== 'failed' && (
+                    <button onClick={() => onShowInfo(message)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                        <Info size={14}/>
+                    </button>
+                )}
+            </div>
         </div>
       </div>
     </div>

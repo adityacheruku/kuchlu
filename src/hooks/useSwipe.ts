@@ -1,84 +1,81 @@
 
 "use client";
-import { useRef, useState, useCallback, useEffect } from 'react';
 
-const SWIPE_THRESHOLD = 60; // pixels
-const MAX_SWIPE = 80; // pixels
+import { useState, useCallback, useRef, useEffect } from 'react';
 
-interface UseSwipeProps {
+const SWIPE_THRESHOLD = 60; // Min pixels to trigger action
+const MAX_OPPOSING_SCROLL = 25; // How much vertical scroll is allowed during a horizontal swipe
+
+interface UseSwipeOptions {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onSwipeStart?: () => void;
 }
 
-export const useSwipe = ({ onSwipeLeft, onSwipeRight, onSwipeStart }: UseSwipeProps) => {
-    const ref = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [startX, setStartX] = useState(0);
-    const [translateX, setTranslateX] = useState(0);
+export function useSwipe({ onSwipeLeft, onSwipeRight, onSwipeStart }: UseSwipeOptions) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [translateX, setTranslateX] = useState(0);
+  const startPos = useRef({ x: 0, y: 0 });
 
-    const isSwiping = useCallback(() => {
-        return translateX !== 0;
-    }, [translateX]);
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only trigger for primary button or touch
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    startPos.current = { x: e.clientX, y: e.clientY };
+    setIsDragging(true);
+    onSwipeStart?.();
+  }, [onSwipeStart]);
 
-    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        // Only trigger for primary button or touch
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        onSwipeStart?.();
-        setStartX(e.clientX);
-        setIsDragging(true);
-        if(ref.current) {
-            ref.current.style.transition = 'none';
-        }
-    }, [onSwipeStart]);
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const diffX = currentX - startPos.current.x;
+    const diffY = Math.abs(currentY - startPos.current.y);
 
-    const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging) return;
-        const currentX = e.clientX;
-        let diff = currentX - startX;
-        const newTranslateX = Math.max(-MAX_SWIPE, Math.min(MAX_SWIPE, diff));
-        setTranslateX(newTranslateX);
-    }, [isDragging, startX]);
-
-    const handlePointerUp = useCallback(() => {
-        if (!isDragging) return;
-
-        if (ref.current) {
-            ref.current.style.transition = 'transform 0.3s ease-out';
-        }
-
-        if (translateX > SWIPE_THRESHOLD && onSwipeRight) {
-            onSwipeRight();
-        } else if (translateX < -SWIPE_THRESHOLD && onSwipeLeft) {
-            onSwipeLeft();
-        }
-        
-        setIsDragging(false);
-        setTranslateX(0);
-
-    }, [isDragging, translateX, onSwipeLeft, onSwipeRight]);
+    // If scrolling vertically more than horizontally, cancel the swipe.
+    if (diffY > Math.abs(diffX) && diffY > MAX_OPPOSING_SCROLL) {
+      setIsDragging(false); // Let the browser handle vertical scroll
+      setTranslateX(0);
+      return;
+    }
     
-    // Cleanup event listeners
-    useEffect(() => {
-        const handleGlobalPointerUp = () => {
-            if (isDragging) {
-               handlePointerUp();
-            }
-        };
-        window.addEventListener('pointerup', handleGlobalPointerUp);
-        window.addEventListener('pointercancel', handleGlobalPointerUp);
-        return () => {
-            window.removeEventListener('pointerup', handleGlobalPointerUp);
-            window.removeEventListener('pointercancel', handleGlobalPointerUp);
-        };
-    }, [isDragging, handlePointerUp]);
+    // Once a horizontal swipe is initiated, prevent default browser actions.
+    if (Math.abs(diffX) > 10) {
+      e.preventDefault();
+    }
 
-    return {
-        isSwiping,
-        translateX,
-        events: {
-            onPointerDown: handlePointerDown,
-            onPointerMove: handlePointerMove,
-        },
-    };
-};
+    setTranslateX(diffX);
+  }, [isDragging]);
+
+  const handlePointerUp = useCallback(() => {
+    if (!isDragging) return;
+    
+    if (translateX > SWIPE_THRESHOLD && onSwipeRight) {
+      onSwipeRight();
+    } else if (translateX < -SWIPE_THRESHOLD && onSwipeLeft) {
+      onSwipeLeft();
+    }
+    
+    // Reset position after action or if threshold not met
+    setIsDragging(false);
+    setTranslateX(0);
+  }, [isDragging, translateX, onSwipeLeft, onSwipeRight]);
+
+  const handlePointerCancel = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setTranslateX(0);
+  }, [isDragging]);
+
+  return {
+    translateX,
+    isDragging,
+    events: {
+      onPointerDown: handlePointerDown,
+      onPointerMove: handlePointerMove,
+      onPointerUp: handlePointerUp,
+      onPointerCancel: handlePointerCancel,
+    },
+  };
+}
