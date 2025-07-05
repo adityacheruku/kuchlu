@@ -150,6 +150,7 @@ export interface UploadItem {
   retryCount: number;
   createdAt: Date;
   subtype: MessageSubtype;
+  thumbnailDataUrl?: string; // Add this to hold the local preview
 }
 
 export interface UploadProgress {
@@ -206,5 +207,3 @@ export interface CachedMediaBlob {
   blob: Blob; // The actual binary data of the media
   cachedAt: number; // Timestamp for LRU eviction (Date.now())
 }
-    
-

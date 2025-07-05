@@ -2,7 +2,7 @@
 // ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
 import { memo, type RefObject, useEffect } from 'react';
 import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
-import MessageBubble from './MessageBubble';
+import MessageBubble, { type MessageBubbleProps } from './MessageBubble';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { Button } from '../ui/button';
@@ -33,8 +33,8 @@ interface MessageAreaProps {
   onToggleMessageSelection: (messageId: string) => void;
 }
 
-const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'messages' | 'viewportRef' | 'onLoadMore' | 'hasMore' | 'isLoadingMore'>) => {
-    const { message } = props;
+const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId'> & { currentUser: User }) => {
+    const { message, currentUser } = props;
     const { ref, inView } = useInView({
         rootMargin: '200px', // Start preloading when message is within 200px of viewport
         triggerOnce: false,  // Keep observing as user scrolls back and forth
@@ -62,9 +62,19 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
         return null; // Don't render if sender can't be found
     }
 
+    const isCurrentUser = message.user_id === currentUser.id;
+    const isSelected = props.isSelectionMode && props.selectedMessageIds.has(message.id);
+
     return (
         <div ref={ref}>
-            <MessageBubble sender={sender} {...props} />
+            <MessageBubble
+                {...props}
+                sender={sender}
+                isCurrentUser={isCurrentUser}
+                currentUserId={currentUser.id}
+                isSelected={isSelected}
+                wrapperId={`message-${message.id}`}
+             />
         </div>
     );
 };
@@ -109,6 +119,7 @@ function MessageArea({
             <MessageBubbleWithObserver
               key={msg.client_temp_id || msg.id}
               message={msg}
+              messages={messages}
               currentUser={currentUser}
               allUsers={allUsers}
               onToggleReaction={onToggleReaction}
@@ -123,9 +134,6 @@ function MessageArea({
               selectedMessageIds={selectedMessageIds}
               onEnterSelectionMode={onEnterSelectionMode}
               onToggleMessageSelection={onToggleMessageSelection}
-              isCurrentUser={msg.user_id === currentUser.id}
-              currentUserId={currentUser.id}
-              wrapperId={`message-${msg.id}`}
             />
         ))}
       </div>

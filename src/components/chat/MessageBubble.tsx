@@ -38,7 +38,7 @@ const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loa
 
 const EMOJI_ONLY_REGEX = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])+$/;
 
-interface MessageBubbleProps {
+export interface MessageBubbleProps {
   message: Message;
   messages: Message[];
   sender: User;
@@ -46,18 +46,19 @@ interface MessageBubbleProps {
   currentUserId: string;
   onToggleReaction: (messageId: string, emoji: SupportedEmoji) => void;
   onShowReactions: (message: Message, allUsers: Record<string, User>) => void;
-  onShowMedia: (url: string, type: 'image' | 'video') => void;
+  onShowMedia: (message: Message) => void;
   onShowDocumentPreview: (message: Message) => void;
   onShowInfo: (message: Message) => void;
   allUsers: Record<string, User>;
   onRetrySend: (message: Message) => void;
-  onDelete: (messageId: string, deleteType: DeleteType) => void;
+  onDeleteMessage: (messageId: string, deleteType: DeleteType) => void;
   onSetReplyingTo: (message: Message | null) => void;
   wrapperId?: string;
   isSelectionMode: boolean;
-  isSelected: boolean;
+  selectedMessageIds: Set<string>;
   onEnterSelectionMode: (messageId: string) => void;
-  onToggleSelection: (messageId: string) => void;
+  onToggleMessageSelection: (messageId: string) => void;
+  isSelected: boolean;
 }
 
 const useCachedMediaUrl = (message: Message, version: string) => {
@@ -67,7 +68,7 @@ const useCachedMediaUrl = (message: Message, version: string) => {
     useEffect(() => {
         let objectUrl: string | null = null;
         const loadMedia = async () => {
-            if (!message.media_metadata || message.status === 'uploading' || message.status === 'pending_processing') {
+            if (!message.media_metadata || message.status === 'uploading' || message.uploadStatus === 'pending_processing') {
                 return;
             }
             setIsLoading(true);
@@ -85,15 +86,15 @@ const useCachedMediaUrl = (message: Message, version: string) => {
     return { displayUrl, isLoading };
 };
 
-const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (url: string, type: 'image') => void; alt: string; }) => {
+const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (message: Message) => void; alt: string; }) => {
     const version = message.file_metadata?.urls?.preview_800 ? 'preview_800' : 'original';
-    const { displayUrl: imageUrl } = useCachedMediaUrl(message, version);
+    const { displayUrl: imageUrl, isLoading } = useCachedMediaUrl(message, version);
     const { displayUrl: thumbnailUrl, isLoading: isLoadingThumb } = useCachedMediaUrl(message, 'thumbnail_250');
 
-    if (isLoadingThumb && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
+    if ((isLoadingThumb || isLoading) && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
     
     return (
-        <button onClick={() => imageUrl && onShowMedia(imageUrl, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
+        <button onClick={() => imageUrl && onShowMedia(message)} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
             <Image src={thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
         </button>
     );
@@ -257,7 +258,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
                     }}
                     aria-label="Seek audio"
                  />
-                 <span className="text-xs opacity-70">{formatDuration(duration)}</span>
+                 <span className="text-xs opacity-70">{new Date(duration * 1000).toISOString().substr(14, 5)}</span>
             </div>
 
             <div className="self-end text-xs opacity-70 whitespace-nowrap pl-2 flex items-center">
@@ -298,7 +299,7 @@ function formatFileSize(bytes?: number | null): string | null {
 }
 
 
-function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDelete, onSetReplyingTo, wrapperId, isSelectionMode, isSelected, onEnterSelectionMode, onToggleSelection }: MessageBubbleProps) {
+function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
@@ -345,7 +346,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       return;
     }
     if (isSelectionMode) {
-      onToggleSelection(message.id);
+      onToggleMessageSelection(message.id);
       return;
     }
   };
@@ -405,7 +406,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
           case 'image':
             return (message.status === 'failed' && !message.image_url) ? (
                 <div className="w-[250px] aspect-[4/3] rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
-            ) : <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />;
+            ) : <SecureMediaImage message={message} onShowMedia={() => onShowMedia(message)} alt={`Image from ${sender.display_name}`} />;
           case 'clip':
             if (message.clip_type === 'video') {
                 return (message.status === 'failed') ? (
@@ -495,7 +496,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       <div className={cn('flex items-center gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
         {isSelectionMode && (
           <div className="flex items-center justify-center flex-shrink-0">
-              <button onClick={() => onToggleSelection(message.id)} className="h-full px-2" aria-label={`Select message from ${sender.display_name}`}>
+              <button onClick={() => onToggleMessageSelection(message.id)} className="h-full px-2" aria-label={`Select message from ${sender.display_name}`}>
                   <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", isSelected ? "bg-primary border-primary" : "border-muted-foreground")}>
                       {isSelected && <CheckCircle2 className="w-5 h-5 text-primary-foreground" />}
                   </div>
@@ -618,4 +619,3 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
-

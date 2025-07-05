@@ -12,15 +12,18 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useZoomAndPan } from "@/hooks/useZoomAndPan";
 import { cn } from "@/lib/utils";
-import { Message } from "@/types";
+import type { Message } from "@/types";
 import { mediaCacheService } from "@/services/mediaCacheService";
 import { useState, useEffect } from "react";
 import Spinner from "../common/Spinner";
+import dynamic from 'next/dynamic';
+
+const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
 interface FullScreenMediaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  message: Message | null; // Pass the whole message object
+  message: Message | null;
 }
 
 export default function FullScreenMediaModal({
@@ -107,12 +110,14 @@ export default function FullScreenMediaModal({
               draggable="false"
             />
           </div>
-        ) : mediaType === 'video' && mediaUrl ? (
-          <video
-            src={mediaUrl}
+        ) : mediaType === 'clip' && mediaUrl ? (
+          <ReactPlayer
+            url={mediaUrl}
+            playing
             controls
-            autoPlay
-            className="max-w-full max-h-full"
+            width="100%"
+            height="100%"
+            config={{ file: { forceHLS: true }}}
           />
         ) : null}
         <div className="absolute top-4 right-4 flex gap-2">
@@ -143,4 +148,3 @@ export default function FullScreenMediaModal({
     </Dialog>
   );
 }
-
