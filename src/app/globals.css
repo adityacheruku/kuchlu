@@ -111,4 +111,9 @@ body {
   .bg-mood-default-chat-area {
     @apply bg-transparent; /* Use the default background page color */
   }
+
+  /* Added for info icon interaction */
+  .info-highlight {
+    box-shadow: 0 0 0 2px hsl(var(--primary)), 0 0 15px hsl(var(--primary) / 0.5);
+  }
 }

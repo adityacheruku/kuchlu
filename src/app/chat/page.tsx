@@ -163,7 +163,7 @@ export default function ChatPage() {
 
   const { protocol, sendMessage, isBrowserOnline } = useRealtime({
     onMessageReceived: handleNewMessage, 
-    onReactionUpdate: async (data) => await storageService.updateMessage(data.message_id, { reactions: data.reactions }),
+    onReactionUpdate: async (data) => await storageService.updateMessageByServerId(data.message_id, { reactions: data.reactions }),
     onPresenceUpdate: handlePresenceUpdate,
     onTypingUpdate: handleTypingUpdate, onThinkingOfYouReceived: handleThinkingOfYou, onUserProfileUpdate: handleProfileUpdate,
     onMessageAck: handleMessageAck, onChatModeChanged: handleChatModeChanged, onMessageDeleted: handleMessageDeleted,
@@ -548,6 +548,7 @@ export default function ChatPage() {
 
   const isLoadingPage = isAuthLoading || (isAuthenticated && isChatLoading);
   const isInputDisabled = protocol === 'disconnected' || isSelectionMode;
+  const isInfoOverlayVisible = !!messageInfo;
 
   const canDeleteForEveryone = useMemo(() => {
     if (!currentUser || !messages) return false;
@@ -574,6 +575,12 @@ export default function ChatPage() {
         <div className={cn("flex-grow w-full flex items-center justify-center p-2 sm:p-4 overflow-hidden", (protocol !== 'websocket' && protocol !== 'disconnected') && 'pt-10')}>
           <ErrorBoundary fallbackMessage="The chat couldn't be displayed.">
             <div className="w-full max-w-2xl h-full flex flex-col bg-card shadow-2xl rounded-lg overflow-hidden relative">
+              {isInfoOverlayVisible && (
+                  <div
+                      className="absolute inset-0 bg-black/60 z-30 animate-in fade-in-0"
+                      onClick={() => setMessageInfo(null)}
+                  />
+              )}
               <NotificationPrompt isOpen={showNotificationPrompt} onEnable={handleEnableNotifications} onDismiss={handleDismissNotificationPrompt} title="Enable Notifications" message={otherUser ? `Stay connected with ${otherUser.display_name}` : 'Get notified.'}/>
               <MemoizedChatHeader 
                 currentUser={currentUser} 
@@ -612,6 +619,7 @@ export default function ChatPage() {
                 onEnterSelectionMode={handleEnterSelectionMode}
                 onToggleMessageSelection={handleToggleMessageSelection}
                 onMarkAsRead={handleMarkAsRead}
+                infoMessageId={messageInfo?.id || null}
               />
               <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>

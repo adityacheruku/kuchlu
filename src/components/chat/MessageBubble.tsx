@@ -62,6 +62,7 @@ export interface MessageBubbleProps {
   onEnterSelectionMode: (messageId: string) => void;
   onToggleMessageSelection: (messageId: string) => void;
   isSelected: boolean;
+  isInfoOpen: boolean;
 }
 
 const useCachedMediaUrl = (message: Message, version: string) => {
@@ -279,7 +280,6 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message
                     }}
                     aria-label="Seek audio"
                  />
-                 <span className="text-xs opacity-70">{new Date(duration * 1000).toISOString().substr(14, 5)}</span>
             </div>
             
             <Button variant="ghost" size="sm" onClick={handleTogglePlaybackRate} className={cn("w-12 h-8 rounded-full text-xs font-mono", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')}>
@@ -342,7 +342,7 @@ const StatusDots = ({ status }: { status: MessageStatus }) => {
     );
 };
 
-function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, onMarkAsRead, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
+function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, onMarkAsRead, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected, isInfoOpen }: MessageBubbleProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const { toast } = useToast();
@@ -467,6 +467,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
         'group flex w-full animate-in fade-in-0 slide-in-from-bottom-2 transition-all duration-300 ease-out',
         isCurrentUser ? 'justify-end' : 'justify-start',
         isSelectionMode && !isSelected ? 'opacity-50 grayscale-[50%]' : 'opacity-100 grayscale-0',
+        isInfoOpen && 'z-40 relative info-highlight',
         isShaking && 'animate-shake'
       )}
       {...longPressHandlers}
@@ -493,10 +494,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
             {isMediaMessage ? (
               <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
                 {renderContent()}
-                <div className="absolute bottom-1 right-1 flex items-center gap-1.5 rounded-md bg-black/40 px-1.5 py-0.5 text-xs text-white/90">
-                  <span>{formattedTime}</span>
-                  {isCurrentUser && <StatusDots status={message.status} />}
-                </div>
                 {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
               </div>
             ) : (
@@ -505,12 +502,15 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                 </div>
             )}
           </div>
-          {!(isMediaMessage) && (
-             <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
-                <span className="text-xs text-muted-foreground">{formattedTime}</span>
-                {isCurrentUser && <StatusDots status={message.status} />}
-              </div>
-          )}
+          <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
+            <span className="text-xs text-muted-foreground">{formattedTime}</span>
+            {isCurrentUser && <StatusDots status={message.status} />}
+            {isCurrentUser && message.status !== 'sending' && message.status !== 'failed' && (
+                <button onClick={() => onShowInfo(message)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                    <Info size={14}/>
+                </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

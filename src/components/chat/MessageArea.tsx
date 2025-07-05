@@ -31,9 +31,10 @@ interface MessageAreaProps {
   onEnterSelectionMode: (messageId: string) => void;
   onToggleMessageSelection: (messageId: string) => void;
   onMarkAsRead: (messageId: string, chatId: string) => void;
+  infoMessageId: string | null;
 }
 
-const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId'> & { currentUser: User }) => {
+const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen'> & { currentUser: User; infoMessageId: string | null; }) => {
     const { message, currentUser, onMarkAsRead } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
@@ -68,6 +69,7 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
 
     const isCurrentUser = message.user_id === currentUser.id;
     const isSelected = props.isSelectionMode && props.selectedMessageIds.has(message.id);
+    const isInfoOpen = props.infoMessageId === message.id;
 
     return (
         <div ref={ref}>
@@ -77,6 +79,7 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
                 isCurrentUser={isCurrentUser}
                 currentUserId={currentUser.id}
                 isSelected={isSelected}
+                isInfoOpen={isInfoOpen}
                 wrapperId={`message-${message.id}`}
              />
         </div>
@@ -105,6 +108,7 @@ function MessageArea({
   onEnterSelectionMode,
   onToggleMessageSelection,
   onMarkAsRead,
+  infoMessageId
 }: MessageAreaProps) {
   const lastMessageId = messages[messages.length - 1]?.id;
   useAutoScroll(viewportRef, [lastMessageId]);
@@ -140,6 +144,7 @@ function MessageArea({
               onEnterSelectionMode={onEnterSelectionMode}
               onToggleMessageSelection={onToggleMessageSelection}
               onMarkAsRead={onMarkAsRead}
+              infoMessageId={infoMessageId}
             />
         ))}
       </div>
