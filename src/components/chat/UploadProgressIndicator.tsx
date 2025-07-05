@@ -15,9 +15,9 @@ interface UploadProgressIndicatorProps {
 
 export default function UploadProgressIndicator({ message, onRetry }: UploadProgressIndicatorProps) {
     if (message.status === 'failed' || message.uploadStatus === 'failed') {
-        const Icon = message.message_subtype === 'image' ? ImageOff : FileText;
+        const Icon = message.message_subtype === 'image' || message.message_subtype === 'clip' ? ImageOff : FileText;
         return (
-            <div className="w-[120px] h-[120px] rounded-md border-2 border-dashed border-destructive/50 bg-destructive/10 flex flex-col items-center justify-center p-2 text-center text-destructive">
+            <div className="w-full h-full rounded-md border-2 border-dashed border-destructive/50 bg-destructive/10 flex flex-col items-center justify-center p-2 text-center text-destructive">
                 <Icon size={28} className="mb-2" />
                 <p className="text-xs font-semibold mb-2">Upload Failed</p>
                 {message.uploadError?.retryable && (
@@ -49,6 +49,7 @@ export default function UploadProgressIndicator({ message, onRetry }: UploadProg
                     src={imageUrl}
                     alt="Uploading preview"
                     fill
+                    sizes="(max-width: 640px) 50vw, 250px"
                     className="object-cover blur-sm"
                     loading="lazy"
                 />
