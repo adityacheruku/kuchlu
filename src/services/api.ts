@@ -1,5 +1,4 @@
 
-
 import type {
   AuthResponse, User, UserInToken, Chat, Message, ApiErrorResponse, SupportedEmoji,
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
@@ -90,7 +89,7 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/me/profile`, { method: 'PUT', headers: getApiHeaders(), body: JSON.stringify(data) });
     return handleResponse<UserInToken>(response);
   },
-  getCloudinaryUploadSignature: async (payload: { public_id: string; folder: string; resource_type: string; }): Promise<CloudinaryUploadParams> => {
+  getCloudinaryUploadSignature: async (payload: { public_id: string; folder: string; resource_type: string; eager?: string }): Promise<CloudinaryUploadParams> => {
     const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
         method: 'POST',
         headers: getApiHeaders(),
@@ -144,14 +143,6 @@ export const api = {
   },
   sendMessageHttp: async (chatId: string, data: Partial<Message>): Promise<Message> => {
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(data) });
-    return handleResponse<Message>(response);
-  },
-  sendMediaMessage: async (payload: MediaMessagePayload): Promise<Message> => {
-    const response = await fetch(`${API_BASE_URL}/chats/send-media-message`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(payload)
-    });
     return handleResponse<Message>(response);
   },
   toggleReactionHttp: async (messageId: string, emoji: SupportedEmoji): Promise<Message> => {

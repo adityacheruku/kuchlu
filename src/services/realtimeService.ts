@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData } from '@/types';
+import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData, MediaProcessedEventData } from '@/types';
 import { api } from './api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
@@ -72,7 +72,7 @@ class RealtimeService {
     this.sse.onopen = async () => { await this.syncEvents(); this.setProtocol('sse'); };
     this.sse.onerror = () => { if (this.protocol !== 'disconnected') { this.sse?.close(); this.sse = null; this.scheduleReconnect(); }};
     this.sse.addEventListener("auth_error", () => { this.emit('auth-error', { detail: 'Authentication failed' }); this.disconnect(); });
-    const ALL_EVENT_TYPES: Array<EventPayload['event_type']> = ["new_message", "message_deleted", "message_reaction_update", "user_presence_update", "typing_indicator", "thinking_of_you_received", "user_profile_update", "message_ack", "error", "chat_mode_changed", "chat_history_cleared"];
+    const ALL_EVENT_TYPES: Array<EventPayload['event_type']> = ["new_message", "media_processed", "message_deleted", "message_reaction_update", "user_presence_update", "typing_indicator", "thinking_of_you_received", "user_profile_update", "message_ack", "error", "chat_mode_changed", "chat_history_cleared"];
     ALL_EVENT_TYPES.forEach(type => this.sse?.addEventListener(type, (event: MessageEvent) => this.handleEvent(JSON.parse(event.data))));
   }
   private scheduleReconnect = () => { this.setProtocol('disconnected'); if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout); this.reconnectTimeout = setTimeout(() => { if(this.token) this.startConnectionSequence(); }, RECONNECT_DELAY_MS); }

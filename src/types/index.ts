@@ -1,5 +1,4 @@
 
-
 import type { UploadError } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
@@ -91,6 +90,7 @@ export interface VoiceMessageUploadResponse { file_url: string; clip_type: 'audi
 export interface VideoUploadResponse { file_url: string; clip_type: 'video'; thumbnail_url: string | null; duration_seconds: number | null; }
 
 export type NewMessageEventData = { event_type: "new_message"; message: Message; chat_id: string; };
+export type MediaProcessedEventData = { event_type: "media_processed"; message: Message; };
 export type MessageDeletedEventData = { event_type: "message_deleted"; message_id: string; chat_id: string; };
 export type MessageReactionUpdateEventData = { event_type: "message_reaction_update"; message_id: string; chat_id: string; reactions: Partial<Record<SupportedEmoji, string[]>>; };
 export type UserPresenceUpdateEventData = { event_type: "user_presence_update"; user_id: string; is_online: boolean; last_seen: string | null; mood: Mood; };
@@ -103,7 +103,7 @@ export type ChatModeChangedEventData = { event_type: "chat_mode_changed"; chat_i
 export type ChatHistoryClearedEventData = { event_type: "chat_history_cleared"; chat_id: string; };
 
 export type EventPayload = { sequence?: number; } & (
-  | NewMessageEventData | MessageDeletedEventData | MessageReactionUpdateEventData | UserPresenceUpdateEventData | TypingIndicatorEventData
+  | NewMessageEventData | MediaProcessedEventData | MessageDeletedEventData | MessageReactionUpdateEventData | UserPresenceUpdateEventData | TypingIndicatorEventData
   | ThinkingOfYouReceivedEventData | UserProfileUpdateEventData | MessageAckEventData | ChatModeChangedEventData | ChatHistoryClearedEventData
   | { event_type: "error", detail: string }
 );
@@ -127,9 +127,7 @@ export interface UploadItem {
   error?: UploadError;
   retryCount: number;
   createdAt: Date;
-  type: 'image' | 'video' | 'audio' | 'document' | 'voice_message';
-  cloudinaryPublicId: string;
-  cloudinaryResourceType: 'image' | 'video' | 'raw' | 'auto';
+  subtype: MessageSubtype;
 }
 
 export interface UploadProgress {
@@ -167,6 +165,8 @@ export interface CloudinaryUploadParams {
     public_id: string;
     folder: string;
     resource_type: 'image' | 'video' | 'raw' | 'auto';
+    eager?: string;
+    notification_url?: string;
 }
 
 export interface MediaMessagePayload {

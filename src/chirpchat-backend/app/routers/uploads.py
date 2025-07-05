@@ -1,93 +1,85 @@
 
 import os
-import json
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+import time
+from fastapi import APIRouter, HTTPException, Depends, status
+from pydantic import BaseModel
+from typing import Literal, Optional, List
+
 import cloudinary
-import cloudinary.uploader
-from typing import Dict, Any, List
-from pydantic import BaseModel, ValidationError
+from cloudinary.utils import api_sign_request
 
 from app.auth.dependencies import get_current_active_user 
 from app.auth.schemas import UserPublic 
-from app.utils.security import validate_image_upload, validate_clip_upload, validate_document_upload
 from app.utils.logging import logger 
+from app.config import settings
 
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
     secure=True 
 )
 
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
-class UploadPayload(BaseModel):
-    file_type: str
-    eager: List[str] = []
+class GetUploadSignatureRequest(BaseModel):
+    public_id: str
+    resource_type: Literal["image", "video", "raw", "auto"] = "auto"
+    folder: str = "kuchlu_chat_media"
+    eager: Optional[str] = None # E.g., "w_250,h_250,c_fill"
 
-async def _upload_to_cloudinary(file: UploadFile, folder: str, resource_type: str, transformations: list = []) -> Dict[str, Any]:
-    """Helper function to handle Cloudinary upload and error handling."""
-    try:
-        logger.info(f"Attempting to upload: {file.filename} to folder {folder} with transformations: {transformations}")
-        result = cloudinary.uploader.upload(
-            file.file, 
-            folder=folder, 
-            resource_type=resource_type,
-            eager=transformations,
-            eager_async=True # Use async eager transformations for faster response times
-        )
-        logger.info(f"File {file.filename} uploaded successfully. URL: {result.get('secure_url')}")
-        return result
-    except Exception as e:
-        logger.error(f"Cloudinary upload error for {file.filename}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"File upload to Cloudinary failed: {str(e)}")
+class UploadSignatureResponse(BaseModel):
+    signature: str
+    timestamp: int
+    api_key: str
+    cloud_name: str
+    public_id: str
+    folder: str
+    resource_type: str
+    eager: Optional[str] = None
+    notification_url: Optional[str] = None
 
-
-@router.post("/file", summary="Upload any file for chat messages")
-async def upload_generic_file(
-    file: UploadFile = File(...),
-    payload: str = Form(...), # JSON payload as a string
-    current_user: UserPublic = Depends(get_current_active_user), 
+@router.post("/get-cloudinary-upload-signature", response_model=UploadSignatureResponse, summary="Generate a signature for direct Cloudinary upload")
+async def get_cloudinary_upload_signature(
+    request: GetUploadSignatureRequest,
+    current_user: UserPublic = Depends(get_current_active_user)
 ):
     """
-    A unified endpoint to handle all file uploads for the chat.
-    It validates the file, uploads it to Cloudinary with appropriate transformations,
-    and returns the necessary URLs and metadata.
+    Generates a secure, time-sensitive signature that allows the client
+    to upload a file directly to Cloudinary, bypassing our backend.
+    Crucially, it includes a notification_url so Cloudinary can inform our backend
+    when processing is complete.
     """
     try:
-        upload_data = UploadPayload.model_validate_json(payload)
-    except ValidationError as e:
-        raise HTTPException(status_code=422, detail=f"Invalid payload format: {e}")
+        timestamp = int(time.time())
+        final_folder = f"{request.folder}/user_{current_user.id}"
+        
+        notification_url = f"{settings.API_BASE_URL}/webhooks/cloudinary/media-processed"
 
-    file_type = upload_data.file_type
-    eager_transformations = upload_data.eager
+        params_to_sign = {
+            "timestamp": timestamp,
+            "public_id": request.public_id,
+            "folder": final_folder,
+            "resource_type": request.resource_type,
+            "type": "private",
+            "notification_url": notification_url,
+        }
+        if request.eager:
+            params_to_sign["eager"] = request.eager
 
-    logger.info(f"Route /uploads/file called by user {current_user.id} for file '{file.filename}' of type '{file_type}'")
-
-    folder = f"kuchlu_chat_media/user_{current_user.id}"
-    
-    if file_type == 'image':
-        validate_image_upload(file)
-        resource_type="image"
-    elif file_type == 'video':
-        validate_clip_upload(file)
-        resource_type="video"
-    elif file_type == 'document':
-        validate_document_upload(file)
-        resource_type="raw"
-    elif file_type == 'voice_message':
-        validate_clip_upload(file)
-        resource_type="video" # Stored as video to get duration
-    else:
-        raise HTTPException(status_code=400, detail="Invalid file_type provided.")
-
-    # This function now returns the full Cloudinary result
-    result = await _upload_to_cloudinary(
-        file, 
-        folder, 
-        resource_type=resource_type, 
-        transformations=eager_transformations
-    )
-    
-    return result
-
+        signature = api_sign_request(params_to_sign, settings.CLOUDINARY_API_SECRET)
+        
+        return UploadSignatureResponse(
+            signature=signature,
+            timestamp=timestamp,
+            api_key=settings.CLOUDINARY_API_KEY,
+            cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+            public_id=request.public_id,
+            folder=final_folder,
+            resource_type=request.resource_type,
+            eager=request.eager,
+            notification_url=notification_url
+        )
+    except Exception as e:
+        logger.error(f"Error generating Cloudinary signature: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not generate upload signature.")
