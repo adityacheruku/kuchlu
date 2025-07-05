@@ -1,10 +1,11 @@
 
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth.dependencies import get_current_active_user
 from app.auth.schemas import UserPublic
 from app.database import db_manager
 from app.utils.logging import logger
-from app.analytics.schemas import FileAnalyticsCreate
+from app.analytics.schemas import FileAnalyticsCreate, MoodAnalyticsCreate
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -40,3 +41,35 @@ async def track_file_analytics(
         # This is a background tracking task.
         return {"status": "error"}
 
+@router.post("/mood", status_code=status.HTTP_201_CREATED)
+async def track_mood_analytics(
+    payload: MoodAnalyticsCreate,
+    current_user: UserPublic = Depends(get_current_active_user)
+):
+    """
+    Receives and stores mood selection analytics from the client.
+    This captures the initial mood selection event. The outcome fields
+    can be populated later by a separate process.
+    """
+    logger.info(f"Received mood analytics for '{payload.mood_id}' from user {current_user.id}")
+    
+    analytics_data = {
+        "user_id": str(current_user.id),
+        "mood_id": payload.mood_id,
+        "context": payload.context.model_dump_json(), # Store context as a JSON string
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        # Outcome fields are null initially, to be filled in later by another service/process
+        "partner_response_time": None,
+        "partner_reaction": None,
+        "conversation_started": None,
+        "mood_reciprocated": None,
+    }
+    
+    try:
+        # Assumes a 'mood_analytics' table exists in the database
+        await db_manager.admin_client.table("mood_analytics").insert(analytics_data).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Could not store mood analytics: {e}", exc_info=True)
+        # This is a background task, so we don't want to fail the user's primary action.
+        return {"status": "error"}

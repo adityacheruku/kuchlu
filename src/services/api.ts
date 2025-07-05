@@ -1,9 +1,11 @@
 
+
 import type {
   AuthResponse, User, UserInToken, Chat, Message, ApiErrorResponse, SupportedEmoji,
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
   NotificationSettings, PartnerRequest, EventPayload, VerifyOtpResponse,
-  CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FileAnalyticsPayload
+  CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FileAnalyticsPayload,
+  MoodAnalyticsPayload
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
@@ -258,6 +260,20 @@ export const api = {
       }
     } catch (error) {
       console.warn('Error sending file analytics', error);
+    }
+  },
+  sendMoodAnalytics: async (payload: MoodAnalyticsPayload): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/analytics/mood`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        console.warn('Failed to send mood analytics', response.statusText);
+      }
+    } catch (error) {
+      console.warn('Error sending mood analytics', error);
     }
   },
 };

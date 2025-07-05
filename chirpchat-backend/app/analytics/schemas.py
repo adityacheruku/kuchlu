@@ -1,6 +1,7 @@
 
-from pydantic import BaseModel
-from typing import Optional
+
+from pydantic import BaseModel, Field
+from typing import Optional, Literal
 from uuid import UUID
 
 class FileAnalyticsCreate(BaseModel):
@@ -11,3 +12,10 @@ class FileAnalyticsCreate(BaseModel):
     network_quality: str
     file_type: str
 
+class MoodAnalyticsContext(BaseModel):
+    time_of_day: Literal['morning', 'afternoon', 'evening', 'night']
+    day_of_week: Literal['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+class MoodAnalyticsCreate(BaseModel):
+    mood_id: str = Field(..., max_length=50)
+    context: MoodAnalyticsContext

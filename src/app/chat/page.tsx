@@ -1,5 +1,6 @@
 
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo, useLayoutEffect } from 'react';
@@ -7,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype } from '@/types';
+import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { useMoodSuggestion } from '@/hooks/useMoodSuggestion.tsx';
@@ -510,6 +511,25 @@ export default function ChatPage() {
         await api.updateUserProfile({ mood: newMood }); 
         await fetchAndUpdateUser(); 
         toast({ title: "Mood Updated!" }); 
+        
+        // ANALYTICS TRACKING
+        try {
+            const now = new Date();
+            const hour = now.getHours();
+            const day = now.getDay();
+            const time_of_day = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : hour < 22 ? 'evening' : 'night';
+            const day_of_week = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as MoodAnalyticsContext['day_of_week'];
+            
+            const analyticsPayload: MoodAnalyticsPayload = {
+                mood_id: newMood,
+                context: { time_of_day, day_of_week }
+            };
+            await api.sendMoodAnalytics(analyticsPayload);
+        } catch (analyticsError) {
+            console.error("Failed to send mood analytics:", analyticsError);
+        }
+        // END ANALYTICS TRACKING
+
       } catch (e: any) { 
         toast({ variant: 'destructive', title: 'Update Failed' }) 
       } 
