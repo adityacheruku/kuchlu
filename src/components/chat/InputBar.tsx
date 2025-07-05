@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import Spinner from '../common/Spinner';
+import { Capacitor } from '@capacitor/core';
 
 interface InputBarProps {
   onSendMessage: (text: string, mode: MessageMode, replyToId?: string) => void;
@@ -225,6 +226,37 @@ function InputBar({
 
   const handleStartRecording = useCallback(async () => {
     if (isRecording) return;
+    
+    // --- START NEW PERMISSION LOGIC ---
+    if (Capacitor.isNativePlatform()) {
+        try {
+            const { Permissions } = Capacitor.Plugins;
+            let permStatus = await Permissions.checkPermissions({ permissions: ['microphone'] });
+            
+            if (permStatus.microphone !== 'granted') {
+                permStatus = await Permissions.requestPermissions({ permissions: ['microphone'] });
+            }
+
+            if (permStatus.microphone !== 'granted') {
+                toast({
+                    variant: 'destructive',
+                    title: 'Permission Denied',
+                    description: 'Microphone access is required to record audio. Please enable it in your device settings.',
+                });
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to check/request microphone permission", e);
+            toast({
+                variant: 'destructive',
+                title: 'Permission Error',
+                description: 'Could not request microphone permission. Please check your app settings.',
+            });
+            return;
+        }
+    }
+    // --- END NEW PERMISSION LOGIC ---
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       toast({ variant: 'destructive', title: 'Unsupported Device', description: 'Your browser does not support voice recording.' }); return;
     }
