@@ -301,6 +301,7 @@ export default function ChatPage() {
     }
 
     const clientTempId = uuidv4();
+    const thumbnailDataUrl = (finalSubtype === 'image' || finalSubtype === 'clip') ? URL.createObjectURL(file) : undefined;
     const optimisticMessage: MessageType = {
         id: clientTempId,
         user_id: currentUser.id,
@@ -314,7 +315,7 @@ export default function ChatPage() {
         mode,
         file,
         document_name: file.name,
-        thumbnailDataUrl: finalSubtype === 'image' ? URL.createObjectURL(file) : undefined,
+        thumbnailDataUrl,
     };
     
     await storageService.addMessage(optimisticMessage);
@@ -629,4 +630,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
