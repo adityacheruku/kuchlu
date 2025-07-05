@@ -32,6 +32,9 @@ import { useLongPress } from '@/hooks/useLongPress';
 import Spinner from '../common/Spinner';
 import UploadProgressIndicator from './UploadProgressIndicator';
 import { api } from '@/services/api';
+import dynamic from 'next/dynamic';
+
+const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
 const EMOJI_ONLY_REGEX = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])+$/;
 
@@ -64,42 +67,75 @@ function formatDuration(seconds: number | null | undefined): string {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-const useSignedUrl = (messageId: string) => {
+const useSignedUrl = (messageId: string, version?: string) => {
     const [url, setUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     useEffect(() => {
+        if (!messageId || !version) return;
         let isMounted = true;
         const fetchUrl = async () => {
             setIsLoading(true);
             try {
-                const response = await api.getSignedMediaUrl(messageId);
+                const response = await api.getSignedMediaUrl(messageId, version);
                 if (isMounted) setUrl(response.url);
             } catch (error) {
-                console.error("Failed to get signed URL", error);
-                if (isMounted) setUrl(null); // Set to null on error
+                console.error(`Failed to get signed URL for version ${version}`, error);
+                if (isMounted) setUrl(null);
             } finally {
                 if (isMounted) setIsLoading(false);
             }
         };
         fetchUrl();
         return () => { isMounted = false; };
-    }, [messageId]);
+    }, [messageId, version]);
     return { url, isLoading };
 };
 
 const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (url: string, type: 'image') => void; alt: string; }) => {
-    const { url, isLoading } = useSignedUrl(message.id);
-    const thumbnailUrl = message.preview_url || message.image_thumbnail_url;
+    const { url: imageUrl } = useSignedUrl(message.id, 'preview_800');
+    const { url: thumbnailUrl, isLoading: isLoadingThumb } = useSignedUrl(message.id, 'thumbnail_250');
 
-    if (isLoading && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
+    if (isLoadingThumb) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
     
     return (
-        <button onClick={() => url && onShowMedia(url, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
-            <Image src={url || thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
-            {isLoading && url && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><Spinner/></div>}
+        <button onClick={() => imageUrl && onShowMedia(imageUrl, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
+            <Image src={thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
         </button>
     );
 };
+
+const VideoPlayer = memo(({ message }: { message: Message }) => {
+    const { url: hlsUrl } = useSignedUrl(message.id, 'hls_manifest');
+    const { url: mp4Url } = useSignedUrl(message.id, 'mp4_video');
+    const { url: thumbnailUrl, isLoading: isLoadingThumb } = useSignedUrl(message.id, 'static_thumbnail');
+    
+    const [isPlaying, setIsPlaying] = useState(false);
+    
+    // Prefer HLS, fallback to MP4
+    const finalUrl = hlsUrl || mp4Url;
+
+    if (isLoadingThumb) {
+        return <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div>;
+    }
+    
+    return (
+        <div className="w-full max-w-[320px] aspect-video relative rounded-lg overflow-hidden shadow-md bg-black">
+             <ReactPlayer
+                url={finalUrl || ''}
+                light={thumbnailUrl || true}
+                playing={isPlaying}
+                controls
+                width="100%"
+                height="100%"
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                config={{ file: { attributes: { poster: thumbnailUrl || undefined }}}}
+                playIcon={<PlayCircle size={48} className="text-white/80 transition-transform group-hover/media:scale-110" />}
+            />
+        </div>
+    );
+});
+VideoPlayer.displayName = "VideoPlayer";
 
 
 const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: { message: Message; sender: User; isCurrentUser: boolean; PlayerIcon?: React.ElementType }) => {
@@ -111,7 +147,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     const [hasError, setHasError] = useState(false);
     const { toast } = useToast();
 
-    const { url: signedAudioUrl } = useSignedUrl(message.id);
+    const { url: signedAudioUrl } = useSignedUrl(message.id, 'original');
 
     const handlePlayPause = () => {
         if (!audioRef.current || !signedAudioUrl) return;
@@ -315,7 +351,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       onToggleSelection(message.id);
       return;
     }
-     // Document preview is handled by renderMessageContent button
   };
 
   const getReactorNames = (reactors: string[] | undefined) => {
@@ -337,7 +372,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const handleRetry = (message: Message) => {
       setIsShaking(true);
       onRetrySend(message);
-      setTimeout(() => setIsShaking(false), 600); // Animation duration
+      setTimeout(() => setIsShaking(false), 600);
   };
 
   const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground';
@@ -368,21 +403,14 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
           case 'voice_message': return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
           case 'audio': return <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} />;
           case 'image':
-            return message.status === 'uploading' || (message.status === 'failed' && !message.image_url) || message.status === 'pending_processing' ? (
+            return (message.status === 'uploading' || message.status === 'pending_processing') || (message.status === 'failed' && !message.image_url) ? (
                 <div className="w-[250px] aspect-[4/3] rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
             ) : <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />;
           case 'clip':
             if (message.clip_type === 'video') {
-                return (
-                  <button onClick={() => {
-                      api.getSignedMediaUrl(message.id).then(res => onShowMedia(res.url, 'video'))
-                  }} className="block w-full max-w-[250px] aspect-video relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={`View video sent at ${formattedTime}`}>
-                      <Image src={message.image_thumbnail_url || "https://placehold.co/250x140.png"} alt={`Video thumbnail from ${sender.display_name}`} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="video thumbnail" loading="lazy"/>
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <PlayCircle size={48} className="text-white/80 transition-transform group-hover/media:scale-110" />
-                      </div>
-                  </button>
-                );
+                return (message.status === 'uploading' || message.status === 'pending_processing') ? (
+                    <div className="w-[250px] aspect-video rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
+                ) : <VideoPlayer message={message} />;
             }
             return <p className="text-sm italic">Clip unavailable</p>;
           case 'document':

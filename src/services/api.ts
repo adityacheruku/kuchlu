@@ -209,8 +209,8 @@ export const api = {
       if (!response.ok) console.warn('Failed to send mood analytics', response.statusText);
     } catch (error) { console.warn('Error sending mood analytics', error); }
   },
-  getSignedMediaUrl: async (messageId: string): Promise<{ url: string }> => {
-    const response = await fetch(`${API_BASE_URL}/media/${messageId}`, { headers: getApiHeaders() });
+  getSignedMediaUrl: async (messageId: string, version: string = 'original'): Promise<{ url: string }> => {
+    const response = await fetch(`${API_BASE_URL}/media/${messageId}?version=${version}`, { headers: getApiHeaders() });
     return handleResponse<{ url: string }>(response);
   },
 };
