@@ -9,54 +9,54 @@ body {
 
 @layer base {
   :root {
-    --background: 220 20% 98%;      /* Very Light Blue-Gray */
+    --background: 210 25% 96%;      /* Light Almost White Blue */
     --foreground: 220 10% 20%;      /* Dark Slate Blue */
-    --card: 0 0% 100%;              /* White */
+    --card: 0 0% 100%;
     --card-foreground: 220 10% 20%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 10% 20%;
-    --primary: 45 100% 50%;         /* Gold */
-    --primary-foreground: 220 10% 10%;
-    --secondary: 220 20% 94%;       /* Light Gray */
+    --primary: 207 26% 48%;         /* #5D7D9A - A stronger, more accessible soft blue */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 220 15% 92%;       /* A slightly darker grey for secondary elements */
     --secondary-foreground: 220 10% 20%;
-    --muted: 220 20% 90%;
+    --muted: 220 15% 92%;
     --muted-foreground: 220 10% 45%;
-    --accent: 45 100% 50%;
-    --accent-foreground: 220 10% 10%;
-    --destructive: 0 84.2% 60.2%;   /* A clearer red */
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 90%;
-    --input: 220 15% 96%;
-    --ring: 45 100% 50%;
-    
+    --accent: 278 20% 51%;          /* #8A6FA3 - A stronger, more accessible pale violet */
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;       /* A vibrant but not jarring red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 88%;
+    --input: 220 15% 94%;
+    --ring: 207 26% 48%;
+
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* Slightly more rounded for a softer feel */
   }
 
   .dark {
-    --background: 240 10% 3.9%; /* black */
-    --foreground: 0 0% 98%; /* white */
-    --card: 240 5.9% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 51 100% 50%; /* gold */
-    --primary-foreground: 240 5.9% 10%; /* black for text on gold buttons */
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 51 100% 50%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 51 100% 50%;
+    --background: 222 47% 11%;      /* Dark Blue */
+    --foreground: 210 40% 98%;      /* Almost white */
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 207 26% 67%;         /* #90AFC5 - The user's requested soft blue, works well on dark */
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 278 20% 64%;          /* #A991B5 - The user's requested pale violet */
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 207 26% 67%;
     
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -72,43 +72,43 @@ body {
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* More modern font rendering */
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
 @layer utilities {
   /* Mood-based backgrounds (for Normal mode) */
   .bg-mood-happy-happy {
-    background-image: linear-gradient(to bottom right, #fff1cc, #ffe0b3); /* Light yellow to light orange */
+    background-image: linear-gradient(to bottom right, #fff1cc, #ffe0b3);
   }
   .bg-mood-calm-calm { /* For Neutral, Chilling, Thoughtful, Content combinations */
-    background-image: linear-gradient(to bottom right, #e0f7fa, #d1e9fc); /* Light cyan to light blue */
+    background-image: linear-gradient(to bottom right, #e0f7fa, #d1e9fc);
   }
   .bg-mood-thoughtful-thoughtful { /* Fallback for strong mixed, or when one is strong and other is calming */
-    background-image: linear-gradient(to bottom right, #ede7f6, #e1d8f1); /* Light purple to softer purple */
+    background-image: linear-gradient(to bottom right, #ede7f6, #e1d8f1);
   }
   .bg-mood-sad-sad {
-    background-image: linear-gradient(to bottom right, #e3f2fd, #d4e8f8); /* Very light blue to slightly grayer blue */
+    background-image: linear-gradient(to bottom right, #e3f2fd, #d4e8f8);
   }
   .bg-mood-excited-excited {
-    background-image: linear-gradient(to bottom right, #ffebcc, #ffd8a8); /* Light orange to peachy orange */
+    background-image: linear-gradient(to bottom right, #ffebcc, #ffd8a8);
   }
   .bg-mood-angry-angry {
-    background-image: linear-gradient(to bottom right, #ffcdd2, #ef9a9a); /* Light red to softer red */
+    background-image: linear-gradient(to bottom right, hsl(var(--destructive)/0.1), hsl(var(--destructive)/0.2));
   }
   .bg-mood-anxious-anxious {
-    background-image: linear-gradient(to bottom right, #f3e5f5, #e1bee7); /* Light lavender / lilac */
+    background-image: linear-gradient(to bottom right, #f3e5f5, #e1bee7);
   }
   
   /* Mode-based backgrounds */
   .bg-mode-fight {
-    background-image: linear-gradient(to bottom right, hsl(var(--destructive) / 0.1), hsl(var(--destructive) / 0.2));
+    background-image: linear-gradient(to bottom right, hsl(var(--destructive) / 0.2), hsl(var(--destructive) / 0.3));
   }
   .bg-mode-incognito {
-    background-image: linear-gradient(to bottom right, hsl(var(--muted) / 0.5), hsl(var(--muted) / 0.8));
+    background-image: linear-gradient(to bottom right, hsl(var(--muted) / 0.8), hsl(var(--muted) / 0.9));
   }
 
   .bg-mood-default-chat-area {
-    @apply bg-background; /* Default background for message area */
+    @apply bg-transparent; /* Use the default background page color */
   }
 }

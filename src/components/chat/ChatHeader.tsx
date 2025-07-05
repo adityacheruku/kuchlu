@@ -54,7 +54,7 @@ const SelectionActionBar = ({
 }) => (
     <div className="w-full flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full" aria-label="Cancel selection">
           <X className="h-5 w-5" />
           <span className="sr-only">Cancel selection</span>
         </Button>
@@ -141,7 +141,7 @@ function ChatHeader({
           {otherUser ? (
             <button
               onClick={onOtherUserAvatarClick}
-              aria-label={`View ${otherUser.display_name}'s avatar`}
+              aria-label={`View ${otherUser.display_name}'s avatar and profile`}
               className="relative rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card transition-all hover:scale-105 active:scale-95"
             >
               <Image 

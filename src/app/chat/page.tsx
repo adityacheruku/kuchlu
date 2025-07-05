@@ -591,7 +591,7 @@ export default function ChatPage() {
                 isSelectionMode={isSelectionMode}
                 selectedMessageIds={selectedMessageIds}
                 onEnterSelectionMode={handleEnterSelectionMode}
-                onToggleMessageSelection={handleToggleMessageSelection}
+                onToggleMessageSelection={onToggleMessageSelection}
               />
               <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
