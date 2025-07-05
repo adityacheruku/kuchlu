@@ -4,7 +4,7 @@ import { memo } from 'react';
 import type { User } from '@/types';
 import MoodIndicator from './MoodIndicator';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { UserCircle2, Heart, Phone, X, Copy, Share2, Trash2, MoreHorizontal } from 'lucide-react';
+import { UserCircle2, Heart, Phone, X, Copy, Share2, Trash2, MoreHorizontal, Star, Reply } from 'lucide-react';
 import Image from 'next/image';
 import {
   Tooltip,
@@ -37,6 +37,8 @@ interface ChatHeaderProps {
   onDeleteSelected: () => void;
   onShareSelected: () => void;
   onClearChat: () => void;
+  onReplySelected: () => void;
+  onToggleStarSelected: () => void;
 }
 
 const SelectionActionBar = ({
@@ -44,13 +46,17 @@ const SelectionActionBar = ({
   onClose,
   onCopy,
   onDelete,
-  onShare
+  onShare,
+  onReply,
+  onStar
 }: {
   count: number;
   onClose: () => void;
   onCopy: () => void;
   onDelete: () => void;
   onShare: () => void;
+  onReply: () => void;
+  onStar: () => void;
 }) => (
     <div className="w-full flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -60,9 +66,17 @@ const SelectionActionBar = ({
         </Button>
         <span className="font-semibold text-lg">{count}</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
+        {count === 1 &&
+          <Button variant="ghost" size="icon" onClick={onReply} className="rounded-full" aria-label="Reply to message">
+            <Reply className="h-5 w-5" />
+          </Button>
+        }
         <Button variant="ghost" size="icon" onClick={onCopy} className="rounded-full" aria-label="Copy selected messages">
           <Copy className="h-5 w-5" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onStar} className="rounded-full" aria-label="Star selected messages">
+          <Star className="h-5 w-5" />
         </Button>
         <Button variant="ghost" size="icon" onClick={onShare} className="rounded-full" aria-label="Share selected messages">
           <Share2 className="h-5 w-5" />
@@ -90,6 +104,8 @@ function ChatHeader({
   onDeleteSelected,
   onShareSelected,
   onClearChat,
+  onReplySelected,
+  onToggleStarSelected,
 }: ChatHeaderProps) {
     
   let presenceStatusText = otherUser ? `${otherUser.display_name} is offline.` : "";
@@ -133,6 +149,8 @@ function ChatHeader({
             onCopy={onCopySelected}
             onDelete={onDeleteSelected}
             onShare={onShareSelected}
+            onReply={onReplySelected}
+            onStar={onToggleStarSelected}
         />
       ) : (
       <>

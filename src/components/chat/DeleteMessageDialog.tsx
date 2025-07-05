@@ -10,26 +10,33 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import type { DeleteType } from '@/types';
+import type { DeleteType, Message } from '@/types';
+import { differenceInHours } from 'date-fns';
 
 interface DeleteMessageDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (deleteType: DeleteType) => void;
-  isCurrentUser: boolean;
-  messageCount?: number;
+  messages: Message[];
+  currentUserId: string;
 }
 
 export default function DeleteMessageDialog({
   isOpen,
   onClose,
   onConfirm,
-  isCurrentUser,
-  messageCount = 1,
+  messages,
+  currentUserId,
 }: DeleteMessageDialogProps) {
-  if (!isOpen) return null;
+  if (!isOpen || messages.length === 0) return null;
   
-  const title = `Delete ${messageCount > 1 ? `${messageCount} messages` : 'message'}?`;
+  const title = `Delete ${messages.length > 1 ? `${messages.length} messages` : 'message'}?`;
+
+  const canDeleteForEveryone = messages.every(msg => {
+      const isSender = msg.user_id === currentUserId;
+      const isWithinTimeLimit = differenceInHours(new Date(), new Date(msg.created_at)) < 48;
+      return isSender && isWithinTimeLimit;
+  });
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -41,7 +48,7 @@ export default function DeleteMessageDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-col sm:space-x-0 gap-2">
-            {isCurrentUser && (
+            {canDeleteForEveryone && (
                  <Button
                     variant="destructive"
                     onClick={() => onConfirm('everyone')}
@@ -69,5 +76,3 @@ export default function DeleteMessageDialog({
     </AlertDialog>
   );
 }
-
-    

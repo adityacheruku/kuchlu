@@ -6,13 +6,14 @@ import {
   DialogContent,
   DialogClose,
 } from "@/components/ui/dialog";
-import { X, Download } from 'lucide-react';
+import { X, Download, Share2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useZoomAndPan } from "@/hooks/useZoomAndPan";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 import { mediaCacheService } from "@/services/mediaCacheService";
+import { capacitorService } from "@/services/capacitorService";
 import { useState, useEffect, useCallback, useRef } from "react";
 import Spinner from "../common/Spinner";
 import dynamic from 'next/dynamic';
@@ -96,7 +97,6 @@ export default function FullScreenMediaModal({
   const handleDownload = async () => {
     if (!mediaUrl) return;
     try {
-      // The mediaUrl is already a blob URL from the cache, so we can fetch it directly
       const response = await fetch(mediaUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -116,6 +116,23 @@ export default function FullScreenMediaModal({
     } catch (error) {
       console.error("Download failed", error);
       toast({ variant: 'destructive', title: "Download Failed", description: "Could not download the file." });
+    }
+  };
+  
+  const handleShare = async () => {
+    if (!mediaUrl) return;
+    try {
+        await capacitorService.share({
+            title: "Share from ChirpChat",
+            text: message.caption || "Check out this media!",
+            url: mediaUrl,
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Sharing not available",
+            description: "Could not open the share sheet on this device."
+        });
     }
   };
 
@@ -158,6 +175,16 @@ export default function FullScreenMediaModal({
           </div>
         ) : null}
         <div className={cn("absolute top-4 right-4 flex gap-2 transition-opacity duration-300", controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none")}>
+            <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleShare}
+                className="text-white bg-black/50 hover:bg-black/70 hover:text-white rounded-full"
+                aria-label="Share media"
+            >
+                <Share2 className="h-6 w-6" />
+                <span className="sr-only">Share</span>
+            </Button>
             <Button
                 variant="ghost"
                 size="icon"

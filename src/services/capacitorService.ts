@@ -23,14 +23,27 @@ interface AssistiveTouchPlugin {
   addListener(eventName: 'moodSelected', listenerFunc: (event: { moodId: string }) => void): Promise<PluginListenerHandle> & PluginListenerHandle;
 }
 
+// Define the Share plugin interface
+interface SharePlugin {
+  share(options: {
+    title?: string;
+    text?: string;
+    url?: string;
+    dialogTitle?: string;
+  }): Promise<any>;
+}
+
+
 class CapacitorService {
     private isNative: boolean;
     private assistiveTouch: AssistiveTouchPlugin | undefined;
+    private sharePlugin: SharePlugin | undefined;
 
     constructor() {
         this.isNative = Capacitor.isNativePlatform();
         if (this.isNative) {
             this.assistiveTouch = (Capacitor.Plugins as any).AssistiveTouch as AssistiveTouchPlugin;
+            this.sharePlugin = (Capacitor.Plugins as any).Share as SharePlugin;
         } else {
             console.log("CapacitorService: Running in a web environment. Native features will be simulated.");
         }
@@ -39,6 +52,30 @@ class CapacitorService {
     private isPluginAvailable = (): boolean => {
         // More robust check to ensure the plugin and its methods are available
         return this.isNative && !!this.assistiveTouch && typeof this.assistiveTouch.addListener === 'function';
+    }
+
+    private isSharePluginAvailable = (): boolean => {
+        return this.isNative && !!this.sharePlugin && typeof this.sharePlugin.share === 'function';
+    }
+
+    public async share(options: { title?: string; text?: string; url?: string; }): Promise<void> {
+        if (this.isSharePluginAvailable()) {
+            await this.sharePlugin!.share(options);
+        } else if (navigator.share) {
+            // Fallback to Web Share API
+            await navigator.share(options);
+        } else {
+            // Fallback for browsers that don't support either
+            if (options.url) {
+                navigator.clipboard.writeText(options.url);
+                alert("Link copied to clipboard. Sharing not available on this device.");
+            } else if (options.text) {
+                 navigator.clipboard.writeText(options.text);
+                 alert("Text copied to clipboard. Sharing not available on this device.");
+            } else {
+                throw new Error("Sharing not supported on this device.");
+            }
+        }
     }
     
     public on(event: CapacitorEvent, callback: CapacitorEventListener): (() => void) {

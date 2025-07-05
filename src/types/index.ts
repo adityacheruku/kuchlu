@@ -1,5 +1,4 @@
 
-
 import type { UploadError as UploadErrorType } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
@@ -33,7 +32,7 @@ export interface UserInToken extends User {}
 
 export type MessageClipType = 'audio' | 'video';
 export type MessageStatus = "uploading" | "sending" | "sent" | "delivered" | "read" | "failed" | "pending_processing";
-export type MessageSubtype = 'text' | 'sticker' | 'clip' | 'image' | 'document' | 'voice_message' | 'audio' | 'emoji_only' | 'history_cleared_marker';
+export type MessageSubtype = 'text' | 'sticker' | 'clip' | 'image' | 'document' | 'voice_message' | 'audio' | 'emoji_only' | 'history_cleared_marker' | 'deleted_placeholder';
 export type MessageMode = 'normal' | 'fight' | 'incognito';
 export type DeleteType = 'me' | 'everyone';
 
@@ -94,6 +93,7 @@ export interface Message {
   uploadError?: UploadErrorType;
   file?: File; // Not stored in DB
   thumbnailDataUrl?: string; // Not stored in DB
+  is_starred?: boolean;
 }
 
 export interface Chat {

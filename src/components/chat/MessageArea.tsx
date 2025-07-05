@@ -1,3 +1,4 @@
+
 // ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
 import { memo, type RefObject, useEffect } from 'react';
 import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
@@ -8,6 +9,8 @@ import { Button } from '../ui/button';
 import Spinner from '../common/Spinner';
 import { useInView } from 'react-intersection-observer';
 import { mediaCacheService } from '@/services/mediaCacheService';
+import { cn } from '@/lib/utils';
+import { Ban } from 'lucide-react';
 
 
 interface MessageAreaProps {
@@ -34,7 +37,7 @@ interface MessageAreaProps {
   infoMessageId: string | null;
 }
 
-const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen'> & { currentUser: User; infoMessageId: string | null; }) => {
+const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen'> & { currentUser: User; infoMessageId: string | null; isSelectionMode: boolean; }) => {
     const { message, currentUser, onMarkAsRead } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
@@ -60,6 +63,18 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
             }
         }
     }, [inView, message]);
+    
+    if (message.message_subtype === 'deleted_placeholder') {
+        return (
+            <div className="flex justify-center items-center my-2">
+                <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground italic flex items-center gap-1.5">
+                    <Ban size={12}/>
+                    {message.text}
+                </div>
+            </div>
+        )
+    }
+
 
     const sender = props.allUsers[message.user_id] || (message.user_id === props.currentUser.id ? props.currentUser : null);
     if (!sender) {
@@ -72,7 +87,7 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
     const isInfoOpen = props.infoMessageId === message.id;
 
     return (
-        <div ref={ref}>
+        <div ref={ref} data-selected={isSelected} data-info-open={isInfoOpen} className="group/bubble-wrapper message-bubble-wrapper has-[[data-selected=true]]:bg-primary/5 has-[[data-info-open=true]]:bg-primary/5 rounded-lg transition-colors">
             <MessageBubble
                 {...props}
                 sender={sender}
@@ -115,7 +130,7 @@ function MessageArea({
   
   return (
     <ScrollArea className="flex-grow p-4 bg-transparent" viewportRef={viewportRef}>
-      <div className="flex flex-col space-y-4">
+      <div className={cn("flex flex-col space-y-1 group/area")} data-selection-mode={isSelectionMode}>
         {hasMore && (
             <div className="text-center">
                 <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isLoadingMore}>
