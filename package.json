@@ -44,7 +44,6 @@
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cordova-plugin-camera": "^8.0.0",
     "date-fns": "^3.6.0",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
