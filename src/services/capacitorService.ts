@@ -30,7 +30,7 @@ class CapacitorService {
     constructor() {
         this.isNative = Capacitor.isNativePlatform();
         if (this.isNative) {
-            this.assistiveTouch = Capacitor.Plugins.AssistiveTouch as AssistiveTouchPlugin;
+            this.assistiveTouch = (Capacitor.Plugins as any).AssistiveTouch as AssistiveTouchPlugin;
         } else {
             console.log("CapacitorService: Running in a web environment. Native features will be simulated.");
         }
@@ -47,9 +47,18 @@ class CapacitorService {
             return () => {}; // Return a no-op unsubscribe function for web
         }
 
-        const handle = this.assistiveTouch!.addListener(event as any, callback);
+        const handlePromise = this.assistiveTouch!.addListener(event as any, callback);
         
-        // Return an unsubscribe function
+        // Handle both the promise and the direct return value for compatibility
+        if (handlePromise instanceof Promise) {
+            let handle: PluginListenerHandle;
+            handlePromise.then(h => handle = h);
+            return () => {
+                handle?.remove();
+            };
+        }
+        
+        const handle = handlePromise;
         return () => {
             handle.remove();
         };

@@ -3,11 +3,12 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { api } from './api';
-import type { UploadItem, UploadProgress, UploadError, MessageSubtype, Message, CloudinaryUploadParams } from '@/types';
+import type { UploadItem, UploadProgress, MessageSubtype, Message, CloudinaryUploadParams } from '@/types';
+import type { UploadError } from '@/types/uploadErrors';
 import { UploadErrorCode } from '@/types/uploadErrors';
 import { storageService } from './storageService';
 import { imageProcessor } from './imageProcessor';
-import { videoCompressor } from './videoCompressor';
+import { videoCompressor, type CompressionProgress } from './videoCompressor';
 import { networkMonitor, type NetworkQuality } from './networkMonitor';
 
 // A simple event emitter
@@ -95,6 +96,15 @@ class UploadManager {
         let fileToUpload: Blob = item.file;
         let thumbnailDataUrl: string | undefined = item.thumbnailDataUrl;
 
+        const handleCompressionProgress = (p: CompressionProgress) => {
+             emitProgress({ 
+                messageId: item.messageId, 
+                status: 'compressing', 
+                progress: p.progress, 
+                thumbnailDataUrl 
+            });
+        };
+
         if (item.subtype === 'image') {
             emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
             fileToUpload = await imageProcessor.processImageForUpload(item.file);
@@ -107,9 +117,9 @@ class UploadManager {
                 thumbnailDataUrl = await videoCompressor.extractVideoThumbnail(item.file);
                 emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
             }
-            fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', p => emitProgress({ ...p, messageId: item.messageId, thumbnailDataUrl }));
+            fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', handleCompressionProgress);
         } else if (item.subtype === 'voice_message') {
-            fileToUpload = await videoCompressor.compressAudio(item.file, p => emitProgress({ ...p, messageId: item.messageId, thumbnailDataUrl }));
+            fileToUpload = await videoCompressor.compressAudio(item.file, handleCompressionProgress);
         }
 
         item.status = 'uploading';

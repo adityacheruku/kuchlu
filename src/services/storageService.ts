@@ -14,7 +14,7 @@ export interface StoredUploadItem {
     messageId: string;
     chatId: string;
     priority: number;
-    status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'completed' | 'failed' | 'cancelled';
+    status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'completed' | 'failed' | 'cancelled' | 'pending_processing';
     progress: number;
     retryCount: number;
     createdAt: Date;

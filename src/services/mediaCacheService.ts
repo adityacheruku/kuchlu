@@ -58,7 +58,7 @@ class MediaCacheService {
     }
 
     public async getOrFetchMediaUrl(message: Message, version: string): Promise<string | null> {
-        if (!message.media_metadata?.urls) return null;
+        if (!message.file_metadata?.urls) return null;
 
         const cachedBlob = await this.getBlob(message.id, version);
         if (cachedBlob) {

@@ -1,6 +1,6 @@
 
 
-import type { UploadError } from './uploadErrors';
+import type { UploadError as UploadErrorType } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
 
@@ -45,6 +45,8 @@ export interface MediaMetadata {
   duration?: number;
   width?: number;
   height?: number;
+  title?: string;
+  artist?: string;
   urls: {
     original?: string;
     thumbnail_250?: string;
@@ -89,7 +91,7 @@ export interface Message {
   transcription?: string | null;
   reply_to_message_id?: string | null;
   uploadProgress?: number;
-  uploadError?: UploadError;
+  uploadError?: UploadErrorType;
   file?: File; // Not stored in DB
   thumbnailDataUrl?: string; // Not stored in DB
 }
@@ -147,7 +149,7 @@ export interface UploadItem {
   priority: number;
   status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'pending_processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
-  error?: UploadError;
+  error?: UploadErrorType;
   retryCount: number;
   createdAt: Date;
   subtype: MessageSubtype;
@@ -158,7 +160,7 @@ export interface UploadProgress {
   messageId: string;
   status: UploadItem['status'];
   progress: number;
-  error?: UploadError;
+  error?: UploadErrorType;
   result?: any;
   thumbnailDataUrl?: string;
 }
