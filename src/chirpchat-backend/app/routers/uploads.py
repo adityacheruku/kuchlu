@@ -8,6 +8,7 @@ from typing import Literal, Optional, List, Dict, Any
 
 import cloudinary
 from cloudinary.utils import api_sign_request
+import cloudinary.uploader
 
 from app.auth.dependencies import get_current_active_user 
 from app.auth.schemas import UserPublic 
@@ -105,4 +106,24 @@ async def get_cloudinary_upload_signature(
         logger.error(f"Error generating Cloudinary signature: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not generate upload signature.")
 
-
+async def delete_cloudinary_asset(public_id: str, resource_type: str):
+    """
+    Asynchronously deletes a media asset from Cloudinary.
+    Intended to be run as a background task.
+    """
+    try:
+        logger.info(f"Background task: Deleting Cloudinary asset {public_id} (Type: {resource_type})")
+        result = cloudinary.uploader.destroy(
+            public_id,
+            resource_type=resource_type,
+            invalidate=True  # Invalidate CDN cache
+        )
+        if result.get("result") == "ok":
+            logger.info(f"Successfully deleted Cloudinary asset: {public_id}")
+        elif result.get("result") == "not found":
+            logger.warning(f"Cloudinary asset {public_id} not found, assuming already deleted.")
+        else:
+            logger.error(f"Cloudinary API reported an error for asset {public_id}: {result.get('error', 'Unknown error')}")
+    except Exception as e:
+        logger.error(f"Exception during Cloudinary deletion for asset {public_id}: {e}", exc_info=True)
+        # In a production system, you might re-queue this task or send it to a dead-letter queue.
