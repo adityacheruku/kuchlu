@@ -6,7 +6,7 @@ import React, { useState, type FormEvent, useRef, type ChangeEvent, useEffect, u
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Smile, Mic, Paperclip, X, Image as ImageIcon, Camera, FileText, StickyNote, Gift, ShieldAlert, EyeOff, MessageCircle, Trash2 } from 'lucide-react';
+import { Send, Smile, Mic, Paperclip, X, Image as ImageIcon, Camera, FileText, StickyNote, Gift, ShieldAlert, EyeOff, MessageCircle, Trash2, Video } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -113,8 +113,10 @@ function InputBar({
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null); 
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { toast } = useToast();
@@ -230,14 +232,9 @@ function InputBar({
     // --- START NEW PERMISSION LOGIC ---
     if (Capacitor.isNativePlatform()) {
         try {
-            const { Permissions } = Capacitor.Plugins;
-            let permStatus = await Permissions.checkPermissions({ permissions: ['microphone'] });
+            const permStatus = await Capacitor.Plugins.Permissions.requestPermissions({ permissions: ['microphone'] });
             
-            if (permStatus.microphone !== 'granted') {
-                permStatus = await Permissions.requestPermissions({ permissions: ['microphone'] });
-            }
-
-            if (permStatus.microphone !== 'granted') {
+            if (permStatus.microphone.state !== 'granted') {
                 toast({
                     variant: 'destructive',
                     title: 'Permission Denied',
@@ -343,12 +340,18 @@ function InputBar({
         <TabsTrigger value="mode">Chat Mode</TabsTrigger>
       </TabsList>
       <TabsContent value="media" className="p-4">
-        <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" size="lg" onClick={() => cameraInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto py-4 items-center justify-center gap-2" style={{ animationDelay: '50ms' }}>
+        <div className="grid grid-cols-3 gap-3">
+            <Button variant="outline" size="lg" onClick={() => photoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '50ms' }}>
                 <Camera size={24} className="text-red-500"/><span className="text-sm font-normal">Camera</span>
             </Button>
-            <Button variant="outline" size="lg" onClick={() => imageInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto py-4 items-center justify-center gap-2" style={{ animationDelay: '100ms' }}>
+             <Button variant="outline" size="lg" onClick={() => videoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '100ms' }}>
+                <Video size={24} className="text-blue-500"/><span className="text-sm font-normal">Record</span>
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => galleryInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '150ms' }}>
                 <ImageIcon size={24} className="text-purple-500"/><span className="text-sm font-normal">Gallery</span>
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => documentInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '200ms' }}>
+                <FileText size={24} className="text-green-500"/><span className="text-sm font-normal">Document</span>
             </Button>
         </div>
       </TabsContent>
@@ -479,8 +482,10 @@ function InputBar({
         </Button>
       </div>
       
-      <input type="file" ref={cameraInputRef} accept="image/*,video/*" capture="environment" className="hidden" onChange={handleFileSelect} />
-      <input type="file" ref={imageInputRef} accept="image/*,video/*" className="hidden" onChange={handleFileSelect} multiple />
+      <input type="file" ref={photoInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleFileSelect} />
+      <input type="file" ref={videoInputRef} accept="video/*" capture="environment" className="hidden" onChange={handleFileSelect} />
+      <input type="file" ref={galleryInputRef} accept="image/*,video/*" className="hidden" onChange={handleFileSelect} multiple />
+      <input type="file" ref={documentInputRef} accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={handleFileSelect} multiple />
     </div>
   );
 }

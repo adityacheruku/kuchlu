@@ -53,20 +53,21 @@ async def get_cloudinary_upload_signature(
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
         
-        if not settings.CLOUDINARY_WEBHOOK_URL:
-            logger.error("CLOUDINARY_WEBHOOK_URL is not configured in the environment.")
-            raise HTTPException(status_code=500, detail="Server is not configured for upload notifications.")
-
-        notification_url = settings.CLOUDINARY_WEBHOOK_URL
-
         params_to_sign: Dict[str, Any] = {
             "timestamp": timestamp,
             "public_id": request.public_id,
             "folder": final_folder,
             "resource_type": request.resource_type,
             "type": "private",
-            "notification_url": notification_url,
         }
+        
+        notification_url = None
+        if settings.CLOUDINARY_WEBHOOK_URL:
+            notification_url = settings.CLOUDINARY_WEBHOOK_URL
+            params_to_sign["notification_url"] = notification_url
+        else:
+            logger.warning("CLOUDINARY_WEBHOOK_URL is not set. Direct uploads will work, but server-side processing notifications will not be received.")
+
 
         eager_transformations: List[Dict[str, Any]] = []
         if request.resource_type == "image":
