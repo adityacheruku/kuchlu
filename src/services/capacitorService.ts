@@ -17,6 +17,7 @@ class CapacitorService {
     private listeners: Map<CapacitorEvent, Set<CapacitorEventListener>> = new Map();
 
     constructor() {
+        console.log('CapacitorService constructor: Is this a native platform?', isNativePlatform());
         if (isNativePlatform()) {
             this.registerNativeEventListeners();
         }
@@ -24,17 +25,33 @@ class CapacitorService {
     
     // Checks if the specific AssistiveTouch plugin is available
     private isPluginAvailable = (): boolean => {
-        return isNativePlatform() && !!(window as any).Capacitor?.Plugins?.AssistiveTouch;
+        const available = isNativePlatform() && !!(window as any).Capacitor?.Plugins?.AssistiveTouch;
+        console.log('isPluginAvailable check:', available);
+        return available;
     }
     
     private registerNativeEventListeners() {
-        if (!this.isPluginAvailable()) return;
+        if (!this.isPluginAvailable()) {
+            console.log('AssistiveTouch plugin not found. Skipping native event listener registration.');
+            return;
+        }
         
+        console.log('Registering native AssistiveTouch event listeners...');
         const { AssistiveTouch } = (window as any).Capacitor.Plugins;
 
-        AssistiveTouch.addListener('singleTap', () => this.emit('singleTap'));
-        AssistiveTouch.addListener('doubleTap', () => this.emit('doubleTap'));
-        AssistiveTouch.addListener('longPress', () => this.emit('longPress'));
+        AssistiveTouch.addListener('singleTap', () => {
+            console.log('Native event received: singleTap');
+            this.emit('singleTap');
+        });
+        AssistiveTouch.addListener('doubleTap', () => {
+            console.log('Native event received: doubleTap');
+            this.emit('doubleTap');
+        });
+        AssistiveTouch.addListener('longPress', () => {
+            console.log('Native event received: longPress');
+            this.emit('longPress');
+        });
+        console.log('Native event listeners registered.');
     }
 
     public on(event: CapacitorEvent, callback: CapacitorEventListener): () => void {
@@ -55,34 +72,45 @@ class CapacitorService {
     public requestOverlayPermission = async (
         showDialog: (callbacks: { onConfirm: () => void, onCancel: () => void }) => void
     ): Promise<boolean> => {
+        console.log('capacitorService.requestOverlayPermission called.');
         if (!this.isPluginAvailable()) {
-            console.warn("AssistiveTouch plugin not available. Simulating success for web UI flow.");
+            console.log('Platform is not native, showing web dialog simulation.');
             // On web, we show the dialog and simulate a "grant" to test the UI flow
             return new Promise(resolve => {
                 showDialog({ 
-                    onConfirm: () => resolve(true),
-                    onCancel: () => resolve(false)
+                    onConfirm: () => {
+                        console.log('Web simulation: User confirmed dialog.');
+                        resolve(true);
+                    },
+                    onCancel: () => {
+                        console.log('Web simulation: User cancelled dialog.');
+                        resolve(false);
+                    }
                 });
             });
         }
         
+        console.log('Platform is native, showing pre-permission dialog.');
         // On native, show the explanatory dialog before sending user to system settings.
         return new Promise((resolve) => {
             const handleConfirm = async () => {
+                console.log('User confirmed dialog, calling native requestOverlayPermission...');
                 try {
                     const { AssistiveTouch } = (window as any).Capacitor.Plugins;
                     // This native method is expected to open the system settings page.
                     // It doesn't return a value, so we resolve true to let the UI update.
                     // The user grants/denies permission in the OS settings.
                     await AssistiveTouch.requestOverlayPermission();
+                    console.log('Native requestOverlayPermission method called successfully.');
                     resolve(true); 
                 } catch (error) {
-                    console.error("Error requesting overlay permission via plugin:", error);
+                    console.error("Error calling native requestOverlayPermission plugin:", error);
                     resolve(false);
                 }
             };
 
             const handleCancel = () => {
+                console.log('User cancelled pre-permission dialog.');
                 resolve(false);
             };
             
@@ -91,21 +119,35 @@ class CapacitorService {
     };
 
     public showFloatingButton = async (): Promise<void> => {
+        console.log('capacitorService.showFloatingButton called.');
         if (!this.isPluginAvailable()) {
             console.log("SIMULATING: Show floating button.");
             return;
         }
-        const { AssistiveTouch } = (window as any).Capacitor.Plugins;
-        await AssistiveTouch.show({ size: 56, opacity: 0.8 });
+        console.log('Plugin available, calling native AssistiveTouch.show()');
+        try {
+            const { AssistiveTouch } = (window as any).Capacitor.Plugins;
+            await AssistiveTouch.show({ size: 56, opacity: 0.8 });
+            console.log('Native AssistiveTouch.show() executed.');
+        } catch (error) {
+            console.error('Error executing native AssistiveTouch.show():', error);
+        }
     };
     
     public hideFloatingButton = async (): Promise<void> => {
+        console.log('capacitorService.hideFloatingButton called.');
         if (!this.isPluginAvailable()) {
             console.log("SIMULATING: Hide floating button.");
             return;
         }
-        const { AssistiveTouch } = (window as any).Capacitor.Plugins;
-        await AssistiveTouch.hide();
+        console.log('Plugin available, calling native AssistiveTouch.hide()');
+        try {
+            const { AssistiveTouch } = (window as any).Capacitor.Plugins;
+            await AssistiveTouch.hide();
+            console.log('Native AssistiveTouch.hide() executed.');
+        } catch (error) {
+            console.error('Error executing native AssistiveTouch.hide():', error);
+        }
     };
 }
 

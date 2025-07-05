@@ -58,33 +58,39 @@ export default function AccessibilitySettingsPage() {
     };
 
     const handleToggleChange = async (checked: boolean) => {
+        console.log('AssistiveTouch toggle changed:', checked);
         if (checked) {
+            console.log('Requesting overlay permission...');
             const granted = await capacitorService.requestOverlayPermission(showPermissionDialog);
+            console.log('Permission request flow completed. Granted status:', granted);
             if (granted) {
+                console.log('Showing floating button...');
                 await capacitorService.showFloatingButton();
                 setAssistiveTouchEnabled(true);
                 toast({ title: "AssistiveTouch Enabled", description: "The floating button is now active." });
             } else {
+                console.log('Permission was not granted, showing denied dialog.');
                 setAssistiveTouchEnabled(false);
-                // In a real scenario, we might need to know if it was denied or just cancelled.
-                // For this simulation, we'll assume any non-grant is a denial that needs guidance.
-                if (!permissionDialogCallbacks) { // This means the dialog was not even shown (e.g., cancelled by user action elsewhere)
+                if (!permissionDialogCallbacks) { 
                     setIsPermissionDeniedDialogOpen(true);
                 }
             }
         } else {
+            console.log('Hiding floating button...');
             await capacitorService.hideFloatingButton();
             setAssistiveTouchEnabled(false);
         }
     };
 
     const onDialogConfirm = () => {
+        console.log('User confirmed permission explanation dialog.');
         setIsExplanationDialogOpen(false);
         permissionDialogCallbacks?.onConfirm();
         setPermissionDialogCallbacks(null);
     };
     
     const onDialogCancel = () => {
+        console.log('User cancelled permission explanation dialog.');
         setIsExplanationDialogOpen(false);
         permissionDialogCallbacks?.onCancel();
         setPermissionDialogCallbacks(null);
