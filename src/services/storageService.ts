@@ -1,8 +1,9 @@
 
+
 "use client";
 
 import Dexie, { type Table } from 'dexie';
-import type { UploadItem, MessageSubtype, Message, Chat, User } from '@/types';
+import type { UploadItem, MessageSubtype, Message, Chat, User, CachedMediaBlob } from '@/types';
 
 // Interface for the object stored in IndexedDB for uploads. We store the file as an ArrayBuffer.
 export interface StoredUploadItem {
@@ -27,12 +28,11 @@ export class ChirpChatDB extends Dexie {
     messages!: Table<Message, string>;
     users!: Table<User, string>;
     uploadQueue!: Table<StoredUploadItem, string>;
+    mediaBlobs!: Table<CachedMediaBlob, string>; // New table for media blobs
 
     constructor() {
         super('ChirpChatDB');
         
-        // This schema was faulty (used 'chatId', '++' on string). Keeping it here allows Dexie to handle upgrades
-        // from users who might have this version of the database.
         this.version(2).stores({
             chats: 'id, updated_at',
             messages: '++client_temp_id, id, chatId, created_at, [chatId+created_at]',
@@ -40,23 +40,19 @@ export class ChirpChatDB extends Dexie {
             uploadQueue: 'id, messageId, status, priority, createdAt',
         });
 
-        // Version 3 fixes the schema for the 'messages' table.
         this.version(3).stores({
-            // We only need to define the changed table. Others are inherited.
             messages: 'client_temp_id, id, chat_id, created_at, [chat_id+created_at]',
         }).upgrade(async tx => {
-            // This upgrade function is transactional and will only run once for each user
-            // when their browser sees version 3 for the first time.
-            // Its purpose is to migrate the data from the old schema to the new one.
             return tx.table('messages').toCollection().modify(msg => {
-                // Rename the 'chatId' property to 'chat_id' to match the new index.
                 if (typeof msg.chatId !== 'undefined') {
                     msg.chat_id = msg.chatId;
                     delete msg.chatId;
                 }
-                // The primary key change from '++client_temp_id' to 'client_temp_id'
-                // is handled automatically by the new schema definition.
             });
+        });
+
+        this.version(4).stores({
+            mediaBlobs: 'id, messageId, cachedAt'
         });
     }
 
@@ -187,3 +183,4 @@ const getDbInstance = (): ChirpChatDB => {
 };
 
 export const storageService = getDbInstance();
+

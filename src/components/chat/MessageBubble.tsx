@@ -31,7 +31,7 @@ import { useSwipe } from '@/hooks/useSwipe';
 import { useLongPress } from '@/hooks/useLongPress';
 import Spinner from '../common/Spinner';
 import UploadProgressIndicator from './UploadProgressIndicator';
-import { api } from '@/services/api';
+import { mediaCacheService } from '@/services/mediaCacheService';
 import dynamic from 'next/dynamic';
 
 const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
@@ -60,43 +60,37 @@ interface MessageBubbleProps {
   onToggleSelection: (messageId: string) => void;
 }
 
-function formatDuration(seconds: number | null | undefined): string {
-    if (seconds === null || seconds === undefined || isNaN(seconds)) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
-const useSignedUrl = (messageId: string, version?: string) => {
-    const [url, setUrl] = useState<string | null>(null);
+const useCachedMediaUrl = (message: Message, version: string) => {
+    const [displayUrl, setDisplayUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    
     useEffect(() => {
-        if (!messageId || !version) return;
-        let isMounted = true;
-        const fetchUrl = async () => {
-            setIsLoading(true);
-            try {
-                const response = await api.getSignedMediaUrl(messageId, version);
-                if (isMounted) setUrl(response.url);
-            } catch (error) {
-                console.error(`Failed to get signed URL for version ${version}`, error);
-                if (isMounted) setUrl(null);
-            } finally {
-                if (isMounted) setIsLoading(false);
+        let objectUrl: string | null = null;
+        const loadMedia = async () => {
+            if (!message.media_metadata || message.status === 'uploading' || message.status === 'pending_processing') {
+                return;
             }
+            setIsLoading(true);
+            const url = await mediaCacheService.getOrFetchMediaUrl(message, version);
+            objectUrl = url;
+            setDisplayUrl(url);
+            setIsLoading(false);
         };
-        fetchUrl();
-        return () => { isMounted = false; };
-    }, [messageId, version]);
-    return { url, isLoading };
+        loadMedia();
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [message, version]);
+
+    return { displayUrl, isLoading };
 };
 
 const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (url: string, type: 'image') => void; alt: string; }) => {
     const version = message.file_metadata?.urls?.preview_800 ? 'preview_800' : 'original';
-    const { url: imageUrl } = useSignedUrl(message.id, version);
-    const { url: thumbnailUrl, isLoading: isLoadingThumb } = useSignedUrl(message.id, 'thumbnail_250');
+    const { displayUrl: imageUrl } = useCachedMediaUrl(message, version);
+    const { displayUrl: thumbnailUrl, isLoading: isLoadingThumb } = useCachedMediaUrl(message, 'thumbnail_250');
 
-    if (isLoadingThumb) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
+    if (isLoadingThumb && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
     
     return (
         <button onClick={() => imageUrl && onShowMedia(imageUrl, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
@@ -106,16 +100,15 @@ const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onS
 };
 
 const VideoPlayer = memo(({ message }: { message: Message }) => {
-    const { url: hlsUrl } = useSignedUrl(message.id, 'hls_manifest');
-    const { url: mp4Url } = useSignedUrl(message.id, 'mp4_video');
-    const { url: thumbnailUrl, isLoading: isLoadingThumb } = useSignedUrl(message.id, 'static_thumbnail');
+    const { displayUrl: hlsUrl } = useCachedMediaUrl(message, 'hls_manifest');
+    const { displayUrl: mp4Url } = useCachedMediaUrl(message, 'mp4_video');
+    const { displayUrl: thumbnailUrl, isLoading: isLoadingThumb } = useCachedMediaUrl(message, 'static_thumbnail');
     
     const [isPlaying, setIsPlaying] = useState(false);
     
-    // Prefer HLS, fallback to MP4
     const finalUrl = hlsUrl || mp4Url;
 
-    if (isLoadingThumb) {
+    if (isLoadingThumb && !thumbnailUrl) {
         return <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div>;
     }
     
@@ -149,7 +142,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     const { toast } = useToast();
 
     const version = message.file_metadata?.urls?.mp3_audio ? 'mp3_audio' : 'original';
-    const { url: signedAudioUrl } = useSignedUrl(message.id, version);
+    const { displayUrl: signedAudioUrl, isLoading } = useCachedMediaUrl(message, version);
 
     const handlePlayPause = () => {
         if (!audioRef.current || !signedAudioUrl) return;
@@ -180,7 +173,9 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
 
     useEffect(() => {
         const audio = audioRef.current;
-        if (!audio) return;
+        if (!audio || !signedAudioUrl) return;
+        
+        audio.src = signedAudioUrl;
 
         const handleGlobalPlay = (event: Event) => {
             if ((event as CustomEvent).detail.player !== audio) {
@@ -211,7 +206,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
             audio.removeEventListener('error', handleError);
             document.removeEventListener('audio-play', handleGlobalPlay);
         };
-    }, [toast]);
+    }, [toast, signedAudioUrl]);
     
     let formattedTime = "sending...";
     try {
@@ -231,7 +226,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
 
     return (
         <div className={cn("flex items-center gap-2 p-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
-            <audio ref={audioRef} src={signedAudioUrl!} preload="metadata" />
+            <audio ref={audioRef} preload="metadata" />
             <div className="relative flex-shrink-0">
                 <Avatar className="w-10 h-10">
                     <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
@@ -244,8 +239,8 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
                 )}
             </div>
 
-            <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl}>
-                {!signedAudioUrl ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
+            <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl || isLoading}>
+                {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
             </Button>
             
             <div className="flex-grow flex flex-col justify-center gap-1.5 w-full">
@@ -276,7 +271,7 @@ AudioPlayer.displayName = "AudioPlayer";
 const AudioFilePlayer = memo(({ message, isCurrentUser, allUsers }: { message: Message; isCurrentUser: boolean; allUsers: Record<string, User> }) => {
     const { title, artist } = message.file_metadata || {};
     const sender = allUsers[message.user_id];
-    if (!sender) return null; // Or a fallback UI
+    if (!sender) return null;
 
     return (
         <div className={cn("p-2 w-full max-w-[250px] sm:max-w-xs", isCurrentUser ? "text-primary-foreground" : "text-secondary-foreground")}>
@@ -623,3 +618,4 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
+

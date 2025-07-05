@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -11,36 +12,61 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useZoomAndPan } from "@/hooks/useZoomAndPan";
 import { cn } from "@/lib/utils";
+import { Message } from "@/types";
+import { mediaCacheService } from "@/services/mediaCacheService";
+import { useState, useEffect } from "react";
+import Spinner from "../common/Spinner";
 
 interface FullScreenMediaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mediaUrl: string;
-  mediaType: 'image' | 'video';
+  message: Message | null; // Pass the whole message object
 }
 
 export default function FullScreenMediaModal({
   isOpen,
   onClose,
-  mediaUrl,
-  mediaType
+  message
 }: FullScreenMediaModalProps) {
   const { toast } = useToast();
   const { imageRef, containerHandlers, style } = useZoomAndPan();
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!isOpen) {
+  useEffect(() => {
+    if (isOpen && message) {
+        let objectUrl: string | null = null;
+        const loadMedia = async () => {
+            setIsLoading(true);
+            const version = message.message_subtype === 'image' ? 'original' : 'mp4_video';
+            const url = await mediaCacheService.getOrFetchMediaUrl(message, version);
+            objectUrl = url;
+            setMediaUrl(url);
+            setIsLoading(false);
+        };
+        loadMedia();
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        }
+    }
+  }, [isOpen, message]);
+
+  if (!isOpen || !message) {
     return null;
   }
+  const { message_subtype: mediaType } = message;
 
   const handleDownload = async () => {
+    if (!mediaUrl) return;
     try {
+      // The mediaUrl is already a blob URL from the cache, so we can fetch it directly
       const response = await fetch(mediaUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       
-      const fileExtension = mediaUrl.split('.').pop()?.split('?')[0] || (mediaType === 'image' ? 'jpg' : 'mp4');
+      const fileExtension = message.file_metadata?.format || (mediaType === 'image' ? 'jpg' : 'mp4');
       a.download = `chirpchat-${mediaType}-${Date.now()}.${fileExtension}`;
       
       document.body.appendChild(a);
@@ -65,7 +91,9 @@ export default function FullScreenMediaModal({
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
         )}
       >
-        {mediaType === 'image' ? (
+        {isLoading ? (
+            <Spinner />
+        ) : mediaType === 'image' && mediaUrl ? (
            <div
             className="w-full h-full touch-none overflow-hidden flex items-center justify-center"
             {...containerHandlers}
@@ -79,14 +107,14 @@ export default function FullScreenMediaModal({
               draggable="false"
             />
           </div>
-        ) : (
+        ) : mediaType === 'video' && mediaUrl ? (
           <video
             src={mediaUrl}
             controls
             autoPlay
             className="max-w-full max-h-full"
           />
-        )}
+        ) : null}
         <div className="absolute top-4 right-4 flex gap-2">
             <Button
                 variant="ghost"
@@ -115,3 +143,4 @@ export default function FullScreenMediaModal({
     </Dialog>
   );
 }
+

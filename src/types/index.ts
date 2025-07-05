@@ -199,4 +199,12 @@ export interface MediaMessagePayload {
     cloudinary_metadata: any;
 }
 
+export interface CachedMediaBlob {
+  id: string; // Composite ID: `${messageId}-${version}`
+  messageId: string; // For easier querying/deletion
+  version: string; // e.g., 'thumbnail', 'preview_800', 'hls_manifest'
+  blob: Blob; // The actual binary data of the media
+  cachedAt: number; // Timestamp for LRU eviction (Date.now())
+}
     
+
