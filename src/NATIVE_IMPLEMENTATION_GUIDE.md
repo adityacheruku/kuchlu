@@ -34,58 +34,56 @@ The web app's `capacitorService.ts` will call the following methods. Your plugin
 
 1.  **`requestOverlayPermission()`: Promise<void>**
     *   **Purpose**: To request the "draw over other apps" permission on Android.
-    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.requestOverlayPermission()`
 
 2.  **`show(options)`: Promise<void>**
     *   **Purpose**: Creates and displays the floating button.
-    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.show({ size: 56, opacity: 0.8 })`
+    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.show({ opacity: 0.8 })`
+    *   **`options`**: An object containing `{ opacity: number }` (from 0.2 to 1.0).
 
 3.  **`hide()`: Promise<void>**
     *   **Purpose**: Removes the floating button from the screen.
-    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.hide()`
-    
+
 4.  **`getStatus()`: Promise<{ isEnabled: boolean }>**
-    *   **Purpose**: Checks if the floating button is currently visible and active.
-    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.getStatus()`
+    *   **Purpose**: Checks if the floating button is currently visible and active. This state **must be persisted** in SharedPreferences.
+
+5.  **`updateMenu(options)`: Promise<void>**
+    *   **Purpose**: Sends the customized list of moods/actions from the web view to the native menu.
+    *   **Web Call**: `Capacitor.Plugins.AssistiveTouch.updateMenu({ moods: [...] })`
+    *   **`moods`**: An array of objects, e.g., `[{ id: "happy", label: "Happy", emoji: "😊" }]`.
 
 **Events to Emit:**
 
-Your native plugin must also emit events back to the web view when the user interacts with the floating button.
+Your native plugin must also emit events back to the web view.
 
-1.  **`singleTap`**: Emitted on a single tap.
-    *   **Native Code**: `notifyListeners("singleTap", new JSObject());`
+1.  **`singleTap`**: Emitted on a single tap. **The native plugin should show the Mood Menu UI.**
 2.  **`doubleTap`**: Emitted on a double tap.
-    *   **Native Code**: `notifyListeners("doubleTap", new JSObject());`
 3.  **`longPress`**: Emitted on a long press.
-    *   **Native Code**: `notifyListeners("longPress", new JSObject());`
+4.  **`moodSelected`**: Emitted when a user selects a mood from the native menu. The payload should be `{ moodId: string }`.
 
 ---
 
-## 3. Floating Button Visual Design & Behavior
+## 3. Floating Button & Menu: Visuals and Behavior
 
-This section details the required design and behavior for the floating button, as specified in the project plan.
-
-### 3.1 Core Design Principles
-*   **Size**: The touch target should be a standard **56dp**.
-*   **Background**: Use a **translucent blur** effect if possible on the target OS version. Fallback to a semi-transparent solid color.
+### 3.1 Core Design Principles (The Bubble)
+*   **Size**: A standard **56dp** touch target.
+*   **Background**: Use a **translucent blur** effect (`Window.setBlurBehind`). Fallback to a semi-transparent solid color on older Android versions.
 *   **Border**: A soft, 1dp border with 20% white opacity (`#33FFFFFF`).
 *   **Shadow**: A soft, ambient shadow to lift the button off the screen.
 
-### 3.2 States
-The button must visually respond to user interaction and connection status.
-
+### 3.2 States & Visual Feedback
 | State           | Visual Cue / Behavior                                                               | Haptic Feedback       |
 | --------------- | ----------------------------------------------------------------------------------- | --------------------- |
-| **Idle**        | Opacity: 70%, Scale: 1.0. Content shows a subtle gradient.                          | None                  |
-| **Active/Press**| Opacity: 100%, Scale: 1.05. Content has a gentle pulse animation.                   | Light impact          |
+| **Idle**        | Opacity set by web view (e.g., 0.8), Scale: 1.0. Content shows a subtle gradient.   | None                  |
+| **Active/Press**| Opacity: 1.0, Scale: 1.05. Content has a gentle pulse animation.                    | `HapticFeedbackConstants.KEYBOARD_TAP` |
 | **Connected**   | A subtle green glow appears around the border.                                      | None                  |
 | **Partner Online** | The button content has a gentle, continuous pulse animation.                     | None                  |
-| **Message Sent** | A ripple effect emanates from the button center.                                    | Light vibration       |
-| **Mood Received**| The button's gradient briefly shifts to the color associated with the partner's mood. | Confirmation vibration|
+| **Mood Received**| The button's gradient briefly shifts to the color associated with the partner's mood. | `HapticFeedbackConstants.CONFIRM` |
 
-### 3.3 Mood Selection Animation
-*   When the button is tapped to open the mood selection menu, it should perform an **elastic expansion** animation over approximately 300ms.
-*   The mood indicators should animate into position around the bubble.
+### 3.3 The Native Mood Menu
+*   **Trigger**: Opens on a `singleTap`.
+*   **Animation**: The main bubble should perform an **elastic expansion** animation. The mood indicators should animate into position around the bubble.
+*   **Content**: The menu items are provided dynamically by the web view via the `updateMenu` method. Initially, they may just be text. Later, they will include emojis. The native UI must be ableto render either.
+*   **Action**: When a user taps a mood, the native plugin must emit the `moodSelected` event with the `moodId` back to the web view.
 
 ---
 
@@ -93,47 +91,32 @@ The button must visually respond to user interaction and connection status.
 
 ### Phase 1: Android Implementation
 
-The goal on Android is a true floating button that persists via a Foreground Service.
+#### **Step 4.1: State Persistence & Permissions**
+*   In `android/app/src/main/AndroidManifest.xml`, add `SYSTEM_ALERT_WINDOW` and `FOREGROUND_SERVICE` permissions.
+*   Use `SharedPreferences` to store the enabled/disabled state of the floating button. The `getStatus()` method must read from this.
 
-#### **Step 4.1: Configure Permissions & State**
--   In `android/app/src/main/AndroidManifest.xml`, add the `SYSTEM_ALERT_WINDOW` and `FOREGROUND_SERVICE` permissions.
--   **IMPORTANT**: Use `SharedPreferences` to store the enabled/disabled state of the floating button. The `getStatus()` method should read from this.
+#### **Step 4.2: Implement the `AssistiveTouchService`**
+*   This will be a `ForegroundService`.
+*   The `show()` plugin method should start this service, passing in the opacity. It should also save the `isEnabled: true` state to SharedPreferences.
+*   The `hide()` method should stop the service and save `isEnabled: false`.
 
-#### **Step 4.2: Implement `requestOverlayPermission`**
--   Check `Settings.canDrawOverlays(getContext())`.
--   If permission is not granted, create an `Intent` to `Settings.ACTION_MANAGE_OVERLAY_PERMISSION`.
+#### **Step 4.3: Implement Gesture Detection & Actions**
+*   Use Android's `GestureDetector`.
+*   **`onSingleTapConfirmed`**: Open the native mood selection UI.
+*   **`onDoubleTap`**: Emit the `doubleTap` event.
+*   **`onLongPress`**: Emit the `longPress` event.
+*   Implement distinct haptic feedback (`HapticFeedbackConstants`) for each gesture.
 
-#### **Step 4.3: Create the `AssistiveTouchService`**
--   This will be a `ForegroundService`.
--   **On `onCreate()`**: Inflate the button layout and add it to the `WindowManager` using `TYPE_APPLICATION_OVERLAY`.
--   **On `onStartCommand()`**: Create the required persistent notification (e.g., "ChirpChat is running to stay connected") and start the service in the foreground.
--   **On `onDestroy()`**: Remove the button view from the `WindowManager`.
-
-#### **Step 4.4: Implement Drag-and-Snap Logic**
--   Attach an `OnTouchListener` to the button.
--   On `ACTION_UP`, calculate the closest screen edge (left or right) and use a `ValueAnimator` to smoothly animate the button.
--   Save the final position to `SharedPreferences`.
-
-#### **Step 4.5: Implement Gesture Detection & Actions**
--   Use Android's `GestureDetector`.
--   **`onSingleTapConfirmed`**: Open the native mood selection UI (see section 3.3). Do **not** emit the `singleTap` event directly, as the web app does not handle this UI.
--   **`onDoubleTap`**: Emit the `doubleTap` event.
--   **`onLongPress`**: Emit the `longPress` event.
--   **IMPORTANT**: Implement distinct haptic feedback (`HapticFeedbackConstants`) for each gesture.
+#### **Step 4.4: Implement the Dynamic Mood Menu**
+*   Create a native layout for the menu (e.g., using a custom `ViewGroup`).
+*   The `updateMenu` plugin method will receive the list of moods. Store this list in a variable in your plugin.
+*   When the menu is shown (on single tap), dynamically create and populate the mood item views (e.g., `TextView` or a custom view with an `ImageView` for the emoji) from the stored list.
+*   Set an `OnClickListener` on each mood item. When clicked, it should emit the `moodSelected` event with the corresponding `moodId`.
 
 ### Phase 2: iOS Implementation (In-App Only)
-
-**Reminder:** iOS does not allow drawing over other apps. This implementation will only work while the app is active.
-
-#### **Step 5.1: Implement the Floating Button View**
--   Create a custom `UIView` for the button. Add it to the main `UIWindow` to float above the web view.
-
-#### **Step 5.2: Implement Drag-and-Snap Logic**
--   Use a `UIPanGestureRecognizer` to update the view's `center` property and `UIView.animate` to snap it to the edge.
-
-#### **Step 5.3: Implement Gesture Detection**
--   Add `UITapGestureRecognizer` (single/double) and `UILongPressGestureRecognizer` instances.
--   In the handlers, call `notifyListeners(...)` to send the corresponding events to the web view.
+*   **Reminder:** iOS does not allow drawing over other apps. The primary alternative is to use home screen Quick Actions and Widgets.
+*   Implement the `getstatus()` method to always return `{ isEnabled: false }`.
+*   The `show()`, `hide()`, and `updateMenu()` methods can be implemented as no-ops.
 
 ---
 

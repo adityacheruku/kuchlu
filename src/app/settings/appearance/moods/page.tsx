@@ -5,8 +5,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { CheckCircle2, Circle } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import SettingsHeader from '@/components/settings/SettingsHeader';
 import FullPageLoader from '@/components/common/FullPageLoader';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +13,7 @@ import { MOOD_OPTIONS, DEFAULT_QUICK_MOODS, type MoodOption } from '@/config/moo
 import { cn } from '@/lib/utils';
 
 const QUICK_MOODS_STORAGE_KEY = 'kuchlu_quickMoods';
-const MAX_QUICK_MOODS = 4;
+const MAX_QUICK_MOODS = 8; // Updated to 8 as per new requirements
 
 export default function MoodCustomizationPage() {
     const { currentUser, isLoading: isAuthLoading } = useAuth();
@@ -41,7 +40,7 @@ export default function MoodCustomizationPage() {
                 } else {
                     toast({
                         variant: 'destructive',
-                        title: `You can only select ${MAX_QUICK_MOODS} quick moods.`,
+                        title: `You can only select up to ${MAX_QUICK_MOODS} quick actions.`,
                         duration: 2000,
                     });
                 }
@@ -53,8 +52,10 @@ export default function MoodCustomizationPage() {
     const handleSaveChanges = () => {
         setIsSaving(true);
         localStorage.setItem(QUICK_MOODS_STORAGE_KEY, JSON.stringify(Array.from(selectedMoods)));
+        // In a real app, this would also call a service to update the native plugin
+        // e.g., capacitorService.updateMenu({ moods: ... })
         setTimeout(() => {
-             toast({ title: 'Preferences Saved', description: 'Your quick moods have been updated.' });
+             toast({ title: 'Preferences Saved', description: 'Your AssistiveTouch menu has been updated.' });
              setIsSaving(false);
         }, 500);
     }
@@ -65,13 +66,13 @@ export default function MoodCustomizationPage() {
 
     return (
         <div className="min-h-screen bg-muted/40 pb-24">
-            <SettingsHeader title="Customize Quick Moods" />
+            <SettingsHeader title="Customize AssistiveTouch Menu" />
             <main className="max-w-3xl mx-auto space-y-6 p-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Select Your Favorites</CardTitle>
+                        <CardTitle>Select Quick Actions</CardTitle>
                         <CardDescription>
-                            Choose up to {MAX_QUICK_MOODS} moods that you use most often. These will appear as quick picks in your chat.
+                            Choose up to {MAX_QUICK_MOODS} moods to display in your AssistiveTouch menu for quick access.
                             You have selected {selectedMoods.size} / {MAX_QUICK_MOODS}.
                         </CardDescription>
                     </CardHeader>

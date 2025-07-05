@@ -1,26 +1,26 @@
 
 "use client";
 
-// This service acts as a bridge to native Capacitor plugins.
-// It calls the real native plugins when running on a device,
-// and provides simulated functionality for web development.
-
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import type { MoodOption } from '@/config/moods';
 
-type CapacitorEvent = 'singleTap' | 'doubleTap' | 'longPress';
+type CapacitorEvent = 'singleTap' | 'doubleTap' | 'longPress' | 'moodSelected';
 type CapacitorEventListener = (data?: any) => void;
 
 interface AssistiveTouchPlugin {
   // Methods
   requestOverlayPermission(): Promise<void>;
-  show(options: { size: number, opacity: number }): Promise<void>;
+  show(options: { opacity: number }): Promise<void>;
   hide(): Promise<void>;
   getStatus(): Promise<{ isEnabled: boolean }>;
+  updateMenu(options: { moods: MoodOption[] }): Promise<void>;
+
 
   // Event Listeners
   addListener(eventName: 'singleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
   addListener(eventName: 'doubleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
   addListener(eventName: 'longPress', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'moodSelected', listenerFunc: (event: { moodId: string }) => void): Promise<PluginListenerHandle> & PluginListenerHandle;
 }
 
 class CapacitorService {
@@ -36,7 +36,6 @@ class CapacitorService {
         }
     }
     
-    // Checks if the specific AssistiveTouch plugin is available
     private isPluginAvailable = (): boolean => {
         return this.isNative && !!this.assistiveTouch;
     }
@@ -47,7 +46,7 @@ class CapacitorService {
             return () => {}; // Return a no-op unsubscribe function for web
         }
 
-        const handle = this.assistiveTouch!.addListener(event, callback);
+        const handle = this.assistiveTouch!.addListener(event as any, callback);
         
         // Return an unsubscribe function
         return () => {
@@ -83,13 +82,13 @@ class CapacitorService {
         });
     };
 
-    public showFloatingButton = async (): Promise<void> => {
+    public showFloatingButton = async (options: { opacity: number }): Promise<void> => {
         if (!this.isPluginAvailable()) {
-            console.log("[Web Simulator] Show floating button.");
+            console.log("[Web Simulator] Show floating button with options:", options);
             return;
         }
         try {
-            await this.assistiveTouch!.show({ size: 56, opacity: 0.8 });
+            await this.assistiveTouch!.show(options);
         } catch (error) {
             console.error('CapacitorService: Error executing native show():', error);
         }
@@ -113,11 +112,22 @@ class CapacitorService {
             return { isEnabled: false };
         }
         try {
-            // This is a new method the plugin developer needs to implement.
             return await this.assistiveTouch!.getStatus();
         } catch (error) {
              console.error('CapacitorService: Error executing native getStatus():', error);
              return { isEnabled: false };
+        }
+    }
+
+    public updateAssistiveTouchMenu = async (moods: MoodOption[]): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log("[Web Simulator] Updating menu with moods:", moods);
+            return;
+        }
+        try {
+            await this.assistiveTouch!.updateMenu({ moods });
+        } catch (error) {
+            console.error('CapacitorService: Error executing native updateMenu():', error);
         }
     }
 }

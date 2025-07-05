@@ -23,17 +23,24 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { capacitorService } from '@/services/capacitorService';
+import Link from 'next/link';
+import { Slider } from '@/components/ui/slider';
 
-const SettingsRow = ({ children, onClick, disabled = false }: { children: React.ReactNode, onClick?: () => void, disabled?: boolean }) => {
+const SettingsRow = ({ children, onClick, disabled = false, href }: { children: React.ReactNode, onClick?: () => void, disabled?: boolean, href?: string }) => {
     const interactionClass = disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/50';
-    return (
+    const content = (
         <div
             onClick={!disabled ? onClick : undefined}
-            className={`flex items-center justify-between p-4 -mx-4 rounded-lg transition-colors ${interactionClass} ${!disabled && onClick ? 'cursor-pointer' : ''}`}
+            className={`flex items-center justify-between p-4 -mx-4 rounded-lg transition-colors ${interactionClass} ${!disabled && (onClick || href) ? 'cursor-pointer' : ''}`}
         >
             {children}
         </div>
     );
+
+    if (href && !disabled) {
+        return <Link href={href}>{content}</Link>
+    }
+    return content;
 };
 
 export default function AccessibilitySettingsPage() {
@@ -44,6 +51,7 @@ export default function AccessibilitySettingsPage() {
     // State for the feature itself
     const [assistiveTouchEnabled, setAssistiveTouchEnabled] = useState(false);
     const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+    const [idleOpacity, setIdleOpacity] = useState([80]);
     
     // State for the dialogs
     const [isExplanationDialogOpen, setIsExplanationDialogOpen] = useState(false);
@@ -57,6 +65,7 @@ export default function AccessibilitySettingsPage() {
         try {
           const status = await capacitorService.getAssistiveTouchStatus();
           setAssistiveTouchEnabled(status.isEnabled);
+          // TODO: Load idle opacity from storage
         } catch (e) {
           console.error("Failed to get initial AssistiveTouch status", e);
           setAssistiveTouchEnabled(false);
@@ -67,10 +76,6 @@ export default function AccessibilitySettingsPage() {
       checkInitialStatus();
     }, []);
 
-    if (isAuthLoading || !currentUser) {
-        return <FullPageLoader />;
-    }
-
     const showPermissionDialog = (callbacks: { onConfirm: () => void, onCancel: () => void }) => {
         setPermissionDialogCallbacks(callbacks);
         setIsExplanationDialogOpen(true);
@@ -80,7 +85,7 @@ export default function AccessibilitySettingsPage() {
         if (checked) {
             const granted = await capacitorService.requestOverlayPermission(showPermissionDialog);
             if (granted) {
-                await capacitorService.showFloatingButton();
+                await capacitorService.showFloatingButton({ opacity: idleOpacity[0] / 100 });
                 setAssistiveTouchEnabled(true);
                 toast({ title: "AssistiveTouch Enabled", description: "The floating button is now active." });
             } else {
@@ -94,6 +99,17 @@ export default function AccessibilitySettingsPage() {
             setAssistiveTouchEnabled(false);
         }
     };
+    
+    const handleOpacityChange = (value: number[]) => {
+      setIdleOpacity(value);
+    }
+    
+    const handleOpacityCommit = (value: number[]) => {
+      if(assistiveTouchEnabled) {
+          capacitorService.showFloatingButton({ opacity: value[0] / 100 });
+      }
+      // TODO: Save idle opacity to storage
+    }
 
     const onDialogConfirm = () => {
         setIsExplanationDialogOpen(false);
@@ -106,6 +122,10 @@ export default function AccessibilitySettingsPage() {
         permissionDialogCallbacks?.onCancel();
         setPermissionDialogCallbacks(null);
     };
+
+    if (isAuthLoading || !currentUser) {
+        return <FullPageLoader />;
+    }
 
     return (
         <div className="min-h-screen bg-muted/40 pb-16">
@@ -121,47 +141,32 @@ export default function AccessibilitySettingsPage() {
                             <SettingsRow>
                                 <Label htmlFor="assistive-touch-toggle" className="font-medium pr-4 cursor-pointer">
                                     AssistiveTouch
-                                    <p className="text-sm text-muted-foreground font-normal">Use a floating button to quickly access app features from anywhere on your device. Requires special permissions.</p>
+                                    <p className="text-sm text-muted-foreground font-normal">Use a floating button to quickly access app features from anywhere on your device.</p>
                                 </Label>
                                 <div className="flex items-center gap-2">
-                                     {isLoadingStatus ? (
-                                        <Spinner />
-                                     ) : (
-                                        <Switch
-                                            id="assistive-touch-toggle"
-                                            checked={assistiveTouchEnabled}
-                                            onCheckedChange={handleToggleChange}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                     )}
+                                     {isLoadingStatus ? <Spinner /> : <Switch id="assistive-touch-toggle" checked={assistiveTouchEnabled} onCheckedChange={handleToggleChange} />}
                                 </div>
                             </SettingsRow>
                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Visual</CardTitle>
-                        <CardDescription>Features coming soon.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">Adjustments for text size, contrast, and motion will be available here.</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Audio</CardTitle>
-                        <CardDescription>Features coming soon.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <p className="text-sm text-muted-foreground">Settings for mono audio and sound recognition will be available here.</p>
+                       <div className="px-4">
+                           <SettingsRow href="/settings/appearance/moods" disabled={!assistiveTouchEnabled}>
+                                <div className="flex flex-col">
+                                    <Label className="font-medium">Customize Menu</Label>
+                                    <p className="text-sm text-muted-foreground font-normal">Choose the moods and actions that appear in the AssistiveTouch menu.</p>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                           </SettingsRow>
+                       </div>
+                       <div className="px-4 pt-4 pb-2">
+                          <Label htmlFor="idle-opacity-slider" className="font-medium">Idle Opacity</Label>
+                          <p className="text-sm text-muted-foreground font-normal pb-4">Adjust the visibility of the AssistiveTouch button when not in use.</p>
+                          <Slider id="idle-opacity-slider" value={idleOpacity} onValueChange={handleOpacityChange} onValueCommit={handleOpacityCommit} max={100} min={20} step={5} disabled={!assistiveTouchEnabled} />
+                          <div className="text-center text-xs text-muted-foreground pt-2">{idleOpacity[0]}%</div>
+                       </div>
                     </CardContent>
                 </Card>
             </main>
             
-            {/* Permission Explanation Dialog */}
             <AlertDialog open={isExplanationDialogOpen} onOpenChange={setIsExplanationDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -177,7 +182,6 @@ export default function AccessibilitySettingsPage() {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Permission Denied Help Dialog */}
             <AlertDialog open={isPermissionDeniedDialogOpen} onOpenChange={setIsPermissionDeniedDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
