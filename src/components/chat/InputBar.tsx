@@ -106,6 +106,7 @@ function InputBar({
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [emojiSearch, setEmojiSearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -291,6 +292,7 @@ function InputBar({
   }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendVoiceMessage, onSendDocument, onTyping, chatMode, replyingTo]);
   
   const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0, [messageText, stagedAttachments]);
+  const showSmileButton = useMemo(() => isInputFocused || showSendButton, [isInputFocused, showSendButton]);
 
   const filteredEmojis = useMemo(() => {
     if (!emojiSearch) return PICKER_EMOJIS;
@@ -445,7 +447,11 @@ function InputBar({
                   placeholder={getPlaceholderText()}
                   value={messageText}
                   onChange={handleTypingChange}
-                  onBlur={handleBlur}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => {
+                    setIsInputFocused(false);
+                    handleBlur();
+                  }}
                   className="w-full bg-transparent border-none focus-visible:ring-0 resize-none min-h-[44px] max-h-[120px] py-2.5 px-3.5"
                   autoComplete="off"
                   disabled={isSending || disabled}
@@ -462,9 +468,9 @@ function InputBar({
                         variant="ghost" size="icon" type="button"
                         className={cn(
                             'rounded-full h-11 w-11 flex-shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-accent transition-all duration-300 ease-in-out',
-                            showSendButton ? 'scale-100 opacity-100' : 'scale-0 opacity-0 w-0'
+                            showSmileButton ? 'scale-100 opacity-100' : 'scale-0 opacity-0 w-0'
                         )}
-                        disabled={!showSendButton || disabled} aria-label="Open emoji and sticker panel"
+                        disabled={!showSmileButton || disabled} aria-label="Open emoji and sticker panel"
                     >
                         <Smile size={22} />
                     </Button>
@@ -506,5 +512,3 @@ function InputBar({
 }
 
 export default memo(InputBar);
-
-    
