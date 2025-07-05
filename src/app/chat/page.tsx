@@ -19,7 +19,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { uploadManager } from '@/services/uploadManager';
 import { storageService } from '@/services/storageService';
 import { capacitorService } from '@/services/capacitorService';
-import { Wifi, WifiOff, Trash2, Video, File } from 'lucide-react';
+import { Wifi, WifiOff, Trash2, Video, File, CheckCircle2 } from 'lucide-react';
 import ChatHeader from '@/components/chat/ChatHeader';
 import MessageArea from '@/components/chat/MessageArea';
 import InputBar from '@/components/chat/InputBar';
@@ -39,7 +39,9 @@ import { buttonVariants } from '@/components/ui/button';
 import FullPageLoader from '@/components/common/FullPageLoader';
 import Spinner from '@/components/common/Spinner';
 import MessageInfoModal from '@/components/chat/MessageInfoModal';
+import ChatModeSelector from '@/components/chat/ChatModeSelector';
 import { validateFile } from '@/utils/fileValidation';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 
 const MemoizedMessageArea = memo(MessageArea);
@@ -49,6 +51,7 @@ const MemoizedInputBar = memo(InputBar);
 const MOOD_PROMPT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const FIRST_MESSAGE_SENT_KEY = 'kuchlu_firstMessageSent';
 const MESSAGE_SEND_TIMEOUT_MS = 15000;
+const ACTIVATION_THRESHOLD = 80;
 
 const FullScreenAvatarModal = dynamic(() => import('@/components/chat/FullScreenAvatarModal'), { ssr: false, loading: () => <FullPageLoader /> });
 const FullScreenMediaModal = dynamic(() => import('@/components/chat/FullScreenMediaModal'), { ssr: false, loading: () => <FullPageLoader /> });
@@ -66,7 +69,6 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [otherUser, setOtherUser] = useState<User | null>(null);
   
-  // Use Dexie's live query to reactively update messages from IndexedDB
   const messages = useLiveQuery(
     () => activeChatId ? storageService.messages.where('chat_id').equals(activeChatId).sortBy('created_at') : [],
     [activeChatId],
@@ -95,7 +97,9 @@ export default function ChatPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isClearChatDialogOpen, setIsClearChatDialogOpen] = useState(false);
   const [messageInfo, setMessageInfo] = useState<MessageType | null>(null);
-
+  const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
+  const [pullY, setPullY] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,6 +107,7 @@ export default function ChatPage() {
   const lastMessageTextRef = useRef<string>("");
   const handleSendThoughtRef = useRef<() => void>(() => {});
   const pendingMessageTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+  const startY = useRef(0);
   
   const setMessageAsFailed = useCallback((clientTempId: string) => {
     storageService.updateMessage(clientTempId, { status: 'failed' });
@@ -134,7 +139,18 @@ export default function ChatPage() {
   }, [currentUser, otherUser]);
 
   const handleMessageDeleted = useCallback((data: MessageDeletedEventData) => {
-    storageService.deleteMessage(data.message_id);
+    const placeholder: Message = {
+      id: data.message_id,
+      client_temp_id: data.message_id,
+      chat_id: data.chat_id,
+      user_id: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'sent',
+      message_subtype: 'deleted_placeholder',
+      text: "This message was deleted.",
+    }
+    storageService.addMessage(placeholder);
   }, []);
   
   const handlePresenceUpdate = useCallback(async (data: UserPresenceUpdateEventData) => {
@@ -184,11 +200,8 @@ export default function ChatPage() {
     pendingMessageTimeouts.current[messagePayload.client_temp_id] = setTimeout(() => setMessageAsFailed(messagePayload.client_temp_id), MESSAGE_SEND_TIMEOUT_MS);
   }, [sendMessage, setMessageAsFailed]);
 
-  // Listen to upload progress events
   useEffect(() => {
     const handleProgress = async (update: UploadProgress) => {
-      // Optimistically update the UI with progress details.
-      // The final message data will come from the 'media_processed' WebSocket event.
       await storageService.updateMessage(update.messageId, {
          uploadStatus: update.status,
          uploadProgress: update.progress,
@@ -224,7 +237,6 @@ export default function ChatPage() {
         setActiveChatId(chat.id);
         setOtherUser(chat.participants.find(p => p.id !== currentUser.id)!);
 
-        // Fetch latest messages from API and update local DB
         const messagesData = await api.getMessages(chat.id, 50);
         await storageService.bulkAddMessages(messagesData.messages);
         setHasMoreMessages(messagesData.messages.length >= 50);
@@ -338,7 +350,6 @@ export default function ChatPage() {
     
     await storageService.addMessage(optimisticMessage);
     
-    // The public ID for Cloudinary will be the same as our client-side temp ID
     const cloudinaryPublicId = clientTempId;
     const resourceType = finalSubtype === 'image' ? 'image' : 'video';
 
@@ -360,18 +371,29 @@ export default function ChatPage() {
     }
   }, []);
   
-  const handleDeleteMessage = useCallback(async (messageId: string, deleteType: DeleteType) => { 
-    if (!activeChatId) return; 
-    try { 
-        if (deleteType === 'everyone') { 
-            await api.deleteMessageForEveryone(messageId, activeChatId); 
-        } 
-        await storageService.deleteMessage(messageId);
+  const handleDeleteMessage = useCallback(async (message: MessageType, deleteType: DeleteType) => { 
+    if (!activeChatId || !currentUser) return; 
+    try {
+        if (deleteType === 'everyone') {
+            await api.deleteMessageForEveryone(message.id, activeChatId);
+            const placeholder: MessageType = {
+                ...message,
+                message_subtype: 'deleted_placeholder',
+                text: message.user_id === currentUser.id ? "You deleted this message" : "This message was deleted",
+                reactions: {},
+                image_url: undefined,
+                clip_url: undefined,
+                document_url: undefined,
+            };
+            await storageService.addMessage(placeholder);
+        } else {
+            await storageService.deleteMessage(message.client_temp_id || message.id);
+        }
         toast({ title: "Message Deleted" }); 
     } catch (error: any) { 
         toast({ variant: 'destructive', title: 'Delete Failed', description: error.message }); 
     }
-  }, [activeChatId, toast]);
+  }, [activeChatId, toast, currentUser]);
 
   const allUsersForMessageArea = useMemo(() => (currentUser && otherUser ? {[currentUser.id]: currentUser, [otherUser.id]: otherUser} : {}), [currentUser, otherUser]);
 
@@ -388,18 +410,29 @@ export default function ChatPage() {
   }, [messages, selectedMessageIds, toast, handleExitSelectionMode, allUsersForMessageArea]);
   
   const handleShareSelected = useCallback(async () => {
-    const selectedText = messages
-      .filter(m => selectedMessageIds.has(m.id))
+    const selectedMsgs = messages.filter(m => selectedMessageIds.has(m.id));
+    const mediaMessage = selectedMsgs.find(m => m.message_subtype === 'image' || m.message_subtype === 'clip');
+    
+    if (mediaMessage?.file_metadata?.urls?.original) {
+      try {
+        await capacitorService.share({
+          title: 'Share from ChirpChat',
+          url: mediaMessage.file_metadata.urls.original,
+        });
+      } catch (e) {
+        toast({variant: 'destructive', title: "Sharing failed", description: "Could not share the media file."})
+      }
+      return;
+    }
+
+    const selectedText = selectedMsgs
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       .map(m => `${allUsersForMessageArea[m.user_id]?.display_name}: ${m.text || 'Attachment'}`)
       .join('\n');
 
     if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Kuchlu Conversation', text: selectedText });
-      } catch (error) {
-        if ((error as Error).name !== 'AbortError') console.error('Share failed:', error);
-      }
+      try { await navigator.share({ title: 'ChirpChat Conversation', text: selectedText }); } 
+      catch (error) { if ((error as Error).name !== 'AbortError') console.error('Share failed:', error); }
     } else {
       toast({ variant: 'destructive', title: "Not Supported", description: "Your browser does not support sharing." });
     }
@@ -407,29 +440,23 @@ export default function ChatPage() {
   }, [messages, selectedMessageIds, toast, handleExitSelectionMode, allUsersForMessageArea]);
 
   const handleDeleteSelected = useCallback(async (deleteType: DeleteType) => {
-    if (!activeChatId) return;
+    if (!activeChatId || !currentUser) return;
     
     const idsToDelete = Array.from(selectedMessageIds);
-    
-    // Optimistically remove from UI via Dexie
-    for (const id of idsToDelete) {
-        await storageService.deleteMessage(id);
-    }
-    
+    const messagesToDelete = messages.filter(m => idsToDelete.includes(m.id));
+
     if (deleteType === 'everyone') {
       try {
-        await Promise.all(idsToDelete.map(id => api.deleteMessageForEveryone(id, activeChatId)));
-        toast({ title: "Messages Deleted", description: `${idsToDelete.length} messages deleted for everyone.` });
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Delete Failed', description: 'Some messages could not be deleted.' });
-        performLoadChatData();
-      }
+        await Promise.all(messagesToDelete.map(msg => handleDeleteMessage(msg, 'everyone')));
+      } catch (error) { toast({ variant: 'destructive', title: 'Delete Failed', description: 'Some messages could not be deleted.' }); }
     } else {
-        toast({ title: "Messages Deleted", description: `${idsToDelete.length} messages removed from your view.` });
+      for (const msg of messagesToDelete) {
+        await handleDeleteMessage(msg, 'me');
+      }
     }
     handleExitSelectionMode();
     setIsDeleteDialogOpen(false);
-  }, [activeChatId, selectedMessageIds, handleExitSelectionMode, toast, performLoadChatData]);
+  }, [activeChatId, currentUser, selectedMessageIds, messages, handleDeleteMessage, handleExitSelectionMode, toast]);
 
   const handleClearChat = useCallback(async () => {
     if (!activeChatId) return;
@@ -460,7 +487,6 @@ export default function ChatPage() {
     if (lastReactionToggleTimes.current[key] && (now - lastReactionToggleTimes.current[key] < 500)) return;
     lastReactionToggleTimes.current[key] = now;
     
-    // Optimistic update in local DB
     const message = messages.find(m => m.id === messageId);
     if(message) {
       const r = { ...message.reactions }; 
@@ -486,8 +512,6 @@ export default function ChatPage() {
         await api.updateUserProfile({ mood: newMood }); 
         await fetchAndUpdateUser(); 
         toast({ title: "Mood Updated!" }); 
-        
-        // ANALYTICS TRACKING
         try {
             const now = new Date();
             const hour = now.getHours();
@@ -495,19 +519,10 @@ export default function ChatPage() {
             const time_of_day = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : hour < 22 ? 'evening' : 'night';
             const day_of_week = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as MoodAnalyticsContext['day_of_week'];
             
-            const analyticsPayload: MoodAnalyticsPayload = {
-                mood_id: newMood,
-                context: { time_of_day, day_of_week }
-            };
+            const analyticsPayload: MoodAnalyticsPayload = { mood_id: newMood, context: { time_of_day, day_of_week } };
             await api.sendMoodAnalytics(analyticsPayload);
-        } catch (analyticsError) {
-            console.error("Failed to send mood analytics:", analyticsError);
-        }
-        // END ANALYTICS TRACKING
-
-      } catch (e: any) { 
-        toast({ variant: 'destructive', title: 'Update Failed' }) 
-      } 
+        } catch (analyticsError) { console.error("Failed to send mood analytics:", analyticsError); }
+      } catch (e: any) { toast({ variant: 'destructive', title: 'Update Failed' }) } 
     if (typeof window !== 'undefined') localStorage.setItem('kuchlu_lastMoodPromptTimestamp', Date.now().toString());
     setIsMoodModalOpen(false); 
   }, [currentUser, fetchAndUpdateUser, toast]);
@@ -527,24 +542,16 @@ export default function ChatPage() {
   const handleCancelReply = useCallback(() => setReplyingTo(null), []);
   const handleSetReplyingTo = useCallback((message: MessageType | null) => setReplyingTo(message), []);
 
+  const handlePointerDown = (e: React.PointerEvent) => { if (viewportRef.current?.scrollTop === 0) { startY.current = e.clientY; setIsPulling(true); }};
+  const handlePointerMove = (e: React.PointerEvent) => { if (!isPulling) return; const diffY = e.clientY - startY.current; if (diffY > 0) { e.preventDefault(); setPullY(Math.min(diffY, 150)); }};
+  const handlePointerUp = () => { if (!isPulling) return; if (pullY > ACTIVATION_THRESHOLD) { Haptics.impact({ style: ImpactStyle.Medium }); setIsModeSelectorOpen(true); } setIsPulling(false); setPullY(0); };
+
   useEffect(() => { if (!isAuthLoading && !isAuthenticated) router.push('/'); if (isAuthenticated && currentUser) performLoadChatData(); }, [isAuthenticated, isAuthLoading, currentUser?.id, performLoadChatData, router]);
   useEffect(() => { setDynamicBgClass(chatMode==='fight'?'bg-mode-fight':chatMode==='incognito'?'bg-mode-incognito':getDynamicBg(currentUser?.mood, otherUser?.mood)); }, [chatMode, currentUser?.mood, otherUser?.mood, getDynamicBg]);
   useEffect(() => { const incognitoMessages = messages?.filter(m => m.mode === 'incognito') || []; if (incognitoMessages.length > 0) { const timer = setTimeout(() => { storageService.messages.where('mode').equals('incognito').delete(); }, 30000); return () => clearTimeout(timer); } }, [messages]);
   useLayoutEffect(() => { if (topMessageId && viewportRef.current) { const el = viewportRef.current.querySelector(`#message-${topMessageId}`); if (el) el.scrollIntoView({ block: 'start', behavior: 'instant' }); setTopMessageId(null); }}, [topMessageId, messages]);
   useEffect(() => { const timeouts = pendingMessageTimeouts.current; return () => { Object.values(timeouts).forEach(clearTimeout); }; }, []);
-
-  // Listen for native gesture events
-  useEffect(() => {
-    const unsubSingleTap = capacitorService.on('singleTap', () => setIsMoodModalOpen(true));
-    const unsubDoubleTap = capacitorService.on('doubleTap', handleSendThoughtRef.current);
-    const unsubLongPress = capacitorService.on('longPress', () => toast({ title: "Custom actions coming soon!"}));
-
-    return () => {
-      unsubSingleTap();
-      unsubDoubleTap();
-      unsubLongPress();
-    };
-  }, [toast]); // handleSendThoughtRef is stable due to useRef
+  useEffect(() => { const unsubSingleTap = capacitorService.on('singleTap', () => setIsMoodModalOpen(true)); const unsubDoubleTap = capacitorService.on('doubleTap', handleSendThoughtRef.current); const unsubLongPress = capacitorService.on('longPress', () => toast({ title: "Custom actions coming soon!"})); return () => { unsubSingleTap(); unsubDoubleTap(); unsubLongPress(); }; }, [toast]);
 
   const isLoadingPage = isAuthLoading || (isAuthenticated && isChatLoading);
   const isInputDisabled = protocol === 'disconnected' || isSelectionMode;
@@ -597,6 +604,8 @@ export default function ChatPage() {
                 onDeleteSelected={() => setIsDeleteDialogOpen(true)}
                 onShareSelected={handleShareSelected}
                 onClearChat={() => setIsClearChatDialogOpen(true)}
+                onReplySelected={() => { const msg = messages.find(m => m.id === Array.from(selectedMessageIds)[0]); if (msg) onSetReplyingTo(msg); handleExitSelectionMode(); }}
+                onToggleStarSelected={() => { toast({title: "Coming Soon!"}); }}
               />
               <MemoizedMessageArea 
                 viewportRef={viewportRef} 
@@ -612,7 +621,7 @@ export default function ChatPage() {
                 hasMore={hasMoreMessages} 
                 isLoadingMore={isLoadingMore} 
                 onRetrySend={handleRetrySend} 
-                onDeleteMessage={handleDeleteMessage} 
+                onDeleteMessage={(msg) => setIsDeleteDialogOpen(true)} 
                 onSetReplyingTo={handleSetReplyingTo}
                 isSelectionMode={isSelectionMode}
                 selectedMessageIds={selectedMessageIds}
@@ -620,6 +629,12 @@ export default function ChatPage() {
                 onToggleMessageSelection={handleToggleMessageSelection}
                 onMarkAsRead={handleMarkAsRead}
                 infoMessageId={messageInfo?.id || null}
+                pullY={pullY}
+                isPulling={isPulling}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                activationThreshold={ACTIVATION_THRESHOLD}
               />
               <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} onSendAudio={handleSendAudio} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
@@ -634,9 +649,9 @@ export default function ChatPage() {
         <DeleteMessageDialog
           isOpen={isDeleteDialogOpen}
           onClose={() => setIsDeleteDialogOpen(false)}
-          onConfirm={handleDeleteSelected}
-          isCurrentUser={canDeleteForEveryone}
-          messageCount={selectedMessageIds.size}
+          onConfirm={(type) => handleDeleteSelected(type)}
+          messages={messages.filter(m => selectedMessageIds.has(m.id))}
+          currentUserId={currentUser.id}
         />
         <AlertDialog open={isClearChatDialogOpen} onOpenChange={setIsClearChatDialogOpen}>
             <AlertDialogContent>
@@ -654,6 +669,12 @@ export default function ChatPage() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+        <ChatModeSelector
+            isOpen={isModeSelectorOpen}
+            onClose={() => setIsModeSelectorOpen(false)}
+            onSelectMode={handleSelectMode}
+            currentMode={chatMode}
+        />
       </div>
     </div>
   );

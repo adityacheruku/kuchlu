@@ -11,7 +11,7 @@ import { useInView } from 'react-intersection-observer';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import { cn } from '@/lib/utils';
 import { Ban } from 'lucide-react';
-
+import ModeActivationLoader from './ModeActivationLoader';
 
 interface MessageAreaProps {
   viewportRef: RefObject<HTMLDivElement>;
@@ -27,7 +27,7 @@ interface MessageAreaProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onRetrySend: (message: Message) => void;
-  onDeleteMessage: (messageId: string, deleteType: DeleteType) => void;
+  onDeleteMessage: (message: Message) => void;
   onSetReplyingTo: (message: Message | null) => void;
   isSelectionMode: boolean;
   selectedMessageIds: Set<string>;
@@ -35,9 +35,15 @@ interface MessageAreaProps {
   onToggleMessageSelection: (messageId: string) => void;
   onMarkAsRead: (messageId: string, chatId: string) => void;
   infoMessageId: string | null;
+  pullY: number;
+  isPulling: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  activationThreshold: number;
 }
 
-const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen'> & { currentUser: User; infoMessageId: string | null; isSelectionMode: boolean; }) => {
+const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen' | 'onDeleteMessage'> & { currentUser: User; infoMessageId: string | null; isSelectionMode: boolean; onDeleteMessage: (message: Message) => void;}) => {
     const { message, currentUser, onMarkAsRead } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
@@ -75,7 +81,6 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
         )
     }
 
-
     const sender = props.allUsers[message.user_id] || (message.user_id === props.currentUser.id ? props.currentUser : null);
     if (!sender) {
         console.warn("Sender not found for message:", message.id, "senderId:", message.user_id);
@@ -103,34 +108,32 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
 
 
 function MessageArea({ 
-  messages, 
-  currentUser, 
-  allUsers, 
-  onToggleReaction, 
-  onShowReactions, 
-  onShowMedia,
-  onShowDocumentPreview,
-  onShowInfo,
-  viewportRef,
-  onLoadMore,
-  hasMore,
-  isLoadingMore,
-  onRetrySend,
-  onDeleteMessage,
-  onSetReplyingTo,
-  isSelectionMode,
-  selectedMessageIds,
-  onEnterSelectionMode,
-  onToggleMessageSelection,
-  onMarkAsRead,
-  infoMessageId
+  messages, currentUser, allUsers, onToggleReaction, onShowReactions, onShowMedia,
+  onShowDocumentPreview, onShowInfo, viewportRef, onLoadMore, hasMore, isLoadingMore,
+  onRetrySend, onDeleteMessage, onSetReplyingTo, isSelectionMode, selectedMessageIds,
+  onEnterSelectionMode, onToggleMessageSelection, onMarkAsRead, infoMessageId,
+  pullY, isPulling, onPointerDown, onPointerMove, onPointerUp, activationThreshold
 }: MessageAreaProps) {
   const lastMessageId = messages[messages.length - 1]?.id;
   useAutoScroll(viewportRef, [lastMessageId]);
+  const isActivated = pullY > activationThreshold;
   
   return (
-    <ScrollArea className="flex-grow p-4 bg-transparent" viewportRef={viewportRef}>
-      <div className={cn("flex flex-col space-y-1 group/area")} data-selection-mode={isSelectionMode}>
+    <ScrollArea
+      className="flex-grow p-4 bg-transparent"
+      viewportRef={viewportRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp} // Also handle cancel
+      style={{ touchAction: isPulling ? 'none' : 'pan-y' }}
+    >
+      <div className={cn("flex flex-col space-y-1 group/area", (isSelectionMode || infoMessageId) && 'opacity-50 grayscale-[50%]', 'transition-all duration-300')} data-selection-mode={isSelectionMode}>
+        <ModeActivationLoader
+          pullDistance={pullY}
+          activationThreshold={activationThreshold}
+          isActivated={isActivated}
+        />
         {hasMore && (
             <div className="text-center">
                 <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isLoadingMore}>
@@ -152,7 +155,7 @@ function MessageArea({
               onShowDocumentPreview={onShowDocumentPreview}
               onShowInfo={onShowInfo}
               onRetrySend={onRetrySend}
-              onDeleteMessage={onDeleteMessage}
+              onDeleteMessage={() => onDeleteMessage(msg)} 
               onSetReplyingTo={onSetReplyingTo}
               isSelectionMode={isSelectionMode}
               selectedMessageIds={selectedMessageIds}
