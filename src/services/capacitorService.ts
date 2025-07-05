@@ -37,12 +37,13 @@ class CapacitorService {
     }
     
     private isPluginAvailable = (): boolean => {
-        return this.isNative && !!this.assistiveTouch;
+        // More robust check to ensure the plugin and its methods are available
+        return this.isNative && !!this.assistiveTouch && typeof this.assistiveTouch.addListener === 'function';
     }
     
     public on(event: CapacitorEvent, callback: CapacitorEventListener): (() => void) {
         if (!this.isPluginAvailable()) {
-            console.log(`[Web Simulator] Skipping listener for '${event}' event.`);
+            console.log(`[Web Simulator] Skipping listener for '${event}' event because plugin is not available.`);
             return () => {}; // Return a no-op unsubscribe function for web
         }
 
