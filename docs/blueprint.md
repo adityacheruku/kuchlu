@@ -1,18 +1,18 @@
-# **App Name**: EchoFlow
+# **App Name**: ChirpChat
 
 ## Core Features:
 
-- Text Messaging: Real-time text messaging: Users can send and receive text messages instantly.
-- Presence Indicators: User presence indicators: See when contacts are online and available to chat.
-- Profile Customization: Basic profile settings: Users can set a profile image and username.
-- Smart Reply: Smart Reply Suggestions: Based on chat history, the app will use a tool to offer contextually relevant quick reply suggestions powered by a generative AI model.
+- User Authentication: Login/Join Screen: Simple username input to enter the chat window with a dummy session.
+- Chat Layout: Chat Window Layout: Header (user names, mood), scrollable message area, input field with send button and emoji icon.
+- Message History: Message Display: Display message history with 5-6 messages per user and timestamps using local JSON.
+- User Profile: User Profile Modal: Display user profile with name, display picture upload, and mood dropdown (no action).
 
 ## Style Guidelines:
 
-- Primary color: Sky blue (#87CEEB), representing communication and clarity.
-- Background color: Light gray (#F0F0F0), providing a clean and neutral backdrop.
-- Accent color: Teal (#008080), used for active states and highlights.
-- Body and headline font: 'Inter', a grotesque-style sans-serif, to ensure readability and a modern look.
-- Use clean, minimalist icons for common actions like sending messages, attaching files, and accessing settings.
-- A single-column layout optimized for mobile, with a clear separation between contact list and message view.
-- Subtle animations for new message notifications and transitions between screens to provide a smooth user experience.
+- Primary color: Soft blue (#90AFC5) to evoke a calm and friendly atmosphere.
+- Background color: Light gray (#F0F4F7) for a clean, non-obtrusive backdrop.
+- Accent color: Pale violet (#A991B5) to provide a subtle highlight to interactive elements.
+- Body and headline font: 'PT Sans', a humanist sans-serif for a balance of modernity and warmth.
+- Lucide icons for a consistent and modern look.
+- Responsive design with rounded corners and subtle hover/active states on interactive elements.
+- Subtle transitions and animations for a smooth user experience.
