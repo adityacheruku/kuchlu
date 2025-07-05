@@ -1,6 +1,6 @@
 
 import type { Mood } from '@/types';
-import { Smile, Frown, Meh, PartyPopper, Brain, Glasses, Angry, HelpCircle } from 'lucide-react'; // Using Glasses for Chilling
+import { Smile, Frown, Meh, PartyPopper, Brain, Glasses, Angry, HelpCircle, Heart, Bed } from 'lucide-react';
 
 interface MoodIndicatorProps {
   mood: Mood;
@@ -17,6 +17,9 @@ const moodIcons: Record<string, React.ElementType> = {
   Angry: Angry,
   Anxious: HelpCircle,
   Content: Smile,
+  Love: Heart,
+  Miss: Frown,
+  Tired: Bed,
 };
 
 export default function MoodIndicator({ mood, size = 16 }: MoodIndicatorProps) {

@@ -57,25 +57,53 @@ Your native plugin must also emit events back to the web view when the user inte
 
 ---
 
-## 3. Step-by-Step Native Implementation Plan
+## 3. Floating Button Visual Design & Behavior
+
+This section details the required design and behavior for the floating button, as specified in the project plan.
+
+### 3.1 Core Design Principles
+*   **Size**: The touch target should be a standard **56dp**.
+*   **Background**: Use a **translucent blur** effect if possible on the target OS version. Fallback to a semi-transparent solid color.
+*   **Border**: A soft, 1dp border with 20% white opacity (`#33FFFFFF`).
+*   **Shadow**: A soft, ambient shadow to lift the button off the screen.
+
+### 3.2 States
+The button must visually respond to user interaction and connection status.
+
+| State           | Visual Cue / Behavior                                                               | Haptic Feedback       |
+| --------------- | ----------------------------------------------------------------------------------- | --------------------- |
+| **Idle**        | Opacity: 70%, Scale: 1.0. Content shows a subtle gradient.                          | None                  |
+| **Active/Press**| Opacity: 100%, Scale: 1.05. Content has a gentle pulse animation.                   | Light impact          |
+| **Connected**   | A subtle green glow appears around the border.                                      | None                  |
+| **Partner Online** | The button content has a gentle, continuous pulse animation.                     | None                  |
+| **Message Sent** | A ripple effect emanates from the button center.                                    | Light vibration       |
+| **Mood Received**| The button's gradient briefly shifts to the color associated with the partner's mood. | Confirmation vibration|
+
+### 3.3 Mood Selection Animation
+*   When the button is tapped to open the mood selection menu, it should perform an **elastic expansion** animation over approximately 300ms.
+*   The mood indicators should animate into position around the bubble.
+
+---
+
+## 4. Step-by-Step Native Implementation Plan
 
 ### Phase 1: Android Implementation
 
 The goal on Android is a true floating button that persists via a Foreground Service.
 
-#### **Step 1.1: Configure Permissions**
+#### **Step 4.1: Configure Permissions**
 -   In `android/app/src/main/AndroidManifest.xml`, add the `SYSTEM_ALERT_WINDOW` permission.
     ```xml
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     ```
 
-#### **Step 1.2: Implement the `requestOverlayPermission` Method**
+#### **Step 4.2: Implement the `requestOverlayPermission` Method**
 -   In your plugin's main Java/Kotlin file, implement the `requestOverlayPermission` method.
 -   It should check `Settings.canDrawOverlays(getContext())`.
 -   If permission is not granted, create an `Intent` to `Settings.ACTION_MANAGE_OVERLAY_PERMISSION` and start an activity for the result.
 
-#### **Step 1.3: Create the `AssistiveTouchService`**
+#### **Step 4.3: Create the `AssistiveTouchService`**
 -   This will be a `ForegroundService` that runs independently of the main app activity.
 -   **On `onCreate()`**:
     -   Create a `WindowManager` instance.
@@ -88,20 +116,20 @@ The goal on Android is a true floating button that persists via a Foreground Ser
 -   **On `onDestroy()`**:
     -   Clean up resources by removing the button view from the `WindowManager`.
 
-#### **Step 1.4: Implement Drag-and-Snap Logic**
+#### **Step 4.4: Implement Drag-and-Snap Logic**
 -   Attach an `OnTouchListener` to your floating button view.
 -   In the listener, handle `ACTION_DOWN`, `ACTION_MOVE`, and `ACTION_UP` to update the view's `WindowManager.LayoutParams`.
 -   On `ACTION_UP`, calculate the closest screen edge (left or right) and use a `ValueAnimator` to smoothly animate the button to that edge.
 -   Save the button's final Y-position and side to `SharedPreferences` to restore its position later.
 
-#### **Step 1.5: Implement Gesture Detection**
+#### **Step 4.5: Implement Gesture Detection**
 -   Use Android's `GestureDetector` and a `GestureDetector.SimpleOnGestureListener`.
 -   **`onSingleTapConfirmed`**: Emit the `singleTap` event to the web view.
 -   **`onDoubleTap`**: Emit the `doubleTap` event.
 -   **`onLongPress`**: Emit the `longPress` event.
 -   Implement haptic feedback (`HapticFeedbackConstants`) for each gesture.
 
-#### **Step 1.6: Connect the Plugin to the Service**
+#### **Step 4.6: Connect the Plugin to the Service**
 -   In your main plugin class (`AssistiveTouchPlugin.java`):
     -   The `show()` method should start the `AssistiveTouchService` using an `Intent`.
     -   The `hide()` method should stop the service using `stopService()`.
@@ -110,17 +138,17 @@ The goal on Android is a true floating button that persists via a Foreground Ser
 
 **Reminder:** iOS does not allow drawing over other apps. This implementation will only work while the app is active.
 
-#### **Step 2.1: Implement the Floating Button View**
+#### **Step 5.1: Implement the Floating Button View**
 -   Create a custom `UIView` for the button.
 -   The `show()` plugin method should add this `UIView` as a subview to the main application `UIWindow`. This will ensure it floats above the Capacitor web view.
 -   The `hide()` plugin method will remove this view from its superview.
 
-#### **Step 2.2: Implement Drag-and-Snap Logic**
+#### **Step 5.2: Implement Drag-and-Snap Logic**
 -   Add a `UIPanGestureRecognizer` to the button's `UIView`.
 -   In the gesture handler, update the view's `center` property based on the gesture's translation.
 -   When the gesture state is `.ended`, calculate the closest edge and use `UIView.animate` to snap it into place.
 
-#### **Step 2.3: Implement Gesture Detection**
+#### **Step 5.3: Implement Gesture Detection**
 -   Add `UITapGestureRecognizer` instances for single and double taps.
 -   Add a `UILongPressGestureRecognizer` for the long press.
 -   In the handlers for these recognizers, call the `notifyListeners(...)` method to send the `singleTap`, `doubleTap`, and `longPress` events to the web view.

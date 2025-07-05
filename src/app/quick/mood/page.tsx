@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Smile, Frown, Meh, PartyPopper, Brain, Glasses, Angry, HelpCircle, SmilePlus } from 'lucide-react';
+import { Smile, Frown, Meh, PartyPopper, Brain, Glasses, Angry, HelpCircle, SmilePlus, Heart, Bed } from 'lucide-react';
 import type { Mood } from '@/types';
-import { ALL_MOODS } from '@/types';
+import { ALL_MOODS } from '@/config/moods';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
@@ -26,6 +26,9 @@ const moodIcons: Record<string, React.ElementType> = {
   Angry: Angry,
   Anxious: HelpCircle,
   Content: Smile,
+  Love: Heart,
+  Miss: Frown,
+  Tired: Bed,
 };
 
 

@@ -2,9 +2,10 @@
 
 import type { UploadError } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
+import { ALL_MOODS as AppMoods } from '@/config/moods';
 
 export type Mood = string;
-export const ALL_MOODS: Mood[] = ["Happy", "Sad", "Neutral", "Excited", "Thoughtful", "Chilling", "Angry", "Anxious", "Content"];
+export const ALL_MOODS: Mood[] = AppMoods;
 export type SupportedEmoji = string; 
 export const ALL_SUPPORTED_EMOJIS: SupportedEmoji[] = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 export const QUICK_REACTION_EMOJIS: SupportedEmoji[] = ['❤️', '👍', '😂', '😮', '😢'];
