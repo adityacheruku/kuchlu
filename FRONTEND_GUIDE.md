@@ -1,118 +1,138 @@
-# ChirpChat Frontend: UI/UX & Design Guide
+# ChirpChat Frontend: Implementation & Flow Deep Dive
 
-This document provides a comprehensive guide to the ChirpChat frontend, detailing its user interface (UI) components, user experience (UX) flows, styling principles, and interactive effects.
-
-## 1. Design & UX Overview
-
-This section provides a high-level summary of the project's current design status.
-
-### 1.1. Implemented Screens & Fidelity
-
-All core screens of the application have been implemented as **high-fidelity, functional components** using Next.js, React, and ShadCN UI. They are beyond the wireframe/mockup stage and are fully interactive.
-
-Key implemented screens include:
-*   **Onboarding**: A multi-step flow for user registration (Phone -> OTP -> User Details) and Login.
-*   **Partner Pairing**: A screen for users to find and send/receive partner requests.
-*   **Chat Interface**: The primary real-time messaging screen.
-*   **Mood Entry Modal**: A dialog for users to set their current mood.
-*   **Settings Hub**: A central navigation page for all application settings.
-*   **Settings Sub-Pages**: Dedicated pages for Account, Notifications, Appearance, and Privacy.
-*   **PWA Quick Action Pages**: Simplified pages for "Set Mood," "Send Image," and "Thinking of You" actions initiated from the device's home screen.
-
-### 1.2. Visual Style Guide
-
-The visual style is well-defined and consistently applied throughout the application.
-
-*   **Color Palette**: The application uses a custom, calming color palette defined with HSL CSS variables for easy theming and consistency. The primary file for this is `src/app/globals.css`.
-    *   **Primary (`--primary`)**: `#90AFC5` (Soft Blue)
-    *   **Background (`--background`)**: `#F0F4F7` (Light Gray)
-    *   **Accent (`--accent`)**: `#A991B5` (Pale Violet)
-*   **Typography**: The primary font is **'PT Sans'**, imported from Google Fonts, used for both headlines and body text to provide a warm and modern feel.
-*   **Iconography**: The application uses **Lucide React** for a consistent, lightweight, and modern icon set.
-
-### 1.3. Navigation & UX Patterns
-
-*   **Navigation Model**: The app uses a **page-based routing system** managed by the Next.js App Router. The primary user flow is linear: Onboarding -> Partner Pairing -> Chat. Settings are a sub-section accessible from the main app areas.
-*   **Mobile-First Gestures**: The UI is designed with mobile users in mind, featuring intuitive touch interactions like **swipe-to-reply** and **long-press** to enter message selection mode.
-*   **UI Patterns**: For actions like picking attachments or emojis, the application consistently uses a bottom `Sheet` component, which is an ergonomic and common pattern on mobile devices.
-*   **Known UX Pain Points**:
-    *   The "read" status is currently chat-wide, not per-message.
-    *   The real-time typing indicator does not function on the SSE (fallback) connection.
-    *   Navigation is purely hierarchical; a bottom navigation bar for mobile could improve quick access to different app sections in the future.
+This document provides a comprehensive technical guide to the ChirpChat frontend, detailing its implementation of core flows, real-time data handling, and performance strategies.
 
 ---
 
-## 2. Core Design Philosophy
+## 1. Core Messaging & Display Flow
 
-ChirpChat is designed to be an intimate, emotionally resonant space for two people. The UI/UX choices reflect this goal:
+### 1.1. Optimistic UI Updates & Failure Handling
 
--   **Calm & Inviting**: The color palette uses soft blues, violets, and light grays to create a tranquil atmosphere.
--   **Fluid & Responsive**: Interactions are designed to be smooth and jank-free, with subtle animations providing feedback without being distracting.
--   **Intuitive & Accessible**: The interface is kept simple and predictable, ensuring that all features are easy to discover and use, including for users with disabilities.
--   **Dynamic & Expressive**: The chat's appearance dynamically changes based on the combined mood of the partners, making the interface a living reflection of their emotional state.
+**How quickly does a sent message appear?**
+Instantly. The application uses **optimistic UI updates** to provide immediate feedback.
+
+*   **Optimistic Creation:** When a user sends a message, `chat/page.tsx` immediately creates a message object with a unique `client_temp_id` (a v4 UUID) and a status of `'sending'` or `'uploading'`.
+*   **Local Persistence:** This optimistic message is instantly saved to the local IndexedDB via `storageService`. The UI, powered by a `useLiveQuery` hook, reacts to this database change and renders the new message bubble.
+*   **Server Confirmation:** When the real-time service receives a `message_ack` event from the server, it includes the final server-assigned `id`. The `storageService` then updates the local message, replacing the `client_temp_id` with the permanent `id` and updating the status to `'sent'`.
+*   **Failure Handling:** If a message fails to send (due to a network error or a timeout defined in `chat/page.tsx`), its status is updated to `'failed'`. The `MessageBubble` component observes this status and displays a "Failed to send" message along with a "Retry" button, which allows the user to re-initiate the send process.
+
+### 1.2. Message Uniqueness & Chronological Order
+
+**How are messages ordered and de-duplicated?**
+The system uses a combination of timestamps and unique IDs.
+
+*   **Chronological Order:** The primary source of truth for ordering is the `created_at` timestamp on each message. The `useLiveQuery` hook continuously fetches messages from IndexedDB and sorts them by this timestamp, ensuring the display is always in the correct order.
+*   **Uniqueness:** To prevent duplicates, the `client_temp_id` serves as the primary key for a message before it receives a permanent ID from the server. When the `message_ack` or a `new_message` event arrives, the `storageService` uses `put` (or `upsert`) operations. If a message with that ID already exists, it's updated; otherwise, it's inserted. This handles cases where a WebSocket event might arrive for a message that was already optimistically rendered.
+
+### 1.3. Chat Feed Scrolling & Performance
+
+**How does the chat feed handle long conversations?**
+Through a combination of on-demand loading and component memoization.
+
+*   **Infinite Scrolling:** The chat does not load all messages at once. `chat/page.tsx` initially fetches a batch of 50 messages. When the user scrolls to the top of the `MessageArea`, an "Load Older Messages" button becomes visible. Clicking it triggers the `loadMoreMessages` function, which fetches the next batch of older messages from the API and prepends them to the local database. The scroll position is maintained to prevent a jarring jump.
+*   **Auto-Scrolling:** The `useAutoScroll` hook ensures that if the user is already near the bottom of the chat, the view automatically scrolls down when a new message arrives.
+*   **Rendering Performance:** Every message bubble is wrapped in `React.memo`. This prevents the entire list from re-rendering when a single message changes (e.g., its status updates or a reaction is added).
+*   **Known Limitation:** The app does **not** currently use list virtualization. For extremely long conversations (tens of thousands of messages), this could become a performance bottleneck. Implementing a library like `react-virtual` would be a future optimization.
 
 ---
 
-## 3. The Messaging Area: A Deep Dive
+## 2. Media Handling & Display
 
-The messaging area is the core of the ChirpChat experience. It's designed to be a fluid, interactive, and emotionally resonant canvas for conversation. This section details its design, functionality, and behavior.
+### 2.1. Upload Progress States & Cancellation
 
-### 3.1 User Actions & System Feedback
+**How is upload progress communicated?**
+The `uploadManager` and `MessageBubble` work together to show granular progress.
 
-The message area supports a rich set of interactions, each with immediate and intuitive feedback:
+*   **States:** The `UploadItem` has several statuses: `pending`, `compressing` (for video/audio), `uploading` (direct-to-Cloudinary), `pending_processing` (waiting for webhook), and `failed`.
+*   **UI Feedback:** The `UploadProgressIndicator` component, shown within a `MessageBubble`, displays the current state. It shows a percentage for the upload and specific text like "Compressing..." or "Processing..." for other stages.
+*   **Cancellation:** There is not currently a user-facing UI to cancel an upload in progress. This is a potential future enhancement.
 
-| Action                    | User Interaction                                                                                                 | System Feedback & UI Updates                                                                                                                                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Send Text**             | Type in the input bar and press the "Send" button.                                                               | The "Send" button appears with a pop animation when text is entered. Upon sending, the message optimistically appears in the chat area with a "sending" status (clock icon). The input field clears.                     |
-| **Send Attachments**      | Tap the paperclip icon to open a bottom sheet (mobile) or popover (desktop). Select camera, gallery, or document. | Selected files appear in a "staging area" above the input bar. The user can add text before sending. Upon sending, the message appears with an upload progress indicator before transitioning to the "sending" status. |
-| **Record Voice Note**     | Press and hold the microphone icon in the attachment panel.                                                      | A timer and a pulsing red mic icon appear during recording. Releasing stops the recording. The user can then preview the note with a fully functional audio player before sending.                                     |
-| **React to Message**      | Long-press a message bubble and select an emoji from the quick-reaction menu.         | The selected emoji appears on the message bubble with a counter. The user's own reaction is highlighted. Others in the chat see the reaction appear in real-time. Tapping the reaction shows who reacted.         |
-| **Copy Message Text**     | Long-press a message bubble and select "Copy" from the context menu.                                             | A toast notification confirms that the text has been copied to the clipboard.                                                                                                                                           |
-| **View Media**            | Tap on an image or video thumbnail in the chat.                                                                  | A full-screen, immersive modal opens, displaying the media. Users can pinch-to-zoom on images and use standard video controls. A download button is provided.                                                          |
-| **Load Older Messages**   | Scroll to the top of the chat and click the "Load Older Messages" button.                                        | A loading spinner appears on the button. Once loaded, older messages are prepended to the chat history, and the scroll position is maintained to prevent jarring jumps.                                                |
-| **Retry Failed Message**  | A message that fails to send displays a "Failed to send. Retry" message with a clickable button.                  | Clicking "Retry" changes the message status back to "sending" and re-attempts the send operation.                                                                                                                       |
+### 2.2. Media Playback Experience
 
-### 3.2 Visual & Functional Design
+**How is media playback optimized?**
+By using a dedicated player library and leveraging the multiple media formats generated by Cloudinary.
 
-*   **Chat Bubbles**: Messages are enclosed in rounded bubbles. The sender's messages are aligned to the right with the primary brand color, while the partner's messages are on the left with a secondary color. A small "tail" on each bubble points towards the sender.
-*   **Message Grouping**: While not currently implemented, a future enhancement would group consecutive messages from the same user to reduce visual clutter. Timestamps would appear less frequently.
-*   **Timestamps & Status**: The time is displayed below each message bubble. For messages sent by the current user, a status indicator (clock, single check, double check) appears next to the time.
-    *   **Sending (Clock icon)**: The message is on its way to the server.
-    *   **Sent (Single check)**: The server has received the message.
-    *   **Delivered (Double check)**: The message has been delivered to the recipient's device.
-    *   **Read (Blue double check)**: The recipient has opened the chat and seen the message.
-*   **Scrolling Behavior**: The chat area automatically scrolls to the bottom when a new message arrives, but only if the user is already near the bottom. This prevents disrupting a user who is reading older messages.
+*   **Adaptive Streaming:** The `VideoPlayer` component uses `react-player`, which internally supports `hls.js`. When rendering a video, it first requests a signed URL for the `hls_manifest` from the backend. If available, it provides a smooth, adaptive streaming experience. If not, it falls back to a direct MP4 link.
+*   **Previews:** The player uses the `static_thumbnail` URL from the `media_metadata` as the poster image, ensuring a fast initial render.
+*   **Loading/Buffering:** The player library handles its own internal loading and buffering indicators.
 
-### 3.3 Accessibility Features
+### 2.3. Image Display
 
-Accessibility is a core consideration, not an afterthought.
+**How are images optimized?**
+The application uses Cloudinary's transformations and requests signed URLs for specific versions.
 
-*   **Screen Reader Support**: All interactive elements (buttons, inputs) have `aria-label` attributes for clear screen reader announcements. Message content is readable in a logical order.
-*   **Keyboard Navigation**: The entire message area, including the input bar and message actions, is navigable via the keyboard using standard Tab, Shift+Tab, and Enter/Space keys.
-*   **Contrast & Theming**: The color palette is designed to meet WCAG AA contrast ratios. A dark mode is also available, inheriting from the same well-defined color tokens.
-*   **Font Scaling**: The UI uses relative units (rem), allowing it to respect the user's system-level font size settings for better readability.
+*   **`next/image` is not used** for chat media because the URLs are dynamic (signed and short-lived), which is not the primary use case for `next/image`'s static optimization.
+*   Instead, the `SecureMediaImage` component requests a signed URL for a `preview_800` (an 800px wide, optimized WebP) or `thumbnail_250` version of the image, ensuring that a reasonably sized, compressed image is loaded, not the multi-megabyte original.
 
-### 3.4 Usability & UX Considerations
+---
 
-*   **Known Issues/Improvements**:
-    *   **No "Is Read" on a Per-Message Basis**: The current "Read" status applies to the whole chat. A more granular, per-message read receipt system would provide more precise feedback.
-    *   **No Typing Indicator for SSE Fallback**: The typing indicator currently only works over a WebSocket connection. A solution for the SSE fallback (e.g., a short-lived API call) would improve consistency.
-*   **Strengths**:
-    *   The separation of the attachment/emoji pickers into a Sheet on mobile is a major UX win, feeling much more native than a popover.
-    *   The message staging area prevents accidental sends and allows for the composition of richer, multi-part messages.
-    *   The explicit "Retry" button for failed messages empowers the user and removes ambiguity.
+## 3. Real-time Updates & WebSocket Integration
 
-### 3.5 Platform-Specific Experience
+### 3.1. Reconnection Strategy
 
-The application is designed as a Progressive Web App (PWA) to ensure a consistent core experience across all platforms. However, there are subtle, platform-aware enhancements:
+**What happens when the connection drops?**
+The `realtimeService` is designed to be resilient.
 
-*   **Mobile (iOS/Android via PWA)**:
-    *   Utilizes the bottom `Sheet` component for pickers, which is a common mobile UI pattern.
-    *   Leverages `navigator.vibrate()` for haptic feedback on actions like long-pressing a message.
-    *   The "Invite" feature uses the native Web Share API for seamless integration with the OS sharing dialog.
-*   **Web (Desktop)**:
-    *   Uses `Popover` components for pickers, which is more conventional for desktop UIs.
-    *   Makes full use of hover states for tooltips and interactive elements.
-    *   Supports drag-and-drop for file attachments directly onto the input bar area.
+*   **Detection:** It uses the browser's `navigator.onLine` API and WebSocket `onclose`/`onerror` events to detect connection loss.
+*   **Fallback:** If the WebSocket connection fails, it automatically falls back to a Server-Sent Events (SSE) connection, providing a read-only channel for receiving messages.
+*   **Reconnection:** If both connections fail, it enters a `disconnected` state and attempts to reconnect periodically using an exponential backoff strategy managed by `scheduleReconnect`.
+*   **Synchronization:** Upon successful reconnection, it immediately calls the `/events/sync` API endpoint, sending the `lastSequence` number it has stored. The backend returns all events that have occurred since, which are then processed to fill in any missed messages or updates, ensuring data consistency.
 
-This detailed approach ensures that ChirpChat feels thoughtfully designed and robust, regardless of how the user accesses it.
+### 3.2. Event Handling
+
+All WebSocket events are piped through a single `handleEvent` function in `realtimeService`, which then uses a `switch` statement to call the appropriate callback (e.g., `onMessageReceived`, `onPresenceUpdate`). This centralized approach, combined with the specific state update logic in `chat/page.tsx`, ensures that updates are handled efficiently without causing excessive re-renders of the entire component tree.
+
+---
+
+## 4. Offline Experience & Persistence
+
+### 4.1. Message Persistence (Outbox/Inbox)
+
+**Does the app work offline?**
+Yes, it has robust offline capabilities.
+
+*   **Outbox (Sending):** The `uploadManager` is built on top of the `storageService` (IndexedDB). When a user sends a message or media file while offline, it is added to the persistent `uploadQueue` table in IndexedDB. When `networkMonitor` detects that the connection is restored, it automatically calls `processQueue` to send all queued items.
+*   **Inbox (Receiving):** The app is a PWA with a service worker. When offline, the user can still receive push notifications for new messages. When they open the app, the `syncEvents` mechanism ensures all messages they missed are fetched from the server and integrated into the local chat history.
+
+### 4.2. Local Data Storage
+
+*   **Database:** The app uses **Dexie.js** to manage an IndexedDB database (`ChirpChatDB`). This database stores all chats, messages, users, and the upload queue. This ensures the entire chat history is available offline.
+*   **Synchronization:** The primary sync mechanism is the `syncEvents` call on startup and reconnection. This is a "last write wins" model where the server is the source of truth, and the client "catches up" to it. There is no complex conflict resolution, as a user can only write from one active client at a time.
+
+---
+
+## 5. Performance & Responsiveness
+
+### 5.1. Rendering Performance
+
+As mentioned in section 1.3, performance is primarily managed by **`React.memo`** on the `MessageBubble` component. The lack of list virtualization is a known area for future improvement.
+
+### 5.2. Input Responsiveness
+
+The chat input bar is a separate component from the message list. User typing and input state changes do not trigger re-renders of the `MessageArea`, ensuring that the typing experience remains smooth and responsive regardless of other activity.
+
+---
+
+## 6. Error Handling & User Feedback
+
+### 6.1. User-Friendly Errors
+
+The system provides both global and local error feedback.
+
+*   **Global Errors:** A connection status banner appears at the top of the screen for critical, app-wide issues like being offline or connected via a slower SSE fallback. `useToast` is used for authentication failures.
+*   **Local Errors:**
+    *   **Message Send Failure:** Handled directly on the `MessageBubble` with a "Retry" button.
+    *   **Media Upload Failure:** The `UploadProgressIndicator` shows a "Failed" state. `uploadManager` also attempts to parse specific error messages from Cloudinary to provide more context.
+    *   **Signed URL Failure:** The `useSignedUrl` hook has an error state. If a signed URL fails to load, the `MediaDisplay` component will show a "Could not load media" error message.
+
+---
+
+## 7. Frontend Security
+
+### 7.1. API Key Exposure
+
+No sensitive keys are exposed on the client. The Cloudinary API secret is used only by the backend to generate signatures. The client only ever receives the temporary, safe-to-use signature.
+
+### 7.2. XSS Protection
+
+The application does not render user-generated content as HTML. All message text is rendered as text content within React components, which automatically protects against Cross-Site Scripting (XSS) attacks. If rich text or HTML content were to be introduced, a sanitization library (like DOMPurify) would be required.
