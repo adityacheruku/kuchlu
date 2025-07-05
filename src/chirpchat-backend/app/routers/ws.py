@@ -53,6 +53,7 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(
                 elif event_type in ["start_typing", "stop_typing"]: await handle_typing_indicator(data, current_user)
                 elif event_type == "ping_thinking_of_you": await handle_ping(data, current_user)
                 elif event_type == "change_chat_mode": await handle_change_chat_mode(data, current_user)
+                elif event_type == "mark_as_read": await handle_mark_as_read(data, current_user)
                 elif event_type == "HEARTBEAT": await ws_manager.send_personal_message(websocket, {"event_type": "heartbeat_ack"})
                 else: await ws_manager.send_personal_message(websocket, {"event_type": "error", "detail": f"Unknown event: {event_type}"})
             except (KeyError, ValueError, ValidationError) as e:
@@ -100,12 +101,23 @@ async def handle_send_message(data: Dict[str, Any], websocket: WebSocket, curren
         "client_temp_id": client_temp_id,
         "reply_to_message_id": str(message_create.reply_to_message_id) if message_create.reply_to_message_id else None,
         "sticker_id": str(message_create.sticker_id) if message_create.sticker_id else None,
-        "media_url": message_create.image_url or message_create.clip_url or message_create.document_url,
-        "thumbnail_url": message_create.image_thumbnail_url,
-        "preview_url": message_create.preview_url,
-        "file_metadata": json.dumps(message_create.file_metadata) if message_create.file_metadata else None,
-        "file_size": message_create.file_size_bytes
     }
+
+    # Handle media-specific fields
+    file_metadata = {}
+    if message_create.message_subtype in ['image', 'video', 'audio', 'document', 'voice_message', 'clip']:
+        message_data_to_insert["media_url"] = message_create.image_url or message_create.clip_url or message_create.document_url
+        message_data_to_insert["thumbnail_url"] = message_create.image_thumbnail_url
+        
+        file_metadata = {
+            "duration_seconds": message_create.duration_seconds,
+            "file_size_bytes": message_create.file_size_bytes,
+            "audio_format": message_create.audio_format,
+            "document_name": message_create.document_name,
+            "clip_type": message_create.clip_type.value if message_create.clip_type else None,
+        }
+        message_data_to_insert["file_metadata"] = json.dumps({k: v for k, v in file_metadata.items() if v is not None})
+        message_data_to_insert["file_size"] = message_create.file_size_bytes
 
     await db_manager.get_table("messages").insert(message_data_to_insert).execute()
     await ws_manager.mark_message_as_processed(client_temp_id)
@@ -148,3 +160,31 @@ async def handle_change_chat_mode(data: Dict[str, Any], current_user: UserPublic
     chat_id, mode = UUID(data["chat_id"]), data["mode"]
     if mode not in [m.value for m in MessageModeEnum] or not await ws_manager.is_user_in_chat(current_user.id, chat_id): return
     await ws_manager.broadcast_chat_mode_update(str(chat_id), mode)
+
+async def handle_mark_as_read(data: Dict[str, Any], current_user: UserPublic):
+    message_id_str = data.get("message_id")
+    chat_id_str = data.get("chat_id")
+    if not message_id_str or not chat_id_str: return
+
+    message_id = UUID(message_id_str)
+    chat_id = UUID(chat_id_str)
+    user_id = current_user.id
+
+    if not await ws_manager.is_user_in_chat(user_id, chat_id): return
+
+    msg_resp = await db_manager.get_table("messages").select("user_id, status").eq("id", str(message_id)).maybe_single().execute()
+    if not msg_resp.data or str(msg_resp.data["user_id"]) == str(user_id): return
+
+    # Avoid redundant writes
+    if msg_resp.data["status"] == "read_by_recipient": return
+    
+    read_at_iso = datetime.now(timezone.utc).isoformat()
+    update_resp = await db_manager.get_table("messages").update({ "status": "read_by_recipient", "updated_at": "now()" }).eq("id", str(message_id)).execute()
+
+    if update_resp.data:
+        await ws_manager.broadcast_message_status_update(
+            chat_id=str(chat_id),
+            message_id=str(message_id),
+            status=MessageStatusEnum.READ,
+            read_at=read_at_iso
+        )

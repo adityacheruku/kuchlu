@@ -306,6 +306,16 @@ function InputBar({
   const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0, [messageText, stagedAttachments]);
   const showSmileButton = useMemo(() => isInputFocused || showSendButton, [isInputFocused, showSendButton]);
 
+  const handleMicOrSendClick = useCallback(() => {
+    if (isRecording) {
+      handleStopAndSendRecording();
+    } else if (showSendButton) {
+      handleCompositeSend();
+    } else {
+      handleStartRecording();
+    }
+  }, [isRecording, showSendButton, handleStopAndSendRecording, handleCompositeSend, handleStartRecording]);
+
   const filteredEmojis = useMemo(() => {
     if (!emojiSearch) return PICKER_EMOJIS;
     const lowerCaseSearch = emojiSearch.toLowerCase();
@@ -408,14 +418,6 @@ function InputBar({
     </Tabs>
   ), [emojiSearch, recentEmojis, filteredEmojis, handleEmojiSelect, handleStickerSelect]);
 
-  const handleActionButtonClick = () => {
-    if (isRecording) {
-      handleStopAndSendRecording();
-    } else if (showSendButton) {
-      handleCompositeSend();
-    }
-  }
-
   return (
     <div className={cn("p-3 border-t border-border bg-card transition-colors duration-300", isDragging && "bg-primary/20 border-primary")}
         onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragEvents} onDrop={handleDrop}>
@@ -499,10 +501,7 @@ function InputBar({
 
         <Button 
           type="button" 
-          onClick={handleActionButtonClick}
-          onPointerDown={!showSendButton && !isRecording ? handleStartRecording : undefined}
-          onPointerUp={!showSendButton && isRecording ? handleStopAndSendRecording : undefined}
-          onPointerLeave={!showSendButton && isRecording ? cleanupRecording : undefined}
+          onClick={handleMicOrSendClick}
           size="icon" 
           className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0" 
           disabled={isSending || disabled} 
@@ -510,7 +509,7 @@ function InputBar({
         >
           {isSending ? (
             <Spinner />
-          ) : showSendButton ? (
+          ) : isRecording || showSendButton ? (
             <Send size={22} className="animate-pop" key="send"/>
           ) : (
             <Mic size={22} className="animate-pop" key="mic"/>

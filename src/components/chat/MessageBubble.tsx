@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { PlayCircle, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck, Pause } from 'lucide-react';
+import { Play, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck, Pause, PlayCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -242,28 +242,17 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message
     const sliderThumbClass = isCurrentUser ? '[&>span]:bg-primary-foreground' : '[&>span]:bg-primary';
     const sliderTrackClass = isCurrentUser ? 'bg-primary-foreground/30' : 'bg-secondary-foreground/30';
     const sliderRangeClass = isCurrentUser ? 'bg-primary-foreground' : 'bg-secondary-foreground';
-    const micIndicatorBg = isCurrentUser ? 'bg-background' : 'bg-green-500';
-    const micIndicatorIcon = isCurrentUser ? 'text-primary' : 'text-white';
     
     if (hasError) return <div className={cn("flex items-center gap-2 p-2", isCurrentUser ? "text-red-300" : "text-red-500")}><AlertTriangle size={18} /><span className="text-sm">Audio error</span></div>;
 
     return (
         <div className={cn("flex items-center gap-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
             <audio ref={audioRef} preload="metadata" />
-             {!isCurrentUser && (
+             {!isCurrentUser && !hasBeenPlayed && (
                 <div className="relative flex-shrink-0">
-                    <Avatar className="w-10 h-10">
-                        <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
-                        <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    {!hasBeenPlayed && !isCurrentUser && (
-                      <div className={cn("absolute bottom-[-2px] right-[-2px] w-4 h-4 rounded-full flex items-center justify-center border-2", isCurrentUser ? "border-primary" : "border-secondary", micIndicatorBg)}>
-                        <Mic size={10} className={micIndicatorIcon} />
-                      </div>
-                    )}
+                    <div className={cn("w-2.5 h-2.5 rounded-full bg-primary")} />
                 </div>
              )}
-
             <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl || isLoading}>
                 {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
             </Button>
@@ -381,7 +370,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     }
   };
 
-  const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground';
+  const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : (isAudioMessage ? 'bg-card' : 'bg-card text-card-foreground');
   
   let formattedTime = "";
   try {
@@ -433,7 +422,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       )}
     >
       <div className={cn("flex items-end gap-2 max-w-[85vw] sm:max-w-md", isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-        {!isCurrentUser && (
+        {!isCurrentUser && !isAudioMessage && (
             <Avatar className="w-8 h-8 self-end mb-2">
                 <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
                 <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
@@ -489,7 +478,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                         {renderContent()}
                       </div>
                     ) : (
-                        <div className="p-3">
+                        <div className={cn("p-3", isAudioMessage && "p-1")}>
                             {renderBubbleContent()}
                         </div>
                     )}
