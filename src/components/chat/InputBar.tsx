@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTrigger, SheetTitle, SheetDescri
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StickerPicker from './StickerPicker';
-import { PICKER_EMOJIS, type MessageMode, type Message, type User, type MessageSubtype } from '@/types';
+import { PICKER_EMOJIS, EMOJI_ONLY_REGEX, type MessageMode, type Message, type User, type MessageSubtype } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
@@ -289,7 +289,12 @@ function InputBar({
     e?.preventDefault();
     if (disabled || isSending) return;
     Haptics.impact({ style: ImpactStyle.Light });
-    if (messageText.trim()) onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
+    
+    if (messageText.trim()) {
+        const isEmojiOnly = EMOJI_ONLY_REGEX.test(messageText.trim());
+        const subtype: MessageSubtype = isEmojiOnly ? 'emoji_only' : 'text';
+        onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
+    }
     
     stagedAttachments.forEach(({ file, subtype }) => {
         switch(subtype) {
