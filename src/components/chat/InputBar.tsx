@@ -334,6 +334,15 @@ function InputBar({
     setIsAttachmentOpen(false);
   }, [onSelectMode]);
 
+  const getPlaceholderText = () => {
+    if (replyingTo) return "Type your reply...";
+    switch(chatMode) {
+      case 'fight': return "Type a message in Fight Mode...";
+      case 'incognito': return "Type an incognito message...";
+      default: return "Type a message...";
+    }
+  }
+
   const AttachmentPicker = useCallback(() => (
     <Tabs defaultValue="media" className="w-full">
       <TabsList className="grid w-full grid-cols-2">
@@ -438,7 +447,11 @@ function InputBar({
             </Sheet>
         )}
         
-        <div className="flex-grow relative flex items-end min-h-[44px] bg-input rounded-2xl">
+        <div className={cn(
+          "flex-grow relative flex items-end min-h-[44px] bg-input rounded-2xl transition-all duration-300 ring-2 ring-transparent focus-within:ring-ring",
+          chatMode === 'fight' && 'ring-destructive',
+          chatMode === 'incognito' && 'ring-muted-foreground ring-offset-2 ring-offset-card'
+        )}>
             {isRecording ? (
                  <div className="flex items-center w-full px-3 h-[44px]">
                      <Button type="button" variant="ghost" size="icon" onClick={cleanupRecording} className="text-destructive h-8 w-8"><Trash2 size={20} /></Button>
@@ -447,7 +460,18 @@ function InputBar({
                  </div>
             ) : (
                 <>
-                    <Textarea ref={textareaRef} placeholder={replyingTo ? "Type your reply..." : "Type a message..."} value={messageText} onChange={handleTypingChange} onBlur={handleBlur} className="w-full bg-transparent border-none focus-visible:ring-0 pr-10 resize-none min-h-[44px] max-h-[120px] pt-[11px]" autoComplete="off" disabled={isSending || disabled} rows={1} aria-label="Message input"/>
+                    <Textarea
+                      ref={textareaRef}
+                      placeholder={getPlaceholderText()}
+                      value={messageText}
+                      onChange={handleTypingChange}
+                      onBlur={handleBlur}
+                      className="w-full bg-transparent border-none focus-visible:ring-0 pr-10 resize-none min-h-[44px] max-h-[120px] pt-[11px]"
+                      autoComplete="off"
+                      disabled={isSending || disabled}
+                      rows={1}
+                      aria-label="Message input"
+                    />
                     <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
                         <SheetTrigger asChild>
                             <Button variant="ghost" size="icon" type="button" className="absolute right-1 bottom-1 h-9 w-9 text-muted-foreground hover:text-accent hover:bg-accent/10 rounded-full focus-visible:ring-ring" aria-label="Open emoji and sticker panel" disabled={isSending || disabled}><Smile size={22} /></Button>
