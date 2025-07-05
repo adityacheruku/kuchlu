@@ -2,12 +2,12 @@
 
 "use client";
 
-import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata, MessageStatus } from '@/types';
+import type { Message, User, SupportedEmoji, DeleteType, MessageStatus } from '@/types';
 import { QUICK_REACTION_EMOJIS } from '@/types';
 import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { PlayCircle, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck, Pause } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
-import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useDoubleTap } from '@/hooks/useDoubleTap';
 import DeleteMessageDialog from './DeleteMessageDialog';
@@ -35,7 +35,6 @@ import UploadProgressIndicator from './UploadProgressIndicator';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import dynamic from 'next/dynamic';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { useInView } from 'react-intersection-observer';
 
 const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
@@ -153,8 +152,7 @@ const VideoPlayer = memo(({ message }: { message: Message }) => {
 });
 VideoPlayer.displayName = "VideoPlayer";
 
-
-const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: { message: Message; sender: User; isCurrentUser: boolean; PlayerIcon?: React.ElementType }) => {
+const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message; sender: User; isCurrentUser: boolean; }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(message.duration_seconds || 0);
@@ -258,7 +256,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
                 </Avatar>
                 {!hasBeenPlayed && !isCurrentUser && (
                   <div className={cn("absolute bottom-[-2px] right-[-2px] w-4 h-4 rounded-full flex items-center justify-center border-2", isCurrentUser ? "border-primary" : "border-secondary", micIndicatorBg)}>
-                    <PlayerIcon size={10} className={micIndicatorIcon} />
+                    <Mic size={10} className={micIndicatorIcon} />
                   </div>
                 )}
             </div>
@@ -292,35 +290,6 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
 });
 AudioPlayer.displayName = "AudioPlayer";
 
-const AudioFilePlayer = memo(({ message, isCurrentUser, allUsers }: { message: Message; isCurrentUser: boolean; allUsers: Record<string, User> }) => {
-    const { title, artist } = message.file_metadata || {};
-    const sender = allUsers[message.user_id];
-    if (!sender) return null;
-
-    return (
-        <div className={cn("p-2 w-full max-w-[250px] sm:max-w-xs", isCurrentUser ? "text-primary-foreground" : "text-secondary-foreground")}>
-            <div className="flex items-center gap-3 p-2 border-b" style={{ borderColor: isCurrentUser ? 'hsl(var(--primary-foreground) / 0.2)' : 'hsl(var(--border))' }}>
-                <Music size={20} className="flex-shrink-0" />
-                <div className="flex-grow min-w-0">
-                    <p className="font-semibold text-sm truncate">{title || message.document_name || 'Audio Track'}</p>
-                    <p className="text-xs opacity-80 truncate">{artist || 'Unknown Artist'}</p>
-                </div>
-            </div>
-            <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} PlayerIcon={Music} />
-        </div>
-    );
-});
-AudioFilePlayer.displayName = 'AudioFilePlayer';
-
-function formatFileSize(bytes?: number | null): string | null {
-  if (bytes === null || bytes === undefined) return null;
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
 const parseMarkdown = (text: string = ''): string => {
   let html = text
     .replace(/&/g, '&amp;')
@@ -342,43 +311,23 @@ const StatusDots = ({ status }: { status: MessageStatus }) => {
     const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
     const fadedDot = cn(baseDot, "bg-muted-foreground/30");
     const sendingDot = cn(baseDot, "bg-muted-foreground/50", "animate-dot-pulse");
-    const activeDot = cn(baseDot, "bg-amber-400"); // Sent & Delivered
-    const readDot = cn(baseDot, "bg-amber-500"); // Read
+    const sentDot = cn(baseDot, "bg-yellow-400");
+    const readDot = cn(baseDot, "bg-amber-500");
   
     const renderDots = () => {
       switch (status) {
         case "sending":
           return (
-            <>
-              <div className={sendingDot} style={{ animationDelay: '0s' }} />
-              <div className={sendingDot} style={{ animationDelay: '0.2s' }} />
-              <div className={sendingDot} style={{ animationDelay: '0.4s' }} />
-            </>
+            <div className="flex items-center gap-0.5 animate-pulse">
+              <div className={sendingDot} /> <div className={sendingDot} /> <div className={sendingDot} />
+            </div>
           );
         case "sent":
-          return (
-            <>
-              <div className={activeDot} />
-              <div className={fadedDot} />
-              <div className={fadedDot} />
-            </>
-          );
+          return <><div className={sentDot} /><div className={fadedDot} /><div className={fadedDot} /></>;
         case "delivered":
-          return (
-            <>
-              <div className={activeDot} />
-              <div className={activeDot} />
-              <div className={fadedDot} />
-            </>
-          );
+          return <><div className={sentDot} /><div className={sentDot} /><div className={fadedDot} /></>;
         case "read":
-          return (
-            <>
-              <div className={readDot} />
-              <div className={readDot} />
-              <div className={readDot} />
-            </>
-          );
+          return <><div className={readDot} /><div className={readDot} /><div className={readDot} /></>;
         case "failed":
           return <AlertTriangle className="h-4 w-4 text-destructive" />;
         default:
@@ -391,13 +340,13 @@ const StatusDots = ({ status }: { status: MessageStatus }) => {
           {renderDots()}
       </div>
     );
-  };
+};
 
 function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, onMarkAsRead, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
-  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
   const { toast } = useToast();
+  const ref = useRef<HTMLDivElement>(null);
 
   const swipeHandlers = useSwipe({
     onSwipeRight: () => {
@@ -446,17 +395,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       return;
     }
   };
-
-  const getReactorNames = (reactors: string[] | undefined) => {
-    if (!reactors || reactors.length === 0) return "No one";
-    const MAX_NAMES = 3;
-    const names = reactors.slice(0, MAX_NAMES).map(id => allUsers[id]?.display_name || 'Unknown User');
-    let namesString = names.join(', ');
-    if (reactors.length > MAX_NAMES) {
-      namesString += ` and ${reactors.length - MAX_NAMES} more`;
-    }
-    return namesString;
-  };
   
   const handleConfirmDelete = (deleteType: DeleteType) => {
     onDelete(message.id, deleteType);
@@ -474,7 +412,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const isTextMessage = message.message_subtype === 'text' || message.message_subtype === 'emoji_only';
   const isMediaMessage = ['image', 'clip'].includes(message.message_subtype || '');
   const isStickerMessage = message.message_subtype === 'sticker';
-  const isDocumentMessage = message.message_subtype === 'document';
   const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
   const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
 
@@ -523,32 +460,59 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
 
   return (
-    <div id={wrapperId} className={cn('flex w-full group animate-in fade-in-0 slide-in-from-bottom-2', isCurrentUser ? 'justify-end' : 'justify-start', isShaking && 'animate-shake')}>
-        <div className={cn('flex items-end gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-             <div className="flex flex-col">
-                <div 
-                    className={cn(
-                        'relative rounded-xl shadow-md transition-all',
-                        bubbleColorClass,
-                        (isTextMessage || isAudioMessage) && 'p-3',
-                        isMediaMessage && 'p-1',
-                    )}
-                >
-                     {isMediaMessage ? (
-                        <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
-                            {renderContent()}
-                            {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
-                        </div>
-                    ) : (
-                        renderBubbleContent()
-                    )}
+    <div
+      ref={ref}
+      id={wrapperId}
+      className={cn(
+        'group flex w-full animate-in fade-in-0 slide-in-from-bottom-2 transition-all duration-300 ease-out',
+        isCurrentUser ? 'justify-end' : 'justify-start',
+        isSelectionMode && !isSelected ? 'opacity-50 grayscale-[50%]' : 'opacity-100 grayscale-0',
+        isShaking && 'animate-shake'
+      )}
+      {...longPressHandlers}
+      {...doubleTapEvents}
+      {...swipeHandlers}
+      onClick={handleBubbleClick}
+    >
+      <div className={cn('flex items-end gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
+        <div className="flex flex-col">
+          <div
+            className={cn(
+              'relative rounded-xl shadow-md transition-all',
+              bubbleColorClass,
+              (isTextMessage || isAudioMessage) && !isMediaMessage && 'p-3',
+              isMediaMessage && 'p-1',
+              isSelected && 'scale-[1.02] ring-2 ring-offset-2 ring-offset-card ring-primary'
+            )}
+          >
+             {isSelected && (
+                <div className="absolute -top-1 -right-1 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground">
+                    <Check className="h-3 w-3" />
                 </div>
-                <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
-                     <span className="text-xs text-muted-foreground">{formattedTime}</span>
-                     {isCurrentUser && <StatusDots status={message.status} />}
-                  </div>
-            </div>
+            )}
+            {isMediaMessage ? (
+              <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
+                {renderContent()}
+                <div className="absolute bottom-1 right-1 flex items-center gap-1.5 rounded-md bg-black/40 px-1.5 py-0.5 text-xs text-white/90">
+                  <span>{formattedTime}</span>
+                  {isCurrentUser && <StatusDots status={message.status} />}
+                </div>
+                {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
+              </div>
+            ) : (
+                <div className="flex flex-col">
+                    {renderBubbleContent()}
+                </div>
+            )}
+          </div>
+          {!(isMediaMessage) && (
+             <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
+                <span className="text-xs text-muted-foreground">{formattedTime}</span>
+                {isCurrentUser && <StatusDots status={message.status} />}
+              </div>
+          )}
         </div>
+      </div>
     </div>
   );
 }
