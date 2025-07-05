@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
 import { realtimeService, type RealtimeProtocol } from '@/services/realtimeService';
-import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData } from '@/types';
+import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData, MediaProcessedEventData } from '@/types';
 
 interface UseRealtimeOptions {
   onMessageReceived: (message: Message) => void;
@@ -18,10 +18,11 @@ interface UseRealtimeOptions {
   onChatModeChanged: (data: ChatModeChangedEventData) => void;
   onMessageDeleted: (data: MessageDeletedEventData) => void;
   onChatHistoryCleared: (chatId: string) => void;
+  onMediaProcessed: (data: MediaProcessedEventData) => void;
 }
 
 export function useRealtime({
-  onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared
+  onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared, onMediaProcessed
 }: UseRealtimeOptions) {
   const { token, logout } = useAuth();
   const { toast } = useToast();
@@ -40,6 +41,7 @@ export function useRealtime({
         const payload = data as EventPayload;
         switch (payload.event_type) {
           case 'new_message': onMessageReceived((payload as NewMessageEventData).message); break;
+          case 'media_processed': onMediaProcessed(payload as MediaProcessedEventData); break;
           case 'message_deleted': onMessageDeleted(payload as MessageDeletedEventData); break;
           case 'message_reaction_update': onReactionUpdate(payload as MessageReactionUpdateEventData); break;
           case 'user_presence_update': onPresenceUpdate(payload as UserPresenceUpdateEventData); break;
@@ -65,7 +67,7 @@ export function useRealtime({
     return () => {
       realtimeService.unsubscribe(handleEvent);
     };
-  }, [token, logout, toast, onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared]);
+  }, [token, logout, toast, onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared, onMediaProcessed]);
 
 
   return { 

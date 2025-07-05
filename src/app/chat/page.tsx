@@ -9,7 +9,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext, MediaProcessedEventData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
-import { useMoodSuggestion } from '@/hooks/useMoodSuggestion.tsx';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { THINKING_OF_YOU_DURATION, ENABLE_AI_MOOD_SUGGESTION } from '@/config/app-config';
 import { cn } from '@/lib/utils';
@@ -185,11 +184,7 @@ export default function ChatPage() {
     return () => unsubscribe();
   }, []);
 
-
   const { activeTargetId: activeThoughtNotificationFor, initiateThoughtNotification } = useThoughtNotification({ duration: THINKING_OF_YOU_DURATION, toast });
-
-  const handleMoodChangeForAISuggestion = useCallback(async (newMood: Mood) => { if (currentUser) try { await api.updateUserProfile({ mood: newMood }); await fetchAndUpdateUser(); } catch (error: any) { toast({ variant: 'destructive', title: 'Mood Update Failed', description: error.message }) }}, [currentUser, fetchAndUpdateUser, toast]);
-  const { isLoadingAISuggestion, suggestMood: aiSuggestMood, ReasoningDialog } = useMoodSuggestion({ currentUserMood: currentUser?.mood || 'Neutral', onMoodChange: handleMoodChangeForAISuggestion, currentMessageTextRef: lastMessageTextRef });
 
   const performLoadChatData = useCallback(async () => {
     if (!currentUser) return;
@@ -285,10 +280,9 @@ export default function ChatPage() {
     
     sendMessageWithTimeout({ event_type: "send_message", text, mode, client_temp_id: clientTempId, message_subtype: "text", reply_to_message_id: replyToId, chat_id: activeChatId });
     
-    if (ENABLE_AI_MOOD_SUGGESTION && currentUser.mood) { lastMessageTextRef.current = text; aiSuggestMood(text); }
     if (isPushApiSupported && !isSubscribed && permissionStatus === 'default' && !localStorage.getItem(FIRST_MESSAGE_SENT_KEY)) { localStorage.setItem(FIRST_MESSAGE_SENT_KEY, 'true'); setTimeout(() => setShowNotificationPrompt(true), 2000); }
     if (replyToId) setReplyingTo(null);
-  }, [currentUser, activeChatId, handleTyping, sendMessageWithTimeout, aiSuggestMood, isPushApiSupported, isSubscribed, permissionStatus]);
+  }, [currentUser, activeChatId, handleTyping, sendMessageWithTimeout, isPushApiSupported, isSubscribed, permissionStatus]);
   
   const handleFileUpload = useCallback(async (file: File, mode: MessageMode, intendedSubtype: MessageType['message_subtype']) => {
     if (!currentUser || !activeChatId) return;
@@ -336,8 +330,6 @@ export default function ChatPage() {
       chatId: activeChatId,
       priority,
       subtype: finalSubtype,
-      cloudinaryPublicId: cloudinaryPublicId,
-      cloudinaryResourceType: resourceType,
     });
   }, [currentUser, activeChatId]);
 
@@ -600,14 +592,13 @@ export default function ChatPage() {
                 onEnterSelectionMode={handleEnterSelectionMode}
                 onToggleMessageSelection={handleToggleMessageSelection}
               />
-              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingAISuggestion} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
+              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoading} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
           </ErrorBoundary>
         </div>
         {fullScreenUserData && <FullScreenAvatarModal isOpen={isFullScreenAvatarOpen} onClose={() => setIsFullScreenAvatarOpen(false)} user={fullScreenUserData}/>}
         {mediaModalData && <FullScreenMediaModal isOpen={!!mediaModalData} onClose={() => setMediaModalData(null)} mediaUrl={mediaModalData.url} mediaType={mediaModalData.type}/>}
         {currentUser && initialMoodOnLoad && <MoodEntryModal isOpen={isMoodModalOpen} onClose={handleContinueWithCurrentMood} onSetMood={handleSetMoodFromModal} currentMood={initialMoodOnLoad} onContinueWithCurrent={handleContinueWithCurrentMood}/>}
-        <ReasoningDialog />
         {reactionModalData && <ReactionSummaryModal isOpen={!!reactionModalData} onClose={() => setReactionModalData(null)} reactions={reactionModalData.reactions} allUsers={reactionModalData.allUsers}/>}
         {documentPreview && <DocumentPreviewModal isOpen={!!documentPreview} onClose={() => setDocumentPreview(null)} message={documentPreview} />}
         {messageInfo && <MessageInfoModal isOpen={!!messageInfo} onClose={() => setMessageInfo(null)} message={messageInfo} />}

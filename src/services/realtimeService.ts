@@ -52,10 +52,6 @@ class RealtimeService {
   private async handleEvent(data: EventPayload) {
     if (data.sequence && data.sequence > this.lastSequence) { this.lastSequence = data.sequence; localStorage.setItem(LAST_SEQUENCE_KEY, String(data.sequence)); }
     if (data.event_type === 'message_ack' && data.client_temp_id) this.pendingMessages.delete(data.client_temp_id);
-    if (data.event_type === 'media_processed') {
-        const message = (data as MediaProcessedEventData).message;
-        await storageService.updateMessage(message.client_temp_id, message);
-    }
     this.emit('event', data);
   }
   private async syncEvents() {
