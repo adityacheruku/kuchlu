@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { ChevronRight } from 'lucide-react';
 import SettingsHeader from '@/components/settings/SettingsHeader';
 import FullPageLoader from '@/components/common/FullPageLoader';
+import Spinner from '@/components/common/Spinner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,11 +43,29 @@ export default function AccessibilitySettingsPage() {
 
     // State for the feature itself
     const [assistiveTouchEnabled, setAssistiveTouchEnabled] = useState(false);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
     
     // State for the dialogs
     const [isExplanationDialogOpen, setIsExplanationDialogOpen] = useState(false);
     const [isPermissionDeniedDialogOpen, setIsPermissionDeniedDialogOpen] = useState(false);
     const [permissionDialogCallbacks, setPermissionDialogCallbacks] = useState<{ onConfirm: () => void, onCancel: () => void } | null>(null);
+
+    // Fetch initial status from the native plugin when the component mounts
+    useEffect(() => {
+      async function checkInitialStatus() {
+        setIsLoadingStatus(true);
+        try {
+          const status = await capacitorService.getAssistiveTouchStatus();
+          setAssistiveTouchEnabled(status.isEnabled);
+        } catch (e) {
+          console.error("Failed to get initial AssistiveTouch status", e);
+          setAssistiveTouchEnabled(false);
+        } finally {
+          setIsLoadingStatus(false);
+        }
+      }
+      checkInitialStatus();
+    }, []);
 
     if (isAuthLoading || !currentUser) {
         return <FullPageLoader />;
@@ -58,39 +77,31 @@ export default function AccessibilitySettingsPage() {
     };
 
     const handleToggleChange = async (checked: boolean) => {
-        console.log('AssistiveTouch toggle changed:', checked);
         if (checked) {
-            console.log('Requesting overlay permission...');
             const granted = await capacitorService.requestOverlayPermission(showPermissionDialog);
-            console.log('Permission request flow completed. Granted status:', granted);
             if (granted) {
-                console.log('Showing floating button...');
                 await capacitorService.showFloatingButton();
                 setAssistiveTouchEnabled(true);
                 toast({ title: "AssistiveTouch Enabled", description: "The floating button is now active." });
             } else {
-                console.log('Permission was not granted, showing denied dialog.');
                 setAssistiveTouchEnabled(false);
                 if (!permissionDialogCallbacks) { 
                     setIsPermissionDeniedDialogOpen(true);
                 }
             }
         } else {
-            console.log('Hiding floating button...');
             await capacitorService.hideFloatingButton();
             setAssistiveTouchEnabled(false);
         }
     };
 
     const onDialogConfirm = () => {
-        console.log('User confirmed permission explanation dialog.');
         setIsExplanationDialogOpen(false);
         permissionDialogCallbacks?.onConfirm();
         setPermissionDialogCallbacks(null);
     };
     
     const onDialogCancel = () => {
-        console.log('User cancelled permission explanation dialog.');
         setIsExplanationDialogOpen(false);
         permissionDialogCallbacks?.onCancel();
         setPermissionDialogCallbacks(null);
@@ -113,12 +124,16 @@ export default function AccessibilitySettingsPage() {
                                     <p className="text-sm text-muted-foreground font-normal">Use a floating button to quickly access app features from anywhere on your device. Requires special permissions.</p>
                                 </Label>
                                 <div className="flex items-center gap-2">
-                                     <Switch
-                                        id="assistive-touch-toggle"
-                                        checked={assistiveTouchEnabled}
-                                        onCheckedChange={handleToggleChange}
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
+                                     {isLoadingStatus ? (
+                                        <Spinner />
+                                     ) : (
+                                        <Switch
+                                            id="assistive-touch-toggle"
+                                            checked={assistiveTouchEnabled}
+                                            onCheckedChange={handleToggleChange}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                     )}
                                 </div>
                             </SettingsRow>
                        </div>
