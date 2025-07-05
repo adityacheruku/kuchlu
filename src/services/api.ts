@@ -59,33 +59,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 }
 
-export interface UploadRequest {
-    xhr: XMLHttpRequest;
-    promise: Promise<any>;
-}
-
-function createUploadRequest(url: string, formData: FormData, onProgress: (progress: number) => void): UploadRequest {
-    const xhr = new XMLHttpRequest();
-    const promise = new Promise((resolve, reject) => {
-        xhr.open('POST', url, true);
-        const token = getAuthToken();
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
-        xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(new Error('Failed to parse server response.')); }
-          } else {
-            let errorData: ApiErrorResponse = {}; try { errorData = JSON.parse(xhr.responseText); } catch (e) {}
-            reject(new Error(typeof errorData.detail === 'string' ? errorData.detail : `Upload failed with status ${xhr.status}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload.'));
-        xhr.onabort = () => reject(new Error('Upload cancelled'));
-        xhr.send(formData);
-    });
-    return { xhr, promise };
-}
-
 export const api = {
   setAuthToken: (token: string | null) => { currentAuthToken = token; },
   login: async (phone: string, password_plaintext: string): Promise<AuthResponse> => {
@@ -117,26 +90,12 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/me/profile`, { method: 'PUT', headers: getApiHeaders(), body: JSON.stringify(data) });
     return handleResponse<UserInToken>(response);
   },
-  uploadFile: (file: Blob, payload: { file_type: string, eager?: string[] }, onProgress: (p: number) => void): UploadRequest => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('payload', JSON.stringify(payload));
-    return createUploadRequest(`${API_BASE_URL}/uploads/file`, formData, onProgress);
-  },
-  // Chunked Upload Endpoints
-  initiateChunkedUpload: async (filename: string, filesize: number, filetype: string): Promise<{ upload_id: string }> => {
-    const response = await fetch(`${API_BASE_URL}/uploads/initiate_chunked`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ filename, filesize, filetype }) });
-    return handleResponse<{ upload_id: string }>(response);
-  },
-  uploadChunk: (uploadId: string, chunkIndex: number, chunk: Blob, onProgress: (p: number) => void): UploadRequest => {
-    const formData = new FormData();
-    formData.append('upload_id', uploadId);
-    formData.append('chunk_index', String(chunkIndex));
-    formData.append('chunk', chunk);
-    return createUploadRequest(`${API_BASE_URL}/uploads/chunk`, formData, onProgress);
-  },
-  finalizeChunkedUpload: async (uploadId: string): Promise<any> => {
-    const response = await fetch(`${API_BASE_URL}/uploads/finalize_chunked`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ upload_id: uploadId }) });
+  getSignCloudinaryUpload: async (payload: { public_id?: string; folder?: string; eager?: string; }): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/uploads/sign`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(payload)
+    });
     return handleResponse<any>(response);
   },
   changePassword: async (passwordData: PasswordChangeRequest): Promise<void> => {
