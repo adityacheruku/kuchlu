@@ -73,7 +73,7 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
     if (message.message_subtype === 'deleted_placeholder') {
         return (
             <div className="flex justify-center items-center my-2">
-                <div className="px-3 py-1 bg-muted rounded-full text-xs text-muted-foreground italic flex items-center gap-1.5">
+                <div className="px-3 py-1 bg-muted/50 rounded-full text-xs text-muted-foreground italic flex items-center gap-1.5">
                     <Ban size={12}/>
                     {message.text}
                 </div>

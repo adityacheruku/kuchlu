@@ -274,19 +274,25 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message
 });
 AudioPlayer.displayName = "AudioPlayer";
 
+const RepliedMessagePreview = ({ message, senderName }: { message: Message; senderName: string }) => {
+  const content = message.text ? (message.text.length > 70 ? message.text.substring(0, 70) + '...' : message.text) : 'Attachment';
+  return (
+    <div className="p-2 mb-1 bg-black/10 dark:bg-white/10 rounded-t-lg border-l-2 border-accent/50 mx-1 mt-1">
+      <p className="font-semibold text-xs text-accent">{senderName}</p>
+      <p className="text-xs text-current/80 opacity-90">{content}</p>
+    </div>
+  );
+};
+
 const parseMarkdown = (text: string = ''): string => {
   let html = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
     
-  // Bold: *text*
   html = html.replace(/\*([^\*]+)\*/g, '<strong>$1</strong>');
-  // Italic: _text_
   html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
-  // Strikethrough: ~text~
   html = html.replace(/~([^~]+)~/g, '<del>$1</del>');
-  // Monospace: `text`
   html = html.replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded-sm font-mono">$1</code>');
   return html;
 };
@@ -349,7 +355,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const doubleTapEvents = useDoubleTap(handleDoubleTap, { timeout: 300 });
 
   const handleBubbleClick = (e: React.MouseEvent) => {
-    if (Math.abs(translateX) > 20) { // If swiping, don't trigger click
+    if (Math.abs(translateX) > 20) { 
       e.preventDefault();
       return;
     }
@@ -409,7 +415,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
           )}
         </div>
         
-        {message.caption && (
+        {message.caption && !showOverlay && (
           <p className="text-sm px-3 py-2 text-primary-foreground">{message.caption}</p>
         )}
       </div>
@@ -446,7 +452,8 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
         <div className="flex flex-col w-full">
             <div 
               className={cn(
-                'relative overflow-hidden rounded-xl w-full',
+                'relative overflow-hidden w-full',
+                !isMediaMessage && 'rounded-xl',
                 isShaking && 'animate-shake'
               )}
               {...longPressHandlers}
@@ -486,6 +493,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                     isEmojiOnlyMessage && 'bg-transparent shadow-none',
                     !isMediaMessage && (isCurrentUser ? 'bg-primary' : 'bg-secondary')
                   )}>
+                    {repliedToMessage && repliedToSender && <RepliedMessagePreview message={repliedToMessage} senderName={repliedToSender.display_name}/>}
                     {isMediaMessage ? renderMediaBubbleContent() : (
                          <div className={cn("p-3", isAudioMessage && "p-1", isEmojiOnlyMessage && 'p-0')}>
                             {renderStandardBubbleContent()}
@@ -519,5 +527,3 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
-
-    
