@@ -33,6 +33,7 @@ import Spinner from '../common/Spinner';
 import UploadProgressIndicator from './UploadProgressIndicator';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import dynamic from 'next/dynamic';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
@@ -141,9 +142,7 @@ const VideoPlayer = memo(({ message }: { message: Message }) => {
                 controls
                 width="100%"
                 height="100%"
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                config={{ file: { attributes: { poster: thumbnailUrl || undefined }}}}
+                config={{ file: { forceHLS: true }}}
                 playIcon={<PlayCircle size={48} className="text-white/80 transition-transform group-hover/media:scale-110" />}
             />
         </div>
@@ -288,6 +287,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
 });
 AudioPlayer.displayName = "AudioPlayer";
 
+
 const AudioFilePlayer = memo(({ message, isCurrentUser, allUsers }: { message: Message; isCurrentUser: boolean; allUsers: Record<string, User> }) => {
     const { title, artist } = message.file_metadata || {};
     const sender = allUsers[message.user_id];
@@ -333,11 +333,13 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       if (isSelectionMode) return;
       isCurrentUser ? onSetReplyingTo(message) : setIsDeleteDialogOpen(true);
     },
+    onSwipeStart: () => Haptics.impact({ style: ImpactStyle.Light }),
   });
   
   const longPressHandlers = useLongPress(() => {
-    if (navigator.vibrate) navigator.vibrate(50);
     if (!isSelectionMode) onEnterSelectionMode(message.id);
+  }, {
+    onStart: () => Haptics.impact({ style: ImpactStyle.Medium })
   });
 
   const handleCopy = () => {

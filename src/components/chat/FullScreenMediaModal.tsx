@@ -13,7 +13,7 @@ import { useZoomAndPan } from "@/hooks/useZoomAndPan";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 import { mediaCacheService } from "@/services/mediaCacheService";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Spinner from "../common/Spinner";
 import dynamic from 'next/dynamic';
 
@@ -34,6 +34,31 @@ export default function FullScreenMediaModal({
   const { imageRef, containerHandlers, style } = useZoomAndPan();
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const hideControls = useCallback(() => {
+    setControlsVisible(false);
+  }, []);
+
+  const showAndAutoHideControls = useCallback(() => {
+      setControlsVisible(true);
+      if (controlsTimeoutRef.current) {
+          clearTimeout(controlsTimeoutRef.current);
+      }
+      controlsTimeoutRef.current = setTimeout(hideControls, 3000);
+  }, [hideControls]);
+
+  useEffect(() => {
+      if (isOpen) {
+          showAndAutoHideControls();
+      }
+      return () => {
+          if (controlsTimeoutRef.current) {
+              clearTimeout(controlsTimeoutRef.current);
+          }
+      };
+  }, [isOpen, showAndAutoHideControls]);
 
   useEffect(() => {
     if (isOpen && message) {
@@ -52,6 +77,16 @@ export default function FullScreenMediaModal({
         }
     }
   }, [isOpen, message]);
+
+  const toggleControls = (e: React.MouseEvent) => {
+      // Prevent click from propagating to dialog close
+      e.stopPropagation();
+      if (controlsVisible) {
+          hideControls();
+      } else {
+          showAndAutoHideControls();
+      }
+  };
 
   if (!isOpen || !message) {
     return null;
@@ -88,10 +123,11 @@ export default function FullScreenMediaModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
         className={cn(
-            "p-0 bg-black/80 border-none shadow-2xl h-[100svh] w-screen max-w-full rounded-none flex items-center justify-center",
+            "p-0 bg-black border-none shadow-2xl h-[100svh] w-screen max-w-full rounded-none flex items-center justify-center",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
         )}
+        onClick={toggleControls}
       >
         {isLoading ? (
             <Spinner />
@@ -110,16 +146,18 @@ export default function FullScreenMediaModal({
             />
           </div>
         ) : message.message_subtype === 'clip' && mediaUrl ? (
-          <ReactPlayer
-            url={mediaUrl}
-            playing
-            controls
-            width="100%"
-            height="100%"
-            config={{ file: { forceHLS: true }}}
-          />
+          <div className="w-full h-full flex items-center justify-center">
+            <ReactPlayer
+              url={mediaUrl}
+              playing
+              controls
+              width="100%"
+              height="auto"
+              config={{ file: { forceHLS: true }}}
+            />
+          </div>
         ) : null}
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className={cn("absolute top-4 right-4 flex gap-2 transition-opacity duration-300", controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none")}>
             <Button
                 variant="ghost"
                 size="icon"

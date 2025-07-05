@@ -13,7 +13,7 @@
     "typecheck": "npx tsc --noEmit"
   },
   "dependencies": {
-    "@capacitor/cli": "7.4.0",
+    "@capacitor/cli": "^6.0.0",
     "@ffmpeg/core": "^0.12.6",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
@@ -67,10 +67,11 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@capacitor/android": "7.4.0",
-    "@capacitor/cli": "7.4.0",
-    "@capacitor/core": "7.4.0",
-    "@capacitor/ios": "7.4.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

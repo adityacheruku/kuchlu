@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import Spinner from '../common/Spinner';
 import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 interface InputBarProps {
   onSendMessage: (text: string, mode: MessageMode, replyToId?: string) => void;
@@ -259,7 +260,7 @@ function InputBar({
     }
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (navigator.vibrate) navigator.vibrate(50);
+        await Haptics.vibrate();
         
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
@@ -295,7 +296,7 @@ function InputBar({
   const handleCompositeSend = useCallback((e?: FormEvent) => {
     e?.preventDefault();
     if (disabled || isSending) return;
-    if (navigator.vibrate) navigator.vibrate(20);
+    Haptics.impact({ style: ImpactStyle.Light });
     if (messageText.trim()) onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
     stagedAttachments.forEach(file => {
       if (file.type.startsWith('image/')) onSendImage(file, chatMode);

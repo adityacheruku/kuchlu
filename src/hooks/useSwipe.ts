@@ -8,9 +8,10 @@ const MAX_SWIPE = 80; // pixels
 interface UseSwipeProps {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  onSwipeStart?: () => void;
 }
 
-export const useSwipe = ({ onSwipeLeft, onSwipeRight }: UseSwipeProps) => {
+export const useSwipe = ({ onSwipeLeft, onSwipeRight, onSwipeStart }: UseSwipeProps) => {
     const ref = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [startX, setStartX] = useState(0);
@@ -23,12 +24,13 @@ export const useSwipe = ({ onSwipeLeft, onSwipeRight }: UseSwipeProps) => {
     const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         // Only trigger for primary button or touch
         if (e.pointerType === 'mouse' && e.button !== 0) return;
+        onSwipeStart?.();
         setStartX(e.clientX);
         setIsDragging(true);
         if(ref.current) {
             ref.current.style.transition = 'none';
         }
-    }, []);
+    }, [onSwipeStart]);
 
     const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         if (!isDragging) return;
