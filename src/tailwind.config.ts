@@ -11,8 +11,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Outfit', 'sans-serif'],
-        headline: ['Unbounded', 'sans-serif'],
+        body: ['PT Sans', 'sans-serif'],
+        headline: ['PT Sans', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {
@@ -97,6 +97,10 @@ export default {
           '0%': { transform: 'scale(0.8)', opacity: '0.5' },
           '100%': { transform: 'scale(1)', opacity: '1' },
         },
+        'dot-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
         'shake': {
           '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
           '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
@@ -118,6 +122,7 @@ export default {
         'accordion-up': 'accordion-up 0.2s ease-out',
         'pulse-subtle': 'pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'pop': 'pop 0.2s ease-out',
+        'dot-pulse': 'dot-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'shake': 'shake 0.6s cubic-bezier(.36,.07,.19,.97) both',
         'toast-in': 'toast-in 0.25s ease-out',
         'wave': 'wave 1.2s linear infinite',
@@ -126,3 +131,5 @@ export default {
   },
   plugins: [require('tailwindcss-animate')],
 } satisfies Config;
+
+    

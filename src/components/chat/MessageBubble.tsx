@@ -336,31 +336,60 @@ const parseMarkdown = (text: string = ''): string => {
   return html;
 };
 
-const StatusDots = ({ status, isCurrentUser }: { status: MessageStatus, isCurrentUser: boolean }) => {
-  const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
-  const fadedDot = cn(baseDot, "bg-muted-foreground/30");
-  const sendingDot = cn(baseDot, "bg-muted-foreground/50", "animate-dot-pulse");
-  const sentDot = cn(baseDot, "bg-amber-400");
-  const deliveredDot = cn(baseDot, "bg-amber-400");
-  const readDot = cn(baseDot, "bg-amber-500");
+const StatusDots = ({ status }: { status: MessageStatus }) => {
+    const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
+    const fadedDot = cn(baseDot, "bg-muted-foreground/30");
+    const sendingDot = cn(baseDot, "bg-muted-foreground/50", "animate-dot-pulse");
+    const activeDot = cn(baseDot, "bg-amber-400"); // Sent & Delivered
+    const readDot = cn(baseDot, "bg-amber-500"); // Read
   
-  const getDots = () => {
-    switch (status) {
-      case "sending": return <div className="flex items-center gap-0.5"><div className={sendingDot} /><div className={sendingDot} style={{animationDelay: '0.2s'}} /><div className={sendingDot} style={{animationDelay: '0.4s'}} /></div>;
-      case "sent": return <div className="flex items-center gap-0.5"><div className={sentDot}/><div className={fadedDot}/><div className={fadedDot}/></div>;
-      case "delivered": return <div className="flex items-center gap-0.5"><div className={deliveredDot}/><div className={deliveredDot}/><div className={fadedDot}/></div>;
-      case "read": return <div className="flex items-center gap-0.5"><div className={readDot}/><div className={readDot}/><div className={readDot}/></div>;
-      case "failed": return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      default: return null;
-    }
-  }
-
-  return (
-    <div className={cn("flex items-center", isCurrentUser ? 'text-primary-foreground' : 'text-secondary-foreground')}>
-        {getDots()}
-    </div>
-  );
-};
+    const renderDots = () => {
+      switch (status) {
+        case "sending":
+          return (
+            <>
+              <div className={sendingDot} style={{ animationDelay: '0s' }} />
+              <div className={sendingDot} style={{ animationDelay: '0.2s' }} />
+              <div className={sendingDot} style={{ animationDelay: '0.4s' }} />
+            </>
+          );
+        case "sent":
+          return (
+            <>
+              <div className={activeDot} />
+              <div className={fadedDot} />
+              <div className={fadedDot} />
+            </>
+          );
+        case "delivered":
+          return (
+            <>
+              <div className={activeDot} />
+              <div className={activeDot} />
+              <div className={fadedDot} />
+            </>
+          );
+        case "read":
+          return (
+            <>
+              <div className={readDot} />
+              <div className={readDot} />
+              <div className={readDot} />
+            </>
+          );
+        case "failed":
+          return <AlertTriangle className="h-4 w-4 text-destructive" />;
+        default:
+          return null;
+      }
+    };
+  
+    return (
+      <div className="flex items-center gap-0.5">
+          {renderDots()}
+      </div>
+    );
+  };
 
 function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
@@ -498,31 +527,24 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                 <div 
                     className={cn(
                         'relative rounded-xl shadow-md transition-all',
-                        isTextMessage && 'p-3',
-                        isAudioMessage && 'p-3',
-                        isMediaMessage && 'p-0 bg-transparent shadow-none',
-                        !isMediaMessage && bubbleColorClass
+                        bubbleColorClass,
+                        (isTextMessage || isAudioMessage) && 'p-3',
+                        isMediaMessage && 'p-1',
                     )}
                 >
-                    {isMediaMessage ? (
-                         <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
-                             {renderContent()}
-                             {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
-                             <div className="absolute bottom-1 right-2 flex items-center gap-1.5 text-white text-xs bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5">
-                                 <span>{formattedTime}</span>
-                                 {isCurrentUser && <StatusDots status={message.status} isCurrentUser={isCurrentUser} />}
-                             </div>
-                         </div>
+                     {isMediaMessage ? (
+                        <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
+                            {renderContent()}
+                            {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
+                        </div>
                     ) : (
                         renderBubbleContent()
                     )}
                 </div>
-                {!isMediaMessage && (
-                  <div className="flex items-center gap-2 pt-1 px-2">
+                <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
                      <span className="text-xs text-muted-foreground">{formattedTime}</span>
-                     {isCurrentUser && <StatusDots status={message.status} isCurrentUser={isCurrentUser} />}
+                     {isCurrentUser && <StatusDots status={message.status} />}
                   </div>
-                )}
             </div>
         </div>
     </div>
@@ -532,3 +554,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 export default memo(MessageBubble);
 
 
+
+
+    
