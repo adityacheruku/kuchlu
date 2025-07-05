@@ -4,7 +4,7 @@ import json
 from uuid import UUID
 from typing import Dict, List, Any, Optional
 from fastapi import WebSocket, WebSocketState
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.utils.logging import logger

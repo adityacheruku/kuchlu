@@ -1,6 +1,4 @@
 
-
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo, useLayoutEffect } from 'react';
@@ -8,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext } from '@/types';
+import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext, MediaProcessedEventData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { useMoodSuggestion } from '@/hooks/useMoodSuggestion.tsx';
@@ -145,6 +143,10 @@ export default function ChatPage() {
     }
   }, [otherUser]);
 
+  const handleMediaProcessed = useCallback(async (data: MediaProcessedEventData) => {
+    await storageService.updateMessage(data.message.client_temp_id, data.message);
+  }, []);
+
   const handleTypingUpdate = useCallback((data: TypingIndicatorEventData) => { if (activeChatId === data.chat_id) setTypingUsers(prev => ({ ...prev, [data.user_id]: { userId: data.user_id, isTyping: data.is_typing } }))}, [activeChatId]);
   const handleChatModeChanged = useCallback((data: ChatModeChangedEventData) => { if (activeChatId === data.chat_id) setChatMode(data.mode); }, [activeChatId]);
   const handleThinkingOfYou = useCallback((data: ThinkingOfYouReceivedEventData) => { if (otherUser?.id === data.sender_id) toast({ title: "❤️ Thinking of You!", description: `${otherUser.display_name} is thinking of you.` })}, [otherUser, toast]);
@@ -157,6 +159,7 @@ export default function ChatPage() {
     onTypingUpdate: handleTypingUpdate, onThinkingOfYouReceived: handleThinkingOfYou, onUserProfileUpdate: handleProfileUpdate,
     onMessageAck: handleMessageAck, onChatModeChanged: handleChatModeChanged, onMessageDeleted: handleMessageDeleted,
     onChatHistoryCleared: (chatId) => { if (activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete(); },
+    onMediaProcessed: handleMediaProcessed,
   });
 
   const sendMessageWithTimeout = useCallback((messagePayload: any) => {
@@ -167,66 +170,20 @@ export default function ChatPage() {
   // Listen to upload progress events
   useEffect(() => {
     const handleProgress = async (update: UploadProgress) => {
-      const originalMessage = messages.find(m => m.client_temp_id === update.messageId);
-
-      if (update.status === 'completed' && update.result && originalMessage) {
-        
-        const messageUpdateData: Partial<MessageType> = {
-            uploadStatus: 'completed',
-            status: 'sending',
-        };
-
-        if (originalMessage.message_subtype === 'image') {
-            messageUpdateData.image_url = update.result.secure_url;
-            messageUpdateData.image_thumbnail_url = update.result.eager?.[0]?.secure_url || update.result.secure_url;
-            messageUpdateData.preview_url = update.result.eager?.[0]?.secure_url || update.result.secure_url;
-        } else if (originalMessage.message_subtype === 'clip') { // Video
-            messageUpdateData.clip_url = update.result.secure_url;
-            messageUpdateData.image_thumbnail_url = update.result.eager?.[0]?.secure_url;
-            messageUpdateData.duration_seconds = update.result.duration;
-            messageUpdateData.clip_type = 'video';
-        } else if (originalMessage.message_subtype === 'voice_message' || originalMessage.message_subtype === 'audio') {
-            messageUpdateData.clip_url = update.result.secure_url;
-            messageUpdateData.duration_seconds = update.result.duration;
-            messageUpdateData.audio_format = update.result.format;
-            messageUpdateData.clip_type = 'audio';
-        } else if (originalMessage.message_subtype === 'document') {
-            messageUpdateData.document_url = update.result.secure_url;
-            messageUpdateData.document_name = update.result.original_filename;
-        }
-
-        messageUpdateData.file_size_bytes = update.result.bytes;
-        if (update.result.file_metadata) {
-            messageUpdateData.file_metadata = update.result.file_metadata;
-        }
-        
-        await storageService.updateMessage(update.messageId, messageUpdateData);
-        
-        const websocketPayload = {
-            event_type: "send_message",
-            client_temp_id: update.messageId,
-            chat_id: originalMessage.chat_id,
-            mode: originalMessage.mode,
-            reply_to_message_id: originalMessage.reply_to_message_id,
-            ...messageUpdateData
-        };
-
-        sendMessageWithTimeout(websocketPayload);
-
-      } else {
-         await storageService.updateMessage(update.messageId, {
-            uploadStatus: update.status,
-            uploadProgress: update.progress,
-            uploadError: update.error,
-            status: update.status === 'failed' ? 'failed' : 'uploading',
-            thumbnailDataUrl: update.thumbnailDataUrl
-         });
-      }
+      // Optimistically update the UI with progress details.
+      // The final message data will come from the 'media_processed' WebSocket event.
+      await storageService.updateMessage(update.messageId, {
+         uploadStatus: update.status,
+         uploadProgress: update.progress,
+         uploadError: update.error,
+         status: update.status === 'failed' ? 'failed' : 'uploading',
+         thumbnailDataUrl: update.thumbnailDataUrl
+      });
     };
     
     const unsubscribe = uploadManager.subscribe(handleProgress);
     return () => unsubscribe();
-  }, [sendMessageWithTimeout, messages]);
+  }, []);
 
 
   const { activeTargetId: activeThoughtNotificationFor, initiateThoughtNotification } = useThoughtNotification({ duration: THINKING_OF_YOU_DURATION, toast });
@@ -368,13 +325,19 @@ export default function ChatPage() {
     
     await storageService.addMessage(optimisticMessage);
     
-    uploadManager.addToQueue({
-      id: uuidv4(),
+    // The public ID for Cloudinary will be the same as our client-side temp ID
+    const cloudinaryPublicId = clientTempId;
+    const resourceType = finalSubtype === 'image' ? 'image' : 'video';
+
+    await uploadManager.addToQueue({
+      id: cloudinaryPublicId,
       file,
       messageId: clientTempId,
       chatId: activeChatId,
       priority,
-      subtype: finalSubtype
+      subtype: finalSubtype,
+      cloudinaryPublicId: cloudinaryPublicId,
+      cloudinaryResourceType: resourceType,
     });
   }, [currentUser, activeChatId]);
 
@@ -625,6 +588,7 @@ export default function ChatPage() {
                 onShowReactions={(m, u) => handleShowReactions(m, u)} 
                 onShowMedia={handleShowMedia} 
                 onShowDocumentPreview={handleShowDocumentPreview} 
+                onShowInfo={handleShowInfo}
                 onLoadMore={loadMoreMessages} 
                 hasMore={hasMoreMessages} 
                 isLoadingMore={isLoadingMore} 
@@ -635,7 +599,6 @@ export default function ChatPage() {
                 selectedMessageIds={selectedMessageIds}
                 onEnterSelectionMode={handleEnterSelectionMode}
                 onToggleMessageSelection={handleToggleMessageSelection}
-                onShowInfo={handleShowInfo}
               />
               <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingAISuggestion} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>

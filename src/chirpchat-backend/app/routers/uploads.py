@@ -3,7 +3,7 @@ import os
 import time
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
-from typing import Literal, Optional, List
+from typing import Literal, Optional
 
 import cloudinary
 from cloudinary.utils import api_sign_request
@@ -54,7 +54,11 @@ async def get_cloudinary_upload_signature(
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
         
-        notification_url = f"{settings.API_BASE_URL}/webhooks/cloudinary/media-processed"
+        if not settings.CLOUDINARY_WEBHOOK_URL:
+            logger.error("CLOUDINARY_WEBHOOK_URL is not configured in the environment.")
+            raise HTTPException(status_code=500, detail="Server is not configured for upload notifications.")
+
+        notification_url = settings.CLOUDINARY_WEBHOOK_URL
 
         params_to_sign = {
             "timestamp": timestamp,

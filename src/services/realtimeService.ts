@@ -3,6 +3,7 @@
 
 import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData, MediaProcessedEventData } from '@/types';
 import { api } from './api';
+import { storageService } from './storageService';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
@@ -48,9 +49,13 @@ class RealtimeService {
 
   private setProtocol(p: RealtimeProtocol) { if (this.protocol !== p) { this.protocol = p; this.emit('protocol-change', p); }}
   private emit(event: string, data: any) { this.listeners.forEach(l => l(event, data)); }
-  private handleEvent(data: EventPayload) {
+  private async handleEvent(data: EventPayload) {
     if (data.sequence && data.sequence > this.lastSequence) { this.lastSequence = data.sequence; localStorage.setItem(LAST_SEQUENCE_KEY, String(data.sequence)); }
     if (data.event_type === 'message_ack' && data.client_temp_id) this.pendingMessages.delete(data.client_temp_id);
+    if (data.event_type === 'media_processed') {
+        const message = (data as MediaProcessedEventData).message;
+        await storageService.updateMessage(message.client_temp_id, message);
+    }
     this.emit('event', data);
   }
   private async syncEvents() {

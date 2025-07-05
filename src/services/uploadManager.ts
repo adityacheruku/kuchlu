@@ -3,8 +3,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { api } from './api';
-import type { UploadItem, UploadProgress, UploadError, MessageSubtype, Message, CloudinaryUploadParams, MediaMessagePayload } from '@/types';
-import { UploadErrorCode, ERROR_MESSAGES } from '@/types/uploadErrors';
+import type { UploadItem, UploadProgress, UploadError, MessageSubtype, Message, CloudinaryUploadParams } from '@/types';
+import { UploadErrorCode } from '@/types/uploadErrors';
 import { storageService } from './storageService';
 import { imageProcessor } from './imageProcessor';
 import { videoCompressor } from './videoCompressor';
@@ -42,7 +42,7 @@ class UploadManager {
     const pendingItems = await storageService.getAllPendingUploads();
     if (pendingItems.length > 0) {
       console.log(`UploadManager: Resuming ${pendingItems.length} pending uploads.`);
-      this.queue.unshift(...pendingItems.map(item => ({ ...item, status: 'pending', progress: 0 })));
+      this.queue.unshift(...pendingItems.map(item => ({ ...item, status: 'pending', progress: 0 } as UploadItem)));
       this.processQueue();
     }
   }
@@ -62,10 +62,10 @@ class UploadManager {
     return () => progressListeners.delete(callback);
   }
 
-  public async addToQueue(item: Omit<UploadItem, 'status' | 'progress' | 'retryCount' | 'createdAt' | 'id'>): Promise<void> {
+  public async addToQueue(item: Omit<UploadItem, 'status' | 'progress' | 'retryCount' | 'createdAt' | 'id'> & { id?: string }): Promise<void> {
     const fullItem: UploadItem = { 
+        id: item.id || uuidv4(), 
         ...item, 
-        id: item.cloudinaryPublicId, 
         status: 'pending', 
         progress: 0, 
         retryCount: 0, 
@@ -87,29 +87,36 @@ class UploadManager {
 
   private async processUploadItem(item: UploadItem): Promise<void> {
     item.status = 'processing';
+    await storageService.updateUploadItem(item);
     emitProgress({ messageId: item.messageId, status: 'processing', progress: 0 });
     
     try {
+        const resourceType = item.subtype === 'image' ? 'image' : 'video';
+        
+        let eagerTransform: string | undefined = undefined;
+        if(resourceType === 'image') eagerTransform = "w_250,h_250,c_fill,q_auto,f_jpg";
+
         // 1. Get Signed Cloudinary Upload Parameters from Backend
-        const signatureResponse: CloudinaryUploadParams = await api.getCloudinaryUploadSignature({
-            public_id: item.cloudinaryPublicId,
-            resource_type: item.cloudinaryResourceType,
-            folder: "kuchlu_chat_media"
+        const signatureResponse = await api.getCloudinaryUploadSignature({
+            public_id: item.id,
+            folder: "kuchlu_chat_media",
+            resource_type: resourceType,
+            eager: eagerTransform
         });
 
         // 2. Client-side Processing
         let fileToUpload: Blob = item.file;
         let thumbnailDataUrl: string | undefined;
 
-        if (item.type === 'image') {
+        if (item.subtype === 'image') {
             const variants = await imageProcessor.processImage(item.file);
             fileToUpload = variants.compressed.blob;
             thumbnailDataUrl = variants.thumbnail.dataUrl;
             emitProgress({ messageId: item.messageId, status: 'processing', progress: 0, thumbnailDataUrl });
-        } else if (item.type === 'video' || item.type === 'voice_message') {
+        } else if (item.subtype === 'voice_message' || item.subtype === 'clip') {
             item.status = 'compressing';
             emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0 });
-            fileToUpload = item.type === 'video' 
+            fileToUpload = item.subtype === 'clip' 
                 ? await videoCompressor.compressVideo(item.file, 'medium', p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }))
                 : await videoCompressor.compressAudio(item.file, p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
         }
@@ -125,14 +132,15 @@ class UploadManager {
         formData.append('signature', signatureResponse.signature);
         formData.append('public_id', signatureResponse.public_id);
         formData.append('folder', signatureResponse.folder);
-        formData.append('type', 'private');
+        if(signatureResponse.eager) formData.append('eager', signatureResponse.eager);
+        if(signatureResponse.notification_url) formData.append('notification_url', signatureResponse.notification_url);
 
         const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${signatureResponse.resource_type}/upload`;
         
         const xhr = new XMLHttpRequest();
         this.activeUploads.set(item.id, xhr);
         
-        const cloudinaryData = await new Promise<any>((resolve, reject) => {
+        await new Promise<any>((resolve, reject) => {
             xhr.open('POST', cloudinaryUploadUrl, true);
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
@@ -141,6 +149,7 @@ class UploadManager {
                 }
             };
             xhr.onload = () => {
+                this.activeUploads.delete(item.id);
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try { resolve(JSON.parse(xhr.responseText)); }
                     catch (e) { reject(new Error('Failed to parse Cloudinary response.')); }
@@ -150,21 +159,13 @@ class UploadManager {
                     reject(new Error(errorMsg));
                 }
             };
-            xhr.onerror = () => reject(new Error('Network error during direct upload.'));
-            xhr.onabort = () => reject({ name: 'AbortError' });
+            xhr.onerror = () => { this.activeUploads.delete(item.id); reject(new Error('Network error during direct upload.')); };
+            xhr.onabort = () => { this.activeUploads.delete(item.id); reject({ name: 'AbortError' }); };
             xhr.send(formData);
         });
-
-        // 4. Notify Backend of successful upload
-        const mediaPayload: MediaMessagePayload = {
-            client_temp_id: item.messageId,
-            chat_id: item.chatId,
-            public_id: cloudinaryData.public_id,
-            media_type: item.type,
-            cloudinary_metadata: cloudinaryData
-        };
-        await api.sendMediaMessage(mediaPayload);
         
+        // After successful upload, the client's job is done for this item.
+        // It will wait for the `media_processed` websocket event to get the final URLs.
         this.updateUploadStatus(item.id, 'completed');
 
     } catch (error: any) {
@@ -179,7 +180,9 @@ class UploadManager {
             });
         }
     } finally {
-        this.activeUploads.delete(item.id);
+        if(this.activeUploads.has(item.id)) {
+            this.activeUploads.delete(item.id);
+        }
         this.processQueue();
     }
   }
@@ -219,12 +222,14 @@ class UploadManager {
   }
 
   public cancelUpload(messageId: string): void {
-      const xhr = Array.from(this.activeUploads.entries()).find(([id, _]) => this.queue.find(q => q.id === id)?.messageId === messageId)?.[1];
+      const itemToCancel = this.queue.find(q => q.messageId === messageId);
+      if(!itemToCancel) return;
+
+      const xhr = this.activeUploads.get(itemToCancel.id);
       if (xhr) {
-          xhr.abort();
-      } else {
-          const item = this.queue.find(q => q.messageId === messageId);
-          if (item) this.updateUploadStatus(item.id, 'cancelled');
+          xhr.abort(); // This will trigger the onerror/onabort handlers.
+      } else if (itemToCancel.status === 'pending') {
+          this.updateUploadStatus(itemToCancel.id, 'cancelled');
       }
   }
 }
