@@ -1,13 +1,13 @@
 
 "use client";
 
-import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata } from '@/types';
+import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata, MessageStatus } from '@/types';
 import { QUICK_REACTION_EMOJIS } from '@/types';
 import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { PlayCircle, FileText, Clock, Play, Pause, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, CheckCircle2, Info, Music, Film } from 'lucide-react';
+import { PlayCircle, FileText, Play, Pause, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, CheckCircle2, Info, Music, Film } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -317,6 +317,49 @@ function formatFileSize(bytes?: number | null): string | null {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+const parseMarkdown = (text: string = ''): string => {
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Bold: *text*
+  html = html.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+  // Italic: _text_
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+  // Strikethrough: ~text~
+  html = html.replace(/~(.*?)~/g, '<del>$1</del>');
+  // Monospace: `text`
+  html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+  return html;
+};
+
+const StatusDots = ({ status }: { status: MessageStatus }) => {
+  const dotClass = "w-1.5 h-1.5 rounded-full transition-colors";
+  
+  const FadedDot = () => <div className={cn(dotClass, "bg-muted-foreground/30")} />;
+  const SentDot = () => <div className={cn(dotClass, "bg-yellow-400")} />;
+  const ReadDot = () => <div className={cn(dotClass, "bg-amber-500")} />;
+
+  if (status === 'sending') {
+    return (
+      <div className="flex items-center gap-0.5 animate-dot-pulse">
+        <FadedDot /><FadedDot /><FadedDot />
+      </div>
+    );
+  }
+  if (status === 'sent') {
+    return <div className="flex items-center gap-0.5"><SentDot /><FadedDot /><FadedDot /></div>;
+  }
+  if (status === 'delivered') {
+    return <div className="flex items-center gap-0.5"><SentDot /><SentDot /><FadedDot /></div>;
+  }
+  if (status === 'read') {
+    return <div className="flex items-center gap-0.5"><ReadDot /><ReadDot /><ReadDot /></div>;
+  }
+  return null;
+};
+
 
 function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
@@ -400,9 +443,9 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
   const isMediaBubble = isStickerMessage || isEmojiOnlyMessage || message.message_subtype === 'image' || message.message_subtype === 'voice_message' || message.message_subtype === 'audio' || (message.message_subtype === 'clip' && message.clip_type === 'video') || message.message_subtype === 'document';
   
-  let formattedTime = "sending...";
+  let formattedTime = "";
   try {
-    if (message.created_at && message.status !== 'sending' && message.status !== 'uploading') {
+    if (message.created_at) {
         formattedTime = format(parseISO(message.created_at), 'p');
     }
   } catch(e) { console.warn("Could not parse message timestamp:", message.created_at) }
@@ -473,7 +516,12 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
              );
           case 'text':
           case 'emoji_only':
-            return message.text ? <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}>{message.text}</p> : <p className="text-sm italic text-muted-foreground">Message empty</p>;
+            return message.text ? (
+                <p 
+                    className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}
+                    dangerouslySetInnerHTML={{ __html: isEmojiOnlyMessage ? message.text : parseMarkdown(message.text) }}
+                />
+            ) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
           default:
             return (
               <div className="flex items-center gap-2 text-muted-foreground italic">
@@ -615,17 +663,17 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                   </div>
               )}
 
-              <div className={cn('text-xs text-muted-foreground mt-0.5 cursor-default flex items-center', isCurrentUser ? 'justify-end' : 'justify-start')}>
+              <div className={cn('text-xs text-muted-foreground mt-0.5 cursor-default flex items-center gap-1.5', isCurrentUser ? 'justify-end' : 'justify-start')}>
                   {showRetry && (
                       <div className="text-destructive flex items-center mr-2">
-                          <span>Failed to send.</span>
-                          <Button variant="link" size="sm" onClick={() => handleRetry(message)} className="h-auto p-1 text-destructive hover:underline">
-                              <RefreshCw className="mr-1 h-3 w-3" />
+                          <AlertTriangle className="h-4 w-4 mr-1" />
+                          <Button variant="link" size="sm" onClick={() => handleRetry(message)} className="h-auto p-0 text-destructive hover:underline">
                               Retry
                           </Button>
                       </div>
                   )}
                   <span>{formattedTime}</span>
+                   {isCurrentUser && message.status !== 'failed' && <StatusDots status={message.status} />}
               </div>
               </div>
           )}
