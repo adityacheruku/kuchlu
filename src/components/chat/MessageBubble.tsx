@@ -93,6 +93,15 @@ const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onS
 
     if ((isLoadingThumb || isLoading) && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
     
+    if (!isLoading && !imageUrl && !thumbnailUrl) {
+      return (
+        <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex flex-col items-center justify-center rounded-md text-destructive">
+          <ImageOff size={24} />
+          <p className="text-xs mt-1">Image unavailable</p>
+        </div>
+      )
+    }
+
     return (
         <button onClick={() => imageUrl && onShowMedia(message)} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
             <Image src={thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
@@ -101,16 +110,26 @@ const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onS
 };
 
 const VideoPlayer = memo(({ message }: { message: Message }) => {
-    const { displayUrl: hlsUrl } = useCachedMediaUrl(message, 'hls_manifest');
-    const { displayUrl: mp4Url } = useCachedMediaUrl(message, 'mp4_video');
+    const { displayUrl: hlsUrl, isLoading: isLoadingHls } = useCachedMediaUrl(message, 'hls_manifest');
+    const { displayUrl: mp4Url, isLoading: isLoadingMp4 } = useCachedMediaUrl(message, 'mp4_video');
     const { displayUrl: thumbnailUrl, isLoading: isLoadingThumb } = useCachedMediaUrl(message, 'static_thumbnail');
     
     const [isPlaying, setIsPlaying] = useState(false);
     
     const finalUrl = hlsUrl || mp4Url;
+    const isLoading = isLoadingHls || isLoadingMp4 || isLoadingThumb;
 
-    if (isLoadingThumb && !thumbnailUrl) {
+    if (isLoading && !thumbnailUrl) {
         return <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div>;
+    }
+
+    if (!isLoading && !finalUrl) {
+      return (
+        <div className="w-full max-w-[320px] aspect-video bg-muted flex flex-col items-center justify-center rounded-lg text-destructive">
+          <Film size={24} />
+          <p className="text-xs mt-1">Video unavailable</p>
+        </div>
+      );
     }
     
     return (
@@ -452,7 +471,14 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
              );
           case 'text':
           case 'emoji_only':
-          default: return message.text ? <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}>{message.text}</p> : <p className="text-sm italic">Message unavailable</p>;
+            return message.text ? <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}>{message.text}</p> : <p className="text-sm italic text-muted-foreground">Message empty</p>;
+          default:
+            return (
+              <div className="flex items-center gap-2 text-muted-foreground italic">
+                <AlertTriangle size={14} />
+                <span className="text-sm">Unsupported message</span>
+              </div>
+            );
         }
     })();
     
