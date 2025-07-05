@@ -246,11 +246,6 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser }: { message: Message
     return (
         <div className={cn("flex items-center gap-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
             <audio ref={audioRef} preload="metadata" />
-             {!isCurrentUser && !hasBeenPlayed && (
-                <div className="relative flex-shrink-0">
-                    <div className={cn("w-2.5 h-2.5 rounded-full bg-primary")} />
-                </div>
-             )}
             <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl || isLoading}>
                 {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
             </Button>
@@ -368,8 +363,6 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     }
   };
 
-  const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : (isAudioMessage ? 'bg-card' : 'bg-card text-card-foreground');
-  
   let formattedTime = "";
   try {
     if (message.created_at) {
@@ -420,7 +413,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       )}
     >
       <div className={cn("flex items-end gap-2 max-w-[85vw] sm:max-w-md", isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-        {!isCurrentUser && !isAudioMessage && (
+        {!isCurrentUser && (
             <Avatar className="w-8 h-8 self-end mb-2">
                 <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
                 <AvatarFallback>{sender.display_name.charAt(0)}</AvatarFallback>
@@ -466,9 +459,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
                       'rounded-xl shadow-md transition-all flex flex-col',
                       isCurrentUser 
                         ? 'bg-primary text-primary-foreground rounded-br-none' 
-                        : 'bg-card text-card-foreground rounded-bl-none',
-                      isSelected && 'ring-2 ring-offset-2 ring-offset-card ring-primary',
-                      (isAudioMessage && !isCurrentUser) && 'bg-card',
+                        : 'bg-secondary text-secondary-foreground rounded-bl-none',
                       isEmojiOnlyMessage && 'bg-transparent shadow-none'
                     )}
                   >
