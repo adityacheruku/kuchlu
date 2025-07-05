@@ -1,4 +1,5 @@
 
+
 import type { UploadError } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
@@ -31,10 +32,31 @@ export interface User {
 export interface UserInToken extends User {}
 
 export type MessageClipType = 'audio' | 'video';
-export type MessageStatus = "uploading" | "sending" | "sent" | "delivered" | "read" | "failed";
+export type MessageStatus = "uploading" | "sending" | "sent" | "delivered" | "read" | "failed" | "pending_processing";
 export type MessageSubtype = 'text' | 'sticker' | 'clip' | 'image' | 'document' | 'voice_message' | 'audio' | 'emoji_only' | 'history_cleared_marker';
 export type MessageMode = 'normal' | 'fight' | 'incognito';
 export type DeleteType = 'me' | 'everyone';
+
+export interface MediaMetadata {
+  public_id: string;
+  resource_type: 'image' | 'video' | 'raw';
+  format: string;
+  bytes: number;
+  duration?: number;
+  width?: number;
+  height?: number;
+  urls: {
+    original?: string;
+    thumbnail_250?: string;
+    preview_800?: string;
+    hls_manifest?: string;
+    dash_manifest?: string;
+    static_thumbnail?: string;
+    animated_preview?: string;
+    mp4_video?: string;
+    mp3_audio?: string;
+  };
+}
 
 export interface Message {
   id: string; 
@@ -51,17 +73,17 @@ export interface Message {
   clip_placeholder_text?: string | null;
   image_url?: string | null;
   image_thumbnail_url?: string | null;
-  preview_url?: string | null; // For higher-quality inline previews
+  preview_url?: string | null; 
   document_url?: string | null;
   document_name?: string | null;
   sticker_id?: string | null;
   sticker_image_url?: string | null;
-  client_temp_id: string; // Primary key for Dexie, always present
+  client_temp_id: string; 
   status: MessageStatus;
   uploadStatus?: 'pending' | 'processing' | 'compressing' | 'uploading' | 'pending_processing' | 'completed' | 'failed' | 'cancelled';
   duration_seconds?: number | null;
   file_size_bytes?: number | null;
-  file_metadata?: Record<string, any> | null;
+  file_metadata?: MediaMetadata | null;
   audio_format?: string | null;
   transcription?: string | null;
   reply_to_message_id?: string | null;

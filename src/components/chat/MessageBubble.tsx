@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
+import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata } from '@/types';
 import { QUICK_REACTION_EMOJIS } from '@/types';
 import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
@@ -92,7 +93,8 @@ const useSignedUrl = (messageId: string, version?: string) => {
 };
 
 const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (url: string, type: 'image') => void; alt: string; }) => {
-    const { url: imageUrl } = useSignedUrl(message.id, 'preview_800');
+    const version = message.file_metadata?.urls?.preview_800 ? 'preview_800' : 'original';
+    const { url: imageUrl } = useSignedUrl(message.id, version);
     const { url: thumbnailUrl, isLoading: isLoadingThumb } = useSignedUrl(message.id, 'thumbnail_250');
 
     if (isLoadingThumb) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
@@ -147,7 +149,8 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     const [hasError, setHasError] = useState(false);
     const { toast } = useToast();
 
-    const { url: signedAudioUrl } = useSignedUrl(message.id, 'original');
+    const version = message.file_metadata?.urls?.mp3_audio ? 'mp3_audio' : 'original';
+    const { url: signedAudioUrl } = useSignedUrl(message.id, version);
 
     const handlePlayPause = () => {
         if (!audioRef.current || !signedAudioUrl) return;
@@ -618,3 +621,4 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
+
