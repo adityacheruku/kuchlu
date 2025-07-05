@@ -43,7 +43,7 @@ The web app's `capacitorService.ts` will call the following methods. Your plugin
 3.  **`hide()`: Promise<void>**
     *   **Purpose**: Removes the floating button from the screen.
 
-4.  **`getStatus()`: Promise<{ isEnabled: boolean }>**
+4.  **`getStatus()`: Promise<{ isEnabled: boolean }>`**
     *   **Purpose**: Checks if the floating button is currently visible and active. This state **must be persisted** in SharedPreferences.
 
 5.  **`updateMenu(options)`: Promise<void>**

@@ -11,6 +11,7 @@ import FullPageLoader from '@/components/common/FullPageLoader';
 import { useToast } from '@/hooks/use-toast';
 import { MOOD_OPTIONS, DEFAULT_QUICK_MOODS, type MoodOption } from '@/config/moods';
 import { cn } from '@/lib/utils';
+import { capacitorService } from '@/services/capacitorService';
 
 const QUICK_MOODS_STORAGE_KEY = 'kuchlu_quickMoods';
 const MAX_QUICK_MOODS = 8; // Updated to 8 as per new requirements
@@ -49,15 +50,21 @@ export default function MoodCustomizationPage() {
         });
     };
     
-    const handleSaveChanges = () => {
+    const handleSaveChanges = async () => {
         setIsSaving(true);
-        localStorage.setItem(QUICK_MOODS_STORAGE_KEY, JSON.stringify(Array.from(selectedMoods)));
-        // In a real app, this would also call a service to update the native plugin
-        // e.g., capacitorService.updateMenu({ moods: ... })
-        setTimeout(() => {
-             toast({ title: 'Preferences Saved', description: 'Your AssistiveTouch menu has been updated.' });
+        const selectedMoodsArray = Array.from(selectedMoods);
+        localStorage.setItem(QUICK_MOODS_STORAGE_KEY, JSON.stringify(selectedMoodsArray));
+
+        const moodsToUpdate = MOOD_OPTIONS.filter(m => selectedMoodsArray.includes(m.id));
+        
+        try {
+            await capacitorService.updateAssistiveTouchMenu(moodsToUpdate);
+            toast({ title: 'Preferences Saved', description: 'Your AssistiveTouch menu has been updated.' });
+        } catch (e) {
+            toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not update the native menu.' });
+        } finally {
              setIsSaving(false);
-        }, 500);
+        }
     }
 
     if (isAuthLoading || !currentUser) {
