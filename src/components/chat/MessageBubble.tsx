@@ -368,7 +368,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
           case 'voice_message': return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
           case 'audio': return <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} />;
           case 'image':
-            return message.status === 'uploading' || (message.status === 'failed' && !message.image_url) ? (
+            return message.status === 'uploading' || (message.status === 'failed' && !message.image_url) || message.status === 'pending_processing' ? (
                 <div className="w-[250px] aspect-[4/3] rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
             ) : <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />;
           case 'clip':
