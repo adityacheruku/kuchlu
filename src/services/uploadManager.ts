@@ -118,7 +118,7 @@ class UploadManager {
                 emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
             }
             fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', handleCompressionProgress);
-        } else if (item.subtype === 'voice_message') {
+        } else if (item.subtype === 'voice_message' || item.subtype === 'audio') {
             fileToUpload = await videoCompressor.compressAudio(item.file, handleCompressionProgress);
         }
 
