@@ -33,6 +33,15 @@ export default function UploadProgressIndicator({ message, onRetry }: UploadProg
     const imageUrl = message.thumbnailDataUrl || message.image_url;
     const isDocument = message.message_subtype === 'document';
 
+    let statusText = "Uploading...";
+    if (message.uploadStatus === 'compressing') {
+        statusText = "Compressing...";
+    } else if (message.uploadStatus === 'pending_processing') {
+        statusText = "Processing...";
+    } else if (message.uploadProgress !== undefined) {
+        statusText = `${message.uploadProgress}%`;
+    }
+
     return (
         <div className="w-full h-full rounded-md overflow-hidden bg-muted relative flex items-center justify-center animate-pulse p-2">
             {imageUrl && !isDocument ? (
@@ -40,7 +49,7 @@ export default function UploadProgressIndicator({ message, onRetry }: UploadProg
                     src={imageUrl}
                     alt="Uploading preview"
                     fill
-                    className="object-cover"
+                    className="object-cover blur-sm"
                     loading="lazy"
                 />
             ) : isDocument ? (
@@ -55,15 +64,9 @@ export default function UploadProgressIndicator({ message, onRetry }: UploadProg
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-2 text-center">
                 <Spinner />
                 <p className="text-xs font-semibold mt-2">
-                    {message.uploadStatus === 'pending_processing'
-                        ? "Processing..."
-                        : `${message.uploadProgress || 0}%`
-                    }
+                    {statusText}
                 </p>
-                {message.uploadStatus === 'compressing' && <p className="text-xs mt-1">Compressing...</p>}
             </div>
         </div>
     );
 }
-
-    

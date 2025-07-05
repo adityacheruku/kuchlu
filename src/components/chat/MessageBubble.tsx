@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata } from '@/types';
@@ -384,6 +383,9 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
   const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
   const isMediaBubble = isStickerMessage || isEmojiOnlyMessage || message.message_subtype === 'image' || message.message_subtype === 'voice_message' || message.message_subtype === 'audio' || (message.message_subtype === 'clip' && message.clip_type === 'video') || message.message_subtype === 'document';
 
+  if (message.status === 'uploading' || message.uploadStatus === 'compressing' || message.uploadStatus === 'pending_processing') {
+    return <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />;
+  }
 
   let formattedTime = "sending...";
   try {
@@ -406,18 +408,18 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
           case 'voice_message': return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
           case 'audio': return <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} />;
           case 'image':
-            return (message.status === 'uploading' || message.status === 'pending_processing') || (message.status === 'failed' && !message.image_url) ? (
+            return (message.status === 'failed' && !message.image_url) ? (
                 <div className="w-[250px] aspect-[4/3] rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
             ) : <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />;
           case 'clip':
             if (message.clip_type === 'video') {
-                return (message.status === 'uploading' || message.status === 'pending_processing') ? (
+                return (message.status === 'failed') ? (
                     <div className="w-[250px] aspect-video rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
                 ) : <VideoPlayer message={message} />;
             }
             return <p className="text-sm italic">Clip unavailable</p>;
           case 'document':
-             if (message.status === 'uploading' || (message.status === 'failed' && !message.document_url)) {
+             if (message.status === 'failed' && !message.document_url) {
                 return (
                     <div className={cn('w-full max-w-[280px] h-[72px] rounded-lg', bubbleColorClass)}>
                         <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />
@@ -621,4 +623,3 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
-

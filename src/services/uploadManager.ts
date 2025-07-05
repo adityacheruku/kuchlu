@@ -81,51 +81,47 @@ class UploadManager {
     while (this.activeUploads.size < this.maxConcurrentUploads) {
         const nextItem = this.queue.find(item => item.status === 'pending');
         if (!nextItem) break;
+        // Mark as processing immediately to prevent re-picking
+        nextItem.status = 'processing'; 
         this.processUploadItem(nextItem);
     }
   }
 
   private async processUploadItem(item: UploadItem): Promise<void> {
-    item.status = 'processing';
     await storageService.updateUploadItem(item);
     emitProgress({ messageId: item.messageId, status: 'processing', progress: 0 });
     
     try {
-        const resourceType = item.subtype === 'image' ? 'image' : 'video';
-        
-        let eagerTransform: string | undefined;
-        if (resourceType === 'image') {
-            eagerTransform = "w_250,h_250,c_fill,q_auto,f_jpg/w_800,q_auto,f_webp";
-        } else if (resourceType === 'video') {
-            eagerTransform = "sp_auto/m3u8|sp_auto/mpd|f_jpg,w_400,c_scale,so_1|f_gif,w_250,h_150,c_fill,du_5";
-        }
-        
-        const signatureResponse = await api.getCloudinaryUploadSignature({
-            public_id: item.id,
-            folder: "kuchlu_chat_media",
-            resource_type: resourceType,
-            eager: eagerTransform
-        });
-
         let fileToUpload: Blob = item.file;
-        let thumbnailDataUrl: string | undefined;
+        let thumbnailDataUrl: string | undefined = item.thumbnailDataUrl;
 
         if (item.subtype === 'image') {
-            const variants = await imageProcessor.processImage(item.file);
-            fileToUpload = variants.compressed.blob;
-            thumbnailDataUrl = variants.thumbnail.dataUrl;
-            emitProgress({ messageId: item.messageId, status: 'processing', progress: 0, thumbnailDataUrl });
-        } else if (item.subtype === 'voice_message' || item.subtype === 'clip') {
-            item.status = 'compressing';
-            emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0 });
-            fileToUpload = item.subtype === 'clip' 
-                ? await videoCompressor.compressVideo(item.file, 'medium', p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }))
-                : await videoCompressor.compressAudio(item.file, p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
+            emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
+            fileToUpload = await imageProcessor.processImageForUpload(item.file);
+            if (!thumbnailDataUrl) {
+                thumbnailDataUrl = await imageProcessor.createThumbnail(item.file);
+                emitProgress({ messageId: item.messageId, status: 'compressing', progress: 100, thumbnailDataUrl });
+            }
+        } else if (item.subtype === 'clip') { // Video
+             if (!thumbnailDataUrl) {
+                thumbnailDataUrl = await videoCompressor.extractVideoThumbnail(item.file);
+                emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
+            }
+            fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', p => emitProgress({ ...p, messageId: item.messageId, thumbnailDataUrl }));
+        } else if (item.subtype === 'voice_message') {
+            fileToUpload = await videoCompressor.compressAudio(item.file, p => emitProgress({ ...p, messageId: item.messageId, thumbnailDataUrl }));
         }
 
         item.status = 'uploading';
         emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
 
+        const resourceType = (item.subtype === 'image') ? 'image' : 'video';
+        const signatureResponse = await api.getCloudinaryUploadSignature({
+            public_id: item.id,
+            folder: "kuchlu_chat_media",
+            resource_type: resourceType
+        });
+        
         const formData = new FormData();
         formData.append('file', fileToUpload);
         formData.append('api_key', signatureResponse.api_key);
@@ -239,5 +235,3 @@ class UploadManager {
 }
 
 export const uploadManager = typeof window !== 'undefined' ? new UploadManager() : {} as UploadManager;
-
-    

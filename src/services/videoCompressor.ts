@@ -52,6 +52,42 @@ class VideoCompressor {
     }
   }
 
+  public async extractVideoThumbnail(file: File, timeInSeconds: number = 1): Promise<string> {
+    if (!this.isInitialized) {
+        await this.initialize(() => {}); // Initialize without progress callback
+    }
+    if (!this.ffmpeg) throw new Error("FFmpeg not available.");
+
+    const inputName = `input-thumb-${file.name}`;
+    const outputName = 'thumbnail.jpg';
+
+    try {
+        await this.ffmpeg.writeFile(inputName, await fetchFile(file));
+
+        const command = [
+            '-i', inputName,
+            '-ss', String(timeInSeconds), // Seek to the specified time
+            '-vframes', '1',              // Extract only one frame
+            '-vf', 'scale=250:-1',        // Scale to a width of 250px, maintaining aspect ratio
+            '-q:v', '2',                  // Output quality (1-5 for JPEG, 2 is high)
+            outputName
+        ];
+
+        await this.ffmpeg.exec(command);
+        const data = await this.ffmpeg.readFile(outputName);
+        const blob = new Blob([new Uint8Array(data)], { type: 'image/jpeg' });
+        return URL.createObjectURL(blob);
+    } catch (error) {
+        console.error("Thumbnail extraction failed:", error);
+        return ""; // Return empty string or a placeholder URL on failure
+    } finally {
+        try {
+            await this.ffmpeg.deleteFile(inputName);
+            await this.ffmpeg.deleteFile(outputName);
+        } catch(e) { /* ignore cleanup */ }
+    }
+}
+
   async compressVideo(
     file: File,
     level: 'light' | 'medium' | 'heavy',
