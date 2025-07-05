@@ -2,46 +2,47 @@
 "use client";
 
 // This service acts as a bridge to native Capacitor plugins.
-// In a real native build, the methods would call Capacitor plugins.
-// For web (PWA) development, it provides simulated or no-op functionality.
+// It calls the real native plugins when running on a device,
+// and provides simulated functionality for web development.
+
+// Helper to check if the app is running in a native Capacitor container
+const isNativePlatform = () => {
+    return typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+};
 
 type CapacitorEvent = 'singleTap' | 'doubleTap' | 'longPress';
 type CapacitorEventListener = (data?: any) => void;
-
-const isCapacitorAvailable = () => {
-    // In a real app, you might check if `Capacitor.isNativePlatform()` is true.
-    return typeof window !== 'undefined' && (window as any).Capacitor;
-};
 
 class CapacitorService {
     private listeners: Map<CapacitorEvent, Set<CapacitorEventListener>> = new Map();
 
     constructor() {
-        if (isCapacitorAvailable()) {
+        if (isNativePlatform()) {
             this.registerNativeEventListeners();
         }
     }
     
+    // Checks if the specific AssistiveTouch plugin is available
+    private isPluginAvailable = (): boolean => {
+        return isNativePlatform() && !!(window as any).Capacitor?.Plugins?.AssistiveTouch;
+    }
+    
     private registerNativeEventListeners() {
-        // In a real native build, this connects to the Capacitor plugin.
-        // The native plugin would then call back to the webview.
+        if (!this.isPluginAvailable()) return;
+        
         const { AssistiveTouch } = (window as any).Capacitor.Plugins;
 
-        if (AssistiveTouch) {
-            AssistiveTouch.addListener('singleTap', () => this.emit('singleTap'));
-            AssistiveTouch.addListener('doubleTap', () => this.emit('doubleTap'));
-            AssistiveTouch.addListener('longPress', () => this.emit('longPress'));
-        }
+        AssistiveTouch.addListener('singleTap', () => this.emit('singleTap'));
+        AssistiveTouch.addListener('doubleTap', () => this.emit('doubleTap'));
+        AssistiveTouch.addListener('longPress', () => this.emit('longPress'));
     }
 
-    // Public method for web components to subscribe to native events
     public on(event: CapacitorEvent, callback: CapacitorEventListener): () => void {
         if (!this.listeners.has(event)) {
             this.listeners.set(event, new Set());
         }
         this.listeners.get(event)!.add(callback);
         
-        // Return an unsubscribe function
         return () => {
             this.listeners.get(event)?.delete(callback);
         };
@@ -51,42 +52,37 @@ class CapacitorService {
         this.listeners.get(event)?.forEach(callback => callback(data));
     }
 
-
-    isAssistiveTouchAvailable = (): boolean => {
-        // This would check if the specific native plugin is available.
-        return isCapacitorAvailable();
-    };
-
-    hasOverlayPermission = async (): Promise<boolean> => {
-        if (!isCapacitorAvailable()) return false;
-        // const { SystemAlertWindow } = (window as any).Capacitor.Plugins;
-        // const result = await SystemAlertWindow.checkStatus();
-        // return result.granted;
-        console.log("Checking for overlay permission... (simulated true)");
-        return true; // Simulate permission already granted for web flow
-    };
-
-    requestOverlayPermission = async (
+    public requestOverlayPermission = async (
         showDialog: (callbacks: { onConfirm: () => void, onCancel: () => void }) => void
     ): Promise<boolean> => {
-        if (!isCapacitorAvailable()) {
-            console.warn("Capacitor not available. Cannot request overlay permission.");
-            return false;
+        if (!this.isPluginAvailable()) {
+            console.warn("AssistiveTouch plugin not available. Simulating success for web UI flow.");
+            // On web, we show the dialog and simulate a "grant" to test the UI flow
+            return new Promise(resolve => {
+                showDialog({ 
+                    onConfirm: () => resolve(true),
+                    onCancel: () => resolve(false)
+                });
+            });
         }
-
+        
+        // On native, show the explanatory dialog before sending user to system settings.
         return new Promise((resolve) => {
             const handleConfirm = async () => {
-                // In a real build, this calls the native permission request.
-                // const { SystemAlertWindow } = (window as any).Capacitor.Plugins;
-                // const result = await SystemAlertWindow.requestPermission();
-                // For web simulation, we'll assume it's granted.
-                console.log("Requesting system alert window permission... (simulated success)");
-                const result = { granted: true };
-                resolve(result.granted);
+                try {
+                    const { AssistiveTouch } = (window as any).Capacitor.Plugins;
+                    // This native method is expected to open the system settings page.
+                    // It doesn't return a value, so we resolve true to let the UI update.
+                    // The user grants/denies permission in the OS settings.
+                    await AssistiveTouch.requestOverlayPermission();
+                    resolve(true); 
+                } catch (error) {
+                    console.error("Error requesting overlay permission via plugin:", error);
+                    resolve(false);
+                }
             };
 
             const handleCancel = () => {
-                console.log("User cancelled permission request.");
                 resolve(false);
             };
             
@@ -94,18 +90,22 @@ class CapacitorService {
         });
     };
 
-    showFloatingButton = async (): Promise<void> => {
-        if (!isCapacitorAvailable()) return;
-        // const { AssistiveTouch } = (window as any).Capacitor.Plugins;
-        // await AssistiveTouch.show({ size: 56, opacity: 0.8 });
-        console.log("Showing native floating button... (simulated)");
+    public showFloatingButton = async (): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log("SIMULATING: Show floating button.");
+            return;
+        }
+        const { AssistiveTouch } = (window as any).Capacitor.Plugins;
+        await AssistiveTouch.show({ size: 56, opacity: 0.8 });
     };
     
-    hideFloatingButton = async (): Promise<void> => {
-        if (!isCapacitorAvailable()) return;
-        // const { AssistiveTouch } = (window as any).Capacitor.Plugins;
-        // await AssistiveTouch.hide();
-        console.log("Hiding native floating button... (simulated)");
+    public hideFloatingButton = async (): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log("SIMULATING: Hide floating button.");
+            return;
+        }
+        const { AssistiveTouch } = (window as any).Capacitor.Plugins;
+        await AssistiveTouch.hide();
     };
 }
 

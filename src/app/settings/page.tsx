@@ -70,31 +70,31 @@ export default function SettingsHubPage() {
                 <Card>
                     <CardContent className="p-2 divide-y">
                        <SettingsLink 
-                            href="/settings/account"
+                            href="/settings/account/"
                             icon={User}
                             title="Account & Security"
                             description="Profile, password, partner"
                        />
                         <SettingsLink 
-                            href="/settings/notifications"
+                            href="/settings/notifications/"
                             icon={Bell}
                             title="Notifications"
                             description="Push, quiet hours, sounds"
                        />
                        <SettingsLink 
-                            href="/settings/appearance"
+                            href="/settings/appearance/"
                             icon={Palette}
                             title="Appearance"
                             description="Theme, text size, backgrounds"
                        />
                         <SettingsLink 
-                            href="/settings/accessibility"
+                            href="/settings/accessibility/"
                             icon={Accessibility}
                             title="Accessibility"
                             description="Touch, visual, and audio assistance"
                        />
                        <SettingsLink 
-                            href="/settings/privacy"
+                            href="/settings/privacy/"
                             icon={Shield}
                             title="Privacy & Data"
                             description="Receipts, history, account data"
