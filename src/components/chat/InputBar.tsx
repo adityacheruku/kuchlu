@@ -404,7 +404,8 @@ function InputBar({
     } else if (showSendButton) {
       handleCompositeSend();
     } else {
-      handleStartRecording();
+      // This case is for the mic button, which is now handled by pointer events
+      // So this onClick for the mic state is effectively a no-op
     }
   }
 
@@ -464,7 +465,10 @@ function InputBar({
         
         <Button 
           type="button" 
-          onClick={handleActionButtonClick} 
+          onClick={handleActionButtonClick}
+          onPointerDown={!showSendButton && !isRecording ? handleStartRecording : undefined}
+          onPointerUp={!showSendButton && !isRecording ? handleStopAndSendRecording : undefined}
+          onPointerLeave={!showSendButton && isRecording ? cleanupRecording : undefined}
           size="icon" 
           className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0 animate-pop" 
           disabled={isSending || disabled} 
