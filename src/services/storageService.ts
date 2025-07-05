@@ -86,7 +86,13 @@ export class ChirpChatDB extends Dexie {
         return query.reverse().limit(limit).toArray();
     }
     async addMessage(message: Message): Promise<void> {
-        await this.messages.put(message);
+        // Ensure client_temp_id exists, as it's the primary key.
+        // Use the server-assigned 'id' as the key for messages received from others.
+        const messageToStore: Message = {
+            ...message,
+            client_temp_id: message.client_temp_id || message.id,
+        };
+        await this.messages.put(messageToStore);
         // Also update the chat's last_message and updated_at
         const chat = await this.getChat(message.chat_id);
         if(chat) {
@@ -96,7 +102,12 @@ export class ChirpChatDB extends Dexie {
         }
     }
     async bulkAddMessages(messages: Message[]): Promise<void> {
-        await this.messages.bulkPut(messages);
+        // Ensure client_temp_id exists for all messages, as it's the primary key.
+        const messagesToStore = messages.map(m => ({
+            ...m,
+            client_temp_id: m.client_temp_id || m.id,
+        }));
+        await this.messages.bulkPut(messagesToStore);
     }
     async updateMessage(clientTempId: string, changes: Partial<Message>): Promise<void> {
         await this.messages.update(clientTempId, changes);
@@ -183,4 +194,3 @@ const getDbInstance = (): ChirpChatDB => {
 };
 
 export const storageService = getDbInstance();
-
