@@ -4,7 +4,7 @@ import json
 from uuid import UUID
 from typing import Dict, List, Any, Optional
 from fastapi import WebSocket, WebSocketState
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.utils.logging import logger
@@ -112,6 +112,13 @@ async def broadcast_chat_message(chat_id: str, message_data: MessageInDB):
     payload = {"event_type": "new_message", "message": message_data.model_dump(mode='json'), "chat_id": chat_id}
     if participant_ids: await broadcast_to_users(participant_ids, payload)
 
+async def broadcast_media_processed(chat_id: str, message_data: MessageInDB):
+    """Broadcasts that a media message has been processed and is ready for display."""
+    participant_ids = await _get_chat_participants(chat_id)
+    payload = {"event_type": "media_processed", "message": message_data.model_dump(mode='json')}
+    if participant_ids:
+        await broadcast_to_users(participant_ids, payload)
+
 async def broadcast_reaction_update(chat_id: str, message_data: MessageInDB):
     participant_ids = await _get_chat_participants(chat_id)
     dumped_message_data = message_data.model_dump(mode='json')
@@ -147,6 +154,19 @@ async def broadcast_chat_mode_update(chat_id: str, new_mode: str):
     participant_ids = await _get_chat_participants(chat_id)
     payload = {"event_type": "chat_mode_changed", "chat_id": chat_id, "mode": new_mode}
     if participant_ids: await broadcast_to_users(participant_ids, payload)
+
+async def broadcast_message_status_update(chat_id: str, message_id: str, status: MessageStatusEnum, read_at: Optional[str] = None):
+    participant_ids = await _get_chat_participants(chat_id)
+    payload = {
+        "event_type": "message_status_update",
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "status": status.value,
+    }
+    if read_at:
+        payload["read_at"] = read_at
+    if participant_ids:
+        await broadcast_to_users(participant_ids, payload)
 
 async def listen_for_broadcasts():
     logger.info(f"Instance {SERVER_ID} starting Redis Pub/Sub listener.")
