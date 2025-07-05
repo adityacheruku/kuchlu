@@ -58,7 +58,7 @@ export interface Message {
   sticker_image_url?: string | null;
   client_temp_id: string; // Primary key for Dexie, always present
   status: MessageStatus;
-  uploadStatus?: 'pending' | 'processing' | 'compressing' | 'uploading' | 'completed' | 'failed' | 'cancelled';
+  uploadStatus?: 'pending' | 'processing' | 'compressing' | 'uploading' | 'pending_processing' | 'completed' | 'failed' | 'cancelled';
   duration_seconds?: number | null;
   file_size_bytes?: number | null;
   file_metadata?: Record<string, any> | null;
@@ -122,7 +122,7 @@ export interface UploadItem {
   messageId: string;
   chatId: string;
   priority: number;
-  status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'pending_processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   error?: UploadError;
   retryCount: number;
@@ -132,7 +132,7 @@ export interface UploadItem {
 
 export interface UploadProgress {
   messageId: string;
-  status: 'pending' | 'processing' | 'compressing' | 'uploading' | 'completed' | 'failed' | 'cancelled';
+  status: UploadItem['status'];
   progress: number;
   error?: UploadError;
   result?: any;
@@ -176,3 +176,5 @@ export interface MediaMessagePayload {
     media_type: string;
     cloudinary_metadata: any;
 }
+
+    

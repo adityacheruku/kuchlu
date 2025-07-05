@@ -93,10 +93,13 @@ class UploadManager {
     try {
         const resourceType = item.subtype === 'image' ? 'image' : 'video';
         
-        let eagerTransform: string | undefined = undefined;
-        if(resourceType === 'image') eagerTransform = "w_250,h_250,c_fill,q_auto,f_jpg";
-
-        // 1. Get Signed Cloudinary Upload Parameters from Backend
+        let eagerTransform: string | undefined;
+        if (resourceType === 'image') {
+            eagerTransform = "w_250,h_250,c_fill,q_auto,f_jpg/w_800,q_auto,f_webp";
+        } else if (resourceType === 'video') {
+            eagerTransform = "sp_auto/m3u8|sp_auto/mpd|f_jpg,w_400,c_scale,so_1|f_gif,w_250,h_150,c_fill,du_5";
+        }
+        
         const signatureResponse = await api.getCloudinaryUploadSignature({
             public_id: item.id,
             folder: "kuchlu_chat_media",
@@ -104,7 +107,6 @@ class UploadManager {
             eager: eagerTransform
         });
 
-        // 2. Client-side Processing
         let fileToUpload: Blob = item.file;
         let thumbnailDataUrl: string | undefined;
 
@@ -121,7 +123,6 @@ class UploadManager {
                 : await videoCompressor.compressAudio(item.file, p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
         }
 
-        // 3. Direct Upload to Cloudinary
         item.status = 'uploading';
         emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
 
@@ -155,18 +156,21 @@ class UploadManager {
                     catch (e) { reject(new Error('Failed to parse Cloudinary response.')); }
                 } else {
                     let errorMsg = `Upload failed with status ${xhr.status}`;
-                    try { const parsedError = JSON.parse(xhr.responseText); errorMsg = parsedError.error.message || errorMsg; } catch (e) {}
-                    reject(new Error(errorMsg));
+                    let errCode = UploadErrorCode.SERVER_ERROR;
+                    try { 
+                        const parsedError = JSON.parse(xhr.responseText); 
+                        errorMsg = parsedError.error.message || errorMsg; 
+                        errCode = UploadErrorCode.CLOUDINARY_API_ERROR;
+                    } catch (e) {}
+                    reject({ message: errorMsg, code: errCode });
                 }
             };
-            xhr.onerror = () => { this.activeUploads.delete(item.id); reject(new Error('Network error during direct upload.')); };
+            xhr.onerror = () => { this.activeUploads.delete(item.id); reject({ message: 'Network error during direct upload.', code: UploadErrorCode.NETWORK_ERROR }); };
             xhr.onabort = () => { this.activeUploads.delete(item.id); reject({ name: 'AbortError' }); };
             xhr.send(formData);
         });
         
-        // After successful upload, the client's job is done for this item.
-        // It will wait for the `media_processed` websocket event to get the final URLs.
-        this.updateUploadStatus(item.id, 'completed');
+        this.updateUploadStatus(item.id, 'pending_processing');
 
     } catch (error: any) {
         if (error.name === 'AbortError') {
@@ -174,7 +178,7 @@ class UploadManager {
         } else {
             console.error('Upload failed for item:', item.id, error);
             this.updateUploadStatus(item.id, 'failed', {
-                code: UploadErrorCode.SERVER_ERROR,
+                code: error.code || UploadErrorCode.SERVER_ERROR,
                 message: error.message,
                 retryable: true
             });
@@ -201,7 +205,7 @@ class UploadManager {
           const item = this.queue[itemIndex];
           item.status = status;
           item.error = error;
-          emitProgress({ messageId: item.messageId, status, progress: status === 'completed' ? 100 : item.progress, error });
+          emitProgress({ messageId: item.messageId, status, progress: status === 'completed' || status === 'pending_processing' ? 100 : item.progress, error });
 
           if (status === 'completed' || status === 'cancelled') {
               this.queue.splice(itemIndex, 1);
@@ -235,3 +239,5 @@ class UploadManager {
 }
 
 export const uploadManager = typeof window !== 'undefined' ? new UploadManager() : {} as UploadManager;
+
+    

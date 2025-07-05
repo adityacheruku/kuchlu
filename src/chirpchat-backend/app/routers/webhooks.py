@@ -1,11 +1,12 @@
 
 import json
-from fastapi import APIRouter, Request, Header, HTTPException, status
+from fastapi import APIRouter, Request, Header, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from uuid import UUID
 import cloudinary
 import cloudinary.utils
+import hmac
+from hashlib import sha1
 
 from app.config import settings
 from app.database import db_manager
@@ -15,16 +16,32 @@ from app.utils.logging import logger
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
-def verify_cloudinary_webhook(body: bytes, timestamp: str, signature: str) -> bool:
-    """Verifies the signature of an incoming Cloudinary webhook using the official SDK."""
-    try:
-        cloudinary.utils.verify_webhook_signature(body.decode('utf-8'), signature, int(timestamp))
-        return True
-    except cloudinary.exceptions.AuthorizationError as e:
-        logger.warning(f"Cloudinary webhook verification failed: {e}")
+def verify_cloudinary_signature(body: bytes, signature_header: str, timestamp_header: str) -> bool:
+    """Verifies the Cloudinary webhook signature using HMAC-SHA1."""
+    if not os.getenv("CLOUDINARY_API_SECRET"):
+        logger.error("CLOUDINARY_API_SECRET is not set. Cannot verify webhook.")
         return False
+        
+    try:
+        # The signature header is a string of space-separated key=value pairs
+        # e.g., "s1=... t=... v1=..."
+        # We need to find the v1 signature
+        sig_parts = {p.split('=')[0]: p.split('=')[1] for p in signature_header.split(' ')}
+        v1_signature = sig_parts.get('v1')
+
+        if not v1_signature:
+            logger.warning("Webhook signature 'v1' not found in header.")
+            return False
+
+        # Create the string to sign: body + timestamp
+        string_to_sign = body + timestamp_header.encode('utf-8') + os.getenv("CLOUDINARY_API_SECRET").encode('utf-8')
+        
+        # Generate the expected signature
+        expected_signature = sha1(string_to_sign).hexdigest()
+        
+        return hmac.compare_digest(expected_signature, v1_signature)
     except Exception as e:
-        logger.error(f"Unexpected error during webhook verification: {e}")
+        logger.error(f"Unexpected error during webhook signature verification: {e}")
         return False
 
 class EagerTransformation(BaseModel):
@@ -43,12 +60,43 @@ class CloudinaryWebhookPayload(BaseModel):
     resource_type: str
     format: str
     bytes: int
+    width: Optional[int] = None
+    height: Optional[int] = None
     url: str
     secure_url: str
     duration: Optional[float] = None
     original_filename: Optional[str] = None
     eager: Optional[List[EagerTransformation]] = Field(None)
     notification_type: str
+
+
+def map_eager_to_urls(eager_list: Optional[List[EagerTransformation]], resource_type: str) -> dict:
+    urls = {}
+    if not eager_list:
+        return urls
+        
+    for t in eager_list:
+        if resource_type == "image":
+            if "w_250,h_250" in t.transformation:
+                urls["thumbnail_250"] = t.secure_url
+            elif "w_800" in t.transformation:
+                urls["preview_800"] = t.secure_url
+        elif resource_type == "video":
+            if "sp_auto" in t.transformation and t.format == "m3u8":
+                urls["hls_manifest"] = t.secure_url
+            if "sp_auto" in t.transformation and t.format == "mpd":
+                urls["dash_manifest"] = t.secure_url
+            if "f_jpg" in t.transformation:
+                urls["static_thumbnail"] = t.secure_url
+            if "f_gif" in t.transformation:
+                urls["animated_preview"] = t.secure_url
+            if t.format == "mp4":
+                 # Simple way to differentiate resolutions, could be made more robust
+                if "w_1280" in t.transformation: urls["mp4_720p"] = t.secure_url
+                elif "w_640" in t.transformation: urls["mp4_360p"] = t.secure_url
+                else: urls["mp4_standard"] = t.secure_url # Fallback
+    return urls
+
 
 @router.post("/cloudinary/media-processed")
 async def handle_cloudinary_media_processed(
@@ -60,24 +108,16 @@ async def handle_cloudinary_media_processed(
     Handles webhook notifications from Cloudinary after a file upload and processing is complete.
     It updates the message in the database with the final media URLs and metadata.
     """
-    if not settings.CLOUDINARY_API_SECRET:
-        logger.error("CLOUDINARY_API_SECRET is not set, cannot verify webhook.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Webhook verification not configured.")
-        
     body_bytes = await request.body()
     
-    # 1. Verify webhook signature
-    if not verify_cloudinary_webhook(body_bytes, x_cld_signature, x_cld_timestamp):
+    if not verify_cloudinary_signature(body_bytes, x_cld_signature, x_cld_timestamp):
         logger.warning("Invalid Cloudinary webhook signature received.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 
-    # 2. Parse body and find the message in DB
     try:
         data = json.loads(body_bytes)
-        # We only care about the 'eager' notification type
-        if data.get('notification_type') != 'eager':
-            return {"status": "ignored", "reason": "notification type is not 'eager'"}
-        
+        if data.get('notification_type') != 'eager' and data.get('upload_type') != 'upload':
+            return {"status": "ignored", "reason": "notification type is not 'eager' or 'upload'"}
         payload = CloudinaryWebhookPayload.model_validate(data)
     except Exception as e:
         logger.error(f"Webhook payload validation error: {e}")
@@ -89,34 +129,39 @@ async def handle_cloudinary_media_processed(
         logger.warning(f"Webhook received for unknown public_id/client_temp_id: {payload.public_id}")
         return {"status": "ignored", "reason": "message not found"}
 
-    message_db_id = UUID(message_resp.data['id'])
+    message_db_id = message_resp.data['id']
     chat_id = str(message_resp.data['chat_id'])
 
-    # 3. Prepare update data
+    # Prepare a comprehensive media_metadata object
+    final_media_metadata = {
+        "public_id": payload.public_id,
+        "resource_type": payload.resource_type,
+        "format": payload.format,
+        "bytes": payload.bytes,
+        "duration": payload.duration,
+        "width": payload.width,
+        "height": payload.height,
+        "urls": {
+            "original": payload.secure_url,
+            **map_eager_to_urls(payload.eager, payload.resource_type)
+        }
+    }
+
     update_data = {
-        "media_url": payload.secure_url,
         "upload_status": "completed",
+        "status": "sent",
+        "media_url": payload.secure_url,
+        "thumbnail_url": final_media_metadata["urls"].get("static_thumbnail") or final_media_metadata["urls"].get("thumbnail_250"),
         "file_size": payload.bytes,
-    }
-    
-    file_metadata = {
-        "duration_seconds": payload.duration,
-        "document_name": payload.original_filename,
+        "file_metadata": json.dumps(final_media_metadata)
     }
 
-    if payload.eager:
-        # Assuming the first eager transformation is our standard preview/thumbnail
-        update_data["thumbnail_url"] = payload.eager[0].secure_url
-        file_metadata["preview_dimensions"] = f"{payload.eager[0].width}x{payload.eager[0].height}"
-
-    update_data["file_metadata"] = json.dumps({k: v for k, v in file_metadata.items() if v is not None})
-
-    # 4. Update DB
     await db_manager.get_table("messages").update(update_data).eq("id", str(message_db_id)).execute()
 
-    # 5. Broadcast update via WebSocket
     updated_message = await get_message_with_details_from_db(message_db_id)
     if updated_message:
         await ws_manager.broadcast_media_processed(chat_id, updated_message)
 
     return {"status": "success"}
+
+    

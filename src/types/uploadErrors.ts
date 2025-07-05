@@ -4,6 +4,7 @@ export enum UploadErrorCode {
   INVALID_FILE_TYPE = 'INVALID_FILE_TYPE',
   NETWORK_ERROR = 'NETWORK_ERROR',
   SERVER_ERROR = 'SERVER_ERROR',
+  CLOUDINARY_API_ERROR = 'CLOUDINARY_API_ERROR',
   STORAGE_FULL = 'STORAGE_FULL',
   TIMEOUT = 'TIMEOUT',
   CANCELLED = 'CANCELLED',
@@ -23,8 +24,11 @@ export const ERROR_MESSAGES: Record<UploadErrorCode, string> = {
   [UploadErrorCode.INVALID_FILE_TYPE]: 'This file type is not supported.',
   [UploadErrorCode.NETWORK_ERROR]: 'A network error occurred. Please check your connection.',
   [UploadErrorCode.SERVER_ERROR]: 'A server error occurred during upload.',
+  [UploadErrorCode.CLOUDINARY_API_ERROR]: 'The media service returned an error.',
   [UploadErrorCode.STORAGE_FULL]: 'Upload failed because storage is full.',
   [UploadErrorCode.TIMEOUT]: 'The upload timed out.',
   [UploadErrorCode.CANCELLED]: 'The upload was cancelled by the user.',
   [UploadErrorCode.VALIDATION_FAILED]: 'The file is not valid for upload.'
 };
+
+    

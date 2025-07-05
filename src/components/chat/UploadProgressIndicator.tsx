@@ -54,9 +54,16 @@ export default function UploadProgressIndicator({ message, onRetry }: UploadProg
             <div className="absolute inset-0 bg-black/40" />
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-2 text-center">
                 <Spinner />
-                <p className="text-xs font-semibold mt-2">{message.uploadProgress || 0}%</p>
+                <p className="text-xs font-semibold mt-2">
+                    {message.uploadStatus === 'pending_processing'
+                        ? "Processing..."
+                        : `${message.uploadProgress || 0}%`
+                    }
+                </p>
                 {message.uploadStatus === 'compressing' && <p className="text-xs mt-1">Compressing...</p>}
             </div>
         </div>
     );
 }
+
+    
