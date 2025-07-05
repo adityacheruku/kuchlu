@@ -89,6 +89,19 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/me/profile`, { method: 'PUT', headers: getApiHeaders(), body: JSON.stringify(data) });
     return handleResponse<UserInToken>(response);
   },
+  uploadAvatar: async (file: File, onProgress: (progress: number) => void): Promise<UserInToken> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    // Note: The native fetch API doesn't support upload progress directly.
+    // For progress, you'd need to use XMLHttpRequest as shown in uploadManager.
+    // This is a simplified version without progress.
+    const response = await fetch(`${API_BASE_URL}/users/me/avatar`, {
+        method: 'POST',
+        headers: getApiHeaders({ contentType: null }), // Let browser set Content-Type for FormData
+        body: formData,
+    });
+    return handleResponse<UserInToken>(response);
+  },
   getCloudinaryUploadSignature: async (payload: { public_id: string; folder: string; resource_type: string; eager?: string }): Promise<CloudinaryUploadParams> => {
     const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
         method: 'POST',
@@ -96,6 +109,14 @@ export const api = {
         body: JSON.stringify(payload)
     });
     return handleResponse<CloudinaryUploadParams>(response);
+  },
+  sendMessageHttp: async (chatId: string, messageData: any): Promise<Message> => {
+      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(messageData) });
+      return handleResponse<Message>(response);
+  },
+  toggleReactionHttp: async (messageId: string, emoji: SupportedEmoji): Promise<Message> => {
+      const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/reactions`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ emoji }) });
+      return handleResponse<Message>(response);
   },
   changePassword: async (passwordData: PasswordChangeRequest): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/users/me/password`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(passwordData) });

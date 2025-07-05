@@ -2,7 +2,7 @@
 import time
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Dict, Any
 import cloudinary
 import cloudinary.utils
 from uuid import UUID
@@ -29,12 +29,12 @@ class SignedUrlResponse(BaseModel):
 async def get_signed_media_url(
     message_id: UUID,
     current_user: UserPublic = Depends(get_current_user),
-    version: Literal['original', 'thumbnail', 'preview'] = Query('original')
+    version: str = Query('original')
 ):
     """
     Provides a secure, short-lived URL to access a private media asset.
     This endpoint verifies that the user is a participant in the chat
-    before generating the signed URL.
+    before generating the signed URL for a specific media version.
     """
     # 1. Authorization: Verify user is a participant in the chat
     message_resp = await db_manager.get_table("messages").select("chat_id, file_metadata").eq("id", str(message_id)).maybe_single().execute()
@@ -47,25 +47,36 @@ async def get_signed_media_url(
     if not participant_resp.data:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to view this media.")
 
-    # 2. Fetch Media Metadata
+    # 2. Fetch Media Metadata and find the correct URL
     metadata = message_resp.data.get('file_metadata')
-    if not metadata or not isinstance(metadata, dict) or 'public_id' not in metadata:
+    if not isinstance(metadata, dict):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media metadata is missing or invalid.")
-    
-    public_id = metadata['public_id']
+
+    public_id = metadata.get('public_id')
     resource_type = metadata.get('resource_type', 'image')
+    urls: Dict[str, Any] = metadata.get('urls', {})
     
+    # Get the URL for the requested version (e.g., 'hls_manifest', 'static_thumbnail')
+    target_url_path = urls.get(version)
+    if not target_url_path:
+        # Fallback to original if requested version doesn't exist
+        target_url_path = urls.get('original')
+        if not target_url_path:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Media version '{version}' or original not found.")
+
     # 3. Generate Signed URL from Cloudinary
     try:
-        # Define expiration time (e.g., 5 minutes from now)
-        expires_at = int(time.time()) + 300 
-        
+        expires_at = int(time.time()) + 300 # 5 minutes expiry
+
         # Use cloudinary.utils.private_download_url for private assets
+        # It correctly signs the entire URL, including any transformation paths.
         signed_url = cloudinary.utils.private_download_url(
             public_id,
+            format=target_url_path.split('.')[-1], # Extract format from URL
             resource_type=resource_type,
             attachment=False,
-            expires_at=expires_at
+            expires_at=expires_at,
+            url_suffix=target_url_path.split(public_id)[-1].split('?')[0] if public_id in target_url_path else None
         )
         return SignedUrlResponse(url=signed_url)
 

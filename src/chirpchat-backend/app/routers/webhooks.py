@@ -162,5 +162,3 @@ async def handle_cloudinary_media_processed(
         await ws_manager.broadcast_media_processed(chat_id, updated_message)
 
     return {"status": "success"}
-
-    
