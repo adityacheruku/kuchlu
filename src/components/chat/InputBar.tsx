@@ -6,18 +6,19 @@ import React, { useState, type FormEvent, useRef, type ChangeEvent, useEffect, u
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Smile, Mic, Paperclip, X, Image as ImageIcon, Camera, FileText, StickyNote, Gift, ShieldAlert, EyeOff, MessageCircle, Trash2, Video } from 'lucide-react';
+import { Send, Smile, Mic, Paperclip, X, Image as ImageIcon, Camera, FileText, StickyNote, Gift, ShieldAlert, EyeOff, MessageCircle, Trash2, Video, Music } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTrigger, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StickerPicker from './StickerPicker';
-import { PICKER_EMOJIS, type MessageMode, type Message, type User } from '@/types';
+import { PICKER_EMOJIS, type MessageMode, type Message, type User, type MessageSubtype } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import Spinner from '../common/Spinner';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { validateFile } from '@/utils/fileValidation';
 
 interface InputBarProps {
   onSendMessage: (text: string, mode: MessageMode, replyToId?: string) => void;
@@ -26,6 +27,7 @@ interface InputBarProps {
   onSendImage: (file: File, mode: MessageMode) => void;
   onSendVideo: (file: File, mode: MessageMode) => void;
   onSendDocument: (file: File, mode: MessageMode) => void;
+  onSendAudio: (file: File, mode: MessageMode) => void;
   isSending?: boolean;
   onTyping: (isTyping: boolean) => void;
   disabled?: boolean;
@@ -95,14 +97,14 @@ const SoundWave = () => (
 )
 
 function InputBar({
-  onSendMessage, onSendSticker, onSendVoiceMessage, onSendImage, onSendVideo, onSendDocument,
+  onSendMessage, onSendSticker, onSendVoiceMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio,
   isSending = false, onTyping, disabled = false, chatMode, onSelectMode,
   replyingTo, onCancelReply, allUsers
 }: InputBarProps) {
   const [messageText, setMessageText] = useState('');
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
-  const [stagedAttachments, setStagedAttachments] = useState<File[]>([]);
+  const [stagedAttachments, setStagedAttachments] = useState<{ file: File; subtype: MessageSubtype }[]>([]);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [emojiSearch, setEmojiSearch] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -118,6 +120,7 @@ function InputBar({
   const videoInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { toast } = useToast();
@@ -187,15 +190,20 @@ function InputBar({
     setIsToolsOpen(false);
   }, [disabled, onSendSticker, chatMode]);
   
-  const handleFileSelect = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) setStagedAttachments(prev => [...prev, ...Array.from(files)]);
+  const handleFilesSelected = useCallback((files: FileList | null) => {
+    if (!files) return;
+    const newAttachments = Array.from(files).map(file => {
+        const validation = validateFile(file);
+        let subtype: MessageSubtype = validation.fileType;
+        if (validation.fileType === 'video') subtype = 'clip';
+        return { file, subtype };
+    });
+    setStagedAttachments(prev => [...prev, ...newAttachments]);
     setIsAttachmentOpen(false);
-    if (event.target) event.target.value = "";
   }, []);
   
-  const handleRemoveAttachment = useCallback((index: number) => {
-    setStagedAttachments(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveAttachment = useCallback((indexToRemove: number) => {
+    setStagedAttachments(prev => prev.filter((_, index) => index !== indexToRemove));
   }, []);
   
   const handleDragEvents = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
@@ -204,10 +212,10 @@ function InputBar({
   const handleDrop = useCallback((e: React.DragEvent) => {
     handleDragEvents(e); setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setStagedAttachments(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+      handleFilesSelected(e.dataTransfer.files);
       e.dataTransfer.clearData();
     }
-  }, []);
+  }, [handleFilesSelected]);
 
   const cleanupRecording = useCallback(() => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -282,14 +290,18 @@ function InputBar({
     if (disabled || isSending) return;
     Haptics.impact({ style: ImpactStyle.Light });
     if (messageText.trim()) onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
-    stagedAttachments.forEach(file => {
-      if (file.type.startsWith('image/')) onSendImage(file, chatMode);
-      else if (file.type.startsWith('video/')) onSendVideo(file, chatMode);
-      else if (file.type.startsWith('audio/')) onSendVoiceMessage(file, chatMode);
-      else onSendDocument(file, chatMode);
+    
+    stagedAttachments.forEach(({ file, subtype }) => {
+        switch(subtype) {
+            case 'image': onSendImage(file, chatMode); break;
+            case 'clip': onSendVideo(file, chatMode); break;
+            case 'document': onSendDocument(file, chatMode); break;
+            case 'audio': onSendAudio(file, chatMode); break;
+        }
     });
+
     setMessageText(''); setStagedAttachments([]); setEmojiSearch(''); onTyping(false);
-  }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendVoiceMessage, onSendDocument, onTyping, chatMode, replyingTo]);
+  }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio, onTyping, chatMode, replyingTo]);
   
   const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0, [messageText, stagedAttachments]);
   const showSmileButton = useMemo(() => isInputFocused || showSendButton, [isInputFocused, showSendButton]);
@@ -347,6 +359,9 @@ function InputBar({
             </Button>
             <Button variant="outline" size="lg" onClick={() => documentInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '200ms' }}>
                 <FileText size={24} className="text-green-500"/><span className="text-sm font-normal">Document</span>
+            </Button>
+            <Button variant="outline" size="lg" onClick={() => audioInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '250ms' }}>
+                <Music size={24} className="text-orange-500"/><span className="text-sm font-normal">Audio</span>
             </Button>
         </div>
       </TabsContent>
@@ -409,7 +424,7 @@ function InputBar({
 
       {stagedAttachments.length > 0 && (
           <div className="mb-2 p-2 border rounded-lg bg-muted/50">
-              <ScrollArea className="h-24 whitespace-nowrap"><div className="flex items-center gap-2">{stagedAttachments.map((file, index) => (<AttachmentPreview key={index} file={file} onRemove={() => handleRemoveAttachment(index)} />))}</div></ScrollArea>
+              <ScrollArea className="h-24 whitespace-nowrap"><div className="flex items-center gap-2">{stagedAttachments.map((item, index) => (<AttachmentPreview key={index} file={item.file} onRemove={() => handleRemoveAttachment(index)} />))}</div></ScrollArea>
           </div>
       )}
 
@@ -503,10 +518,11 @@ function InputBar({
         </Button>
       </div>
       
-      <input type="file" ref={photoInputRef} accept="image/*" capture="environment" className="hidden" onChange={handleFileSelect} />
-      <input type="file" ref={videoInputRef} accept="video/*" capture="environment" className="hidden" onChange={handleFileSelect} />
-      <input type="file" ref={galleryInputRef} accept="image/*,video/*" className="hidden" onChange={handleFileSelect} multiple />
-      <input type="file" ref={documentInputRef} accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={handleFileSelect} multiple />
+      <input type="file" ref={photoInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+      <input type="file" ref={videoInputRef} accept="video/*" capture="environment" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+      <input type="file" ref={galleryInputRef} accept="image/*,video/*" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} multiple />
+      <input type="file" ref={documentInputRef} accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} multiple />
+      <input type="file" ref={audioInputRef} accept="audio/*" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} multiple />
     </div>
   );
 }

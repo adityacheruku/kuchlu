@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo, useLayoutEffect } from 'react';
@@ -447,6 +446,7 @@ export default function ChatPage() {
   const handleSendVideo = useCallback((file: File, mode: MessageMode) => handleFileUpload(file, mode, 'clip'), [handleFileUpload]);
   const handleSendDocument = useCallback((file: File, mode: MessageMode) => handleFileUpload(file, mode, 'document'), [handleFileUpload]);
   const handleSendVoiceMessage = useCallback((file: File, mode: MessageMode) => handleFileUpload(file, mode, 'voice_message'), [handleFileUpload]);
+  const handleSendAudio = useCallback((file: File, mode: MessageMode) => handleFileUpload(file, mode, 'audio'), [handleFileUpload]);
   const handleSendSticker = useCallback(async (stickerId: string, mode: MessageMode) => { 
     if (!currentUser || !activeChatId) return; 
     const optimisticMessage = { client_temp_id: uuidv4(), user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sticker_id: stickerId, mode, message_subtype: 'sticker', status: 'sending', reactions: {}, id: uuidv4() };
@@ -621,7 +621,7 @@ export default function ChatPage() {
                 onMarkAsRead={handleMarkAsRead}
                 infoMessageId={messageInfo?.id || null}
               />
-              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
+              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} onSendAudio={handleSendAudio} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
           </ErrorBoundary>
         </div>
