@@ -57,7 +57,7 @@ export default function FullScreenMediaModal({
   if (!isOpen || !message) {
     return null;
   }
-  const { message_subtype: mediaType } = message;
+  const { message_subtype: mediaType, file_metadata } = message;
 
   const handleDownload = async () => {
     if (!mediaUrl) return;
@@ -69,7 +69,7 @@ export default function FullScreenMediaModal({
       const a = document.createElement('a');
       a.href = url;
       
-      const fileExtension = message.file_metadata?.format || (mediaType === 'image' ? 'jpg' : 'mp4');
+      const fileExtension = file_metadata?.format || (mediaType === 'image' ? 'jpg' : 'mp4');
       a.download = `chirpchat-${mediaType}-${Date.now()}.${fileExtension}`;
       
       document.body.appendChild(a);
@@ -110,7 +110,7 @@ export default function FullScreenMediaModal({
               draggable="false"
             />
           </div>
-        ) : mediaType === 'clip' && mediaUrl ? (
+        ) : message.message_subtype === 'clip' && mediaUrl ? (
           <ReactPlayer
             url={mediaUrl}
             playing
@@ -148,3 +148,4 @@ export default function FullScreenMediaModal({
     </Dialog>
   );
 }
+

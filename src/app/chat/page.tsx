@@ -83,7 +83,7 @@ export default function ChatPage() {
   const [initialMoodOnLoad, setInitialMoodOnLoad] = useState<Mood | null>(null);
   const [reactionModalData, setReactionModalData] = useState<{ reactions: MessageType['reactions'], allUsers: Record<string, User> } | null>(null);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [mediaModalData, setMediaModalData] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [mediaModalData, setMediaModalData] = useState<MessageType | null>(null);
   const [chatMode, setChatMode] = useState<MessageMode>('normal');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
@@ -500,7 +500,7 @@ export default function ChatPage() {
   const handleShowReactions = useCallback((message: MessageType, allUsers: Record<string, User>) => { if (message.reactions) setReactionModalData({ reactions: message.reactions, allUsers }) }, []);
   const handleEnableNotifications = useCallback(() => { subscribeToPush(); setShowNotificationPrompt(false); }, [subscribeToPush]);
   const handleDismissNotificationPrompt = useCallback(() => { setShowNotificationPrompt(false); sessionStorage.setItem('notificationPromptDismissed', 'true'); }, []);
-  const handleShowMedia = useCallback((url: string, type: 'image' | 'video') => setMediaModalData({ url, type }), []);
+  const handleShowMedia = useCallback((message: MessageType) => setMediaModalData(message), []);
   const handleShowDocumentPreview = useCallback((message: MessageType) => setDocumentPreview(message), []);
   const handleShowInfo = useCallback((message: MessageType) => setMessageInfo(message), []);
   const handleSelectMode = useCallback((mode: MessageMode) => { if (activeChatId) { setChatMode(mode); sendMessage({ event_type: "change_chat_mode", chat_id: activeChatId, mode }); toast({ title: `Switched to ${mode} Mode` }); }}, [activeChatId, sendMessage, toast]);
@@ -592,12 +592,12 @@ export default function ChatPage() {
                 onEnterSelectionMode={handleEnterSelectionMode}
                 onToggleMessageSelection={handleToggleMessageSelection}
               />
-              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoading} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
+              <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
           </ErrorBoundary>
         </div>
         {fullScreenUserData && <FullScreenAvatarModal isOpen={isFullScreenAvatarOpen} onClose={() => setIsFullScreenAvatarOpen(false)} user={fullScreenUserData}/>}
-        {mediaModalData && <FullScreenMediaModal isOpen={!!mediaModalData} onClose={() => setMediaModalData(null)} mediaUrl={mediaModalData.url} mediaType={mediaModalData.type}/>}
+        {mediaModalData && <FullScreenMediaModal isOpen={!!mediaModalData} onClose={() => setMediaModalData(null)} message={mediaModalData}/>}
         {currentUser && initialMoodOnLoad && <MoodEntryModal isOpen={isMoodModalOpen} onClose={handleContinueWithCurrentMood} onSetMood={handleSetMoodFromModal} currentMood={initialMoodOnLoad} onContinueWithCurrent={handleContinueWithCurrentMood}/>}
         {reactionModalData && <ReactionSummaryModal isOpen={!!reactionModalData} onClose={() => setReactionModalData(null)} reactions={reactionModalData.reactions} allUsers={reactionModalData.allUsers}/>}
         {documentPreview && <DocumentPreviewModal isOpen={!!documentPreview} onClose={() => setDocumentPreview(null)} message={documentPreview} />}
@@ -629,3 +629,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
