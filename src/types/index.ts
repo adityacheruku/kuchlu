@@ -127,7 +127,9 @@ export interface UploadItem {
   error?: UploadError;
   retryCount: number;
   createdAt: Date;
-  subtype: MessageSubtype;
+  type: 'image' | 'video' | 'audio' | 'document' | 'voice_message';
+  cloudinaryPublicId: string;
+  cloudinaryResourceType: 'image' | 'video' | 'raw' | 'auto';
 }
 
 export interface UploadProgress {
@@ -155,4 +157,22 @@ export interface MoodAnalyticsContext {
 export interface MoodAnalyticsPayload {
   mood_id: string;
   context: MoodAnalyticsContext;
+}
+
+export interface CloudinaryUploadParams {
+    signature: string;
+    timestamp: number;
+    api_key: string;
+    cloud_name: string;
+    public_id: string;
+    folder: string;
+    resource_type: 'image' | 'video' | 'raw' | 'auto';
+}
+
+export interface MediaMessagePayload {
+    client_temp_id: string;
+    chat_id: string;
+    public_id: string;
+    media_type: string;
+    cloudinary_metadata: any;
 }

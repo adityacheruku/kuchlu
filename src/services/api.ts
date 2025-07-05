@@ -5,7 +5,7 @@ import type {
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
   NotificationSettings, PartnerRequest, EventPayload, VerifyOtpResponse,
   CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FileAnalyticsPayload,
-  MoodAnalyticsPayload
+  MoodAnalyticsPayload, CloudinaryUploadParams, MediaMessagePayload
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
@@ -90,13 +90,13 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/me/profile`, { method: 'PUT', headers: getApiHeaders(), body: JSON.stringify(data) });
     return handleResponse<UserInToken>(response);
   },
-  getSignCloudinaryUpload: async (payload: { public_id?: string; folder?: string; eager?: string; }): Promise<any> => {
-    const response = await fetch(`${API_BASE_URL}/uploads/sign`, {
+  getCloudinaryUploadSignature: async (payload: { public_id: string; folder: string; resource_type: string; }): Promise<CloudinaryUploadParams> => {
+    const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(payload)
     });
-    return handleResponse<any>(response);
+    return handleResponse<CloudinaryUploadParams>(response);
   },
   changePassword: async (passwordData: PasswordChangeRequest): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/users/me/password`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(passwordData) });
@@ -144,6 +144,14 @@ export const api = {
   },
   sendMessageHttp: async (chatId: string, data: Partial<Message>): Promise<Message> => {
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(data) });
+    return handleResponse<Message>(response);
+  },
+  sendMediaMessage: async (payload: MediaMessagePayload): Promise<Message> => {
+    const response = await fetch(`${API_BASE_URL}/chats/send-media-message`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(payload)
+    });
     return handleResponse<Message>(response);
   },
   toggleReactionHttp: async (messageId: string, emoji: SupportedEmoji): Promise<Message> => {

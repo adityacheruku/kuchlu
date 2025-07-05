@@ -1,11 +1,13 @@
 
+"use client";
+
+import { v4 as uuidv4 } from 'uuid';
 import { api } from './api';
-import type { UploadItem, UploadProgress, UploadError, MessageSubtype, FileAnalyticsPayload } from '@/types';
+import type { UploadItem, UploadProgress, UploadError, MessageSubtype, Message, CloudinaryUploadParams, MediaMessagePayload } from '@/types';
 import { UploadErrorCode, ERROR_MESSAGES } from '@/types/uploadErrors';
-import { validateFile } from '@/utils/fileValidation';
+import { storageService } from './storageService';
 import { imageProcessor } from './imageProcessor';
 import { videoCompressor } from './videoCompressor';
-import { storageService } from './storageService';
 import { networkMonitor, type NetworkQuality } from './networkMonitor';
 
 // A simple event emitter
@@ -16,15 +18,10 @@ const emitProgress = (progress: UploadProgress) => {
   progressListeners.forEach(listener => listener(progress));
 };
 
-export interface UploadRequest {
-    xhr: XMLHttpRequest;
-    promise: Promise<any>;
-}
-
 class UploadManager {
   private queue: UploadItem[] = [];
   private activeUploads: Map<string, XMLHttpRequest> = new Map();
-  private maxConcurrentUploads = 3; // Default, will be updated by network monitor
+  private maxConcurrentUploads = 3;
   private isInitialized = false;
 
   constructor() {
@@ -42,43 +39,22 @@ class UploadManager {
   private async init(): Promise<void> {
     if (this.isInitialized) return;
     this.isInitialized = true;
-    try {
-      const pendingItems = await storageService.getAllPendingUploads();
-      if (pendingItems.length > 0) {
-          console.log(`UploadManager: Resuming ${pendingItems.length} pending uploads.`);
-          // Reset status to 'pending' for items that were interrupted
-          const itemsToRequeue = pendingItems.map(item => ({
-              ...item,
-              status: 'pending',
-              progress: 0,
-          }));
-          this.queue.unshift(...itemsToRequeue);
-          this.processQueue();
-      }
-    } catch (error) {
-        console.error("UploadManager: Failed to initialize and load from storage", error);
+    const pendingItems = await storageService.getAllPendingUploads();
+    if (pendingItems.length > 0) {
+      console.log(`UploadManager: Resuming ${pendingItems.length} pending uploads.`);
+      this.queue.unshift(...pendingItems.map(item => ({ ...item, status: 'pending', progress: 0 })));
+      this.processQueue();
     }
   }
 
   private handleNetworkChange = (quality: NetworkQuality) => {
-    console.log(`UploadManager: Network quality changed to ${quality}`);
-    this.updateConcurrency(quality);
-    
-    if (quality === 'offline') {
-        console.log("UploadManager: Network is offline. Pausing new uploads.");
-    } else {
-        console.log("UploadManager: Network is online. Resuming queue processing.");
-        this.processQueue();
+    switch (quality) {
+        case 'excellent': this.maxConcurrentUploads = 5; break;
+        case 'good': this.maxConcurrentUploads = 3; break;
+        case 'poor': this.maxConcurrentUploads = 1; break;
+        case 'offline': this.maxConcurrentUploads = 0; break;
     }
-  }
-
-  private updateConcurrency = (quality: NetworkQuality) => {
-      switch (quality) {
-          case 'excellent': this.maxConcurrentUploads = 5; break;
-          case 'good': this.maxConcurrentUploads = 3; break;
-          case 'poor': this.maxConcurrentUploads = 1; break;
-          case 'offline': this.maxConcurrentUploads = 0; break;
-      }
+    if (quality !== 'offline') this.processQueue();
   }
 
   public subscribe(callback: ProgressListener): () => void {
@@ -86,8 +62,15 @@ class UploadManager {
     return () => progressListeners.delete(callback);
   }
 
-  public async addToQueue(item: Omit<UploadItem, 'status' | 'progress' | 'retryCount' | 'createdAt'>): Promise<void> {
-    const fullItem: UploadItem = { ...item, status: 'pending', progress: 0, retryCount: 0, createdAt: new Date() };
+  public async addToQueue(item: Omit<UploadItem, 'status' | 'progress' | 'retryCount' | 'createdAt' | 'id'>): Promise<void> {
+    const fullItem: UploadItem = { 
+        ...item, 
+        id: item.cloudinaryPublicId, 
+        status: 'pending', 
+        progress: 0, 
+        retryCount: 0, 
+        createdAt: new Date() 
+    };
     await storageService.addUploadItem(fullItem);
     this.queue.push(fullItem);
     this.queue.sort((a, b) => a.priority - b.priority);
@@ -95,155 +78,154 @@ class UploadManager {
   }
 
   private processQueue(): void {
-    if (networkMonitor.getQuality() === 'offline' || this.activeUploads.size >= this.maxConcurrentUploads) return;
-    const nextItem = this.queue.find(item => item.status === 'pending');
-    if (nextItem) this.processAndUploadFile(nextItem);
-  }
-  
-  private createDirectCloudinaryUpload(url: string, formData: FormData, onProgress: (progress: number) => void): UploadRequest {
-    const xhr = new XMLHttpRequest();
-    const promise = new Promise((resolve, reject) => {
-        xhr.open('POST', url, true);
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-        };
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(new Error('Failed to parse Cloudinary response.')); } }
-            else {
-                let errorData = { detail: `Upload failed with status ${xhr.status}` };
-                try { const parsedError = JSON.parse(xhr.responseText); errorData.detail = parsedError.error.message || errorData.detail; } catch (e) {}
-                reject(new Error(errorData.detail));
-            }
-        };
-        xhr.onerror = () => reject(new Error('Network error during direct upload to Cloudinary.'));
-        xhr.onabort = () => reject(new Error('Upload to Cloudinary was cancelled.'));
-        xhr.send(formData);
-    });
-    return { xhr, promise };
+    while (this.activeUploads.size < this.maxConcurrentUploads) {
+        const nextItem = this.queue.find(item => item.status === 'pending');
+        if (!nextItem) break;
+        this.processUploadItem(nextItem);
+    }
   }
 
-  private async processAndUploadFile(item: UploadItem): Promise<void> {
-    const itemInQueue = this.queue.find(q => q.id === item.id);
-    if (!itemInQueue) return;
-    
-    const startTime = Date.now();
-    itemInQueue.status = 'processing';
+  private async processUploadItem(item: UploadItem): Promise<void> {
+    item.status = 'processing';
     emitProgress({ messageId: item.messageId, status: 'processing', progress: 0 });
-
+    
     try {
-      const validation = validateFile(item.file);
-      if (!validation.isValid) throw new Error(validation.errors.join(', '), { cause: UploadErrorCode.VALIDATION_FAILED });
-      
-      let fileToUpload: Blob = item.file;
-      let thumbnailDataUrl: string | undefined = undefined;
-      let eagerTransforms: string[] = [];
-      const resourceType = item.subtype === 'image' ? 'image' : 'video';
+        // 1. Get Signed Cloudinary Upload Parameters from Backend
+        const signatureResponse: CloudinaryUploadParams = await api.getCloudinaryUploadSignature({
+            public_id: item.cloudinaryPublicId,
+            resource_type: item.cloudinaryResourceType,
+            folder: "kuchlu_chat_media"
+        });
 
-      if (item.subtype === 'image') {
-        const variants = await imageProcessor.processImage(item.file);
-        fileToUpload = variants.compressed.blob; thumbnailDataUrl = variants.thumbnail.dataUrl;
-        emitProgress({ messageId: item.messageId, status: 'processing', progress: 0, thumbnailDataUrl });
-        eagerTransforms = ["w_800,c_limit,q_auto,f_auto"];
-      } else if (item.subtype === 'clip') { // Video
-        itemInQueue.status = 'compressing';
-        emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0 });
-        fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', (p) => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
-        eagerTransforms = ["w_400,h_400,c_limit,f_jpg,so_1"];
-      } else if (item.subtype === 'voice_message') {
-        itemInQueue.status = 'compressing';
-        emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0 });
-        fileToUpload = await videoCompressor.compressAudio(item.file, (p) => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
-      }
-      
-      itemInQueue.status = 'uploading';
-      emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
-      
-      const public_id = `chat_${item.chatId}_${item.id}`;
-      const signedParams = await api.getSignCloudinaryUpload({ public_id, folder: "kuchlu_chat_media", eager: eagerTransforms.join(',') });
-      const formData = new FormData();
-      formData.append("file", fileToUpload);
-      formData.append("api_key", signedParams.api_key);
-      formData.append("timestamp", String(signedParams.timestamp));
-      formData.append("signature", signedParams.signature);
-      formData.append("public_id", signedParams.public_id);
-      formData.append("folder", signedParams.folder);
-      if (signedParams.eager) formData.append("eager", signedParams.eager);
+        // 2. Client-side Processing
+        let fileToUpload: Blob = item.file;
+        let thumbnailDataUrl: string | undefined;
 
-      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-      if (!cloudName) throw new Error("Cloudinary cloud name is not configured.");
-      
-      const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
-      const { xhr, promise } = this.createDirectCloudinaryUpload(url, formData, (progress) => {
-        if (this.queue.find(q => q.id === item.id)) {
-          item.progress = progress;
-          emitProgress({ messageId: item.messageId, status: 'uploading', progress, thumbnailDataUrl });
+        if (item.type === 'image') {
+            const variants = await imageProcessor.processImage(item.file);
+            fileToUpload = variants.compressed.blob;
+            thumbnailDataUrl = variants.thumbnail.dataUrl;
+            emitProgress({ messageId: item.messageId, status: 'processing', progress: 0, thumbnailDataUrl });
+        } else if (item.type === 'video' || item.type === 'voice_message') {
+            item.status = 'compressing';
+            emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0 });
+            fileToUpload = item.type === 'video' 
+                ? await videoCompressor.compressVideo(item.file, 'medium', p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }))
+                : await videoCompressor.compressAudio(item.file, p => emitProgress({ messageId: item.messageId, status: 'compressing', progress: p.progress }));
         }
-      });
-      this.activeUploads.set(item.id, xhr);
-      const result = await promise;
-      this.activeUploads.delete(item.id);
-      
-      itemInQueue.status = 'completed';
-      emitProgress({ messageId: item.messageId, status: 'completed', progress: 100, result });
-      await storageService.removeUploadItem(item.id);
 
-      api.sendFileAnalytics({ message_id: item.messageId, upload_duration_seconds: (Date.now() - startTime) / 1000, file_size_bytes: item.file.size, compressed_size_bytes: fileToUpload.size, network_quality: networkMonitor.getQuality(), file_type: item.subtype });
-      
+        // 3. Direct Upload to Cloudinary
+        item.status = 'uploading';
+        emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload);
+        formData.append('api_key', signatureResponse.api_key);
+        formData.append('timestamp', String(signatureResponse.timestamp));
+        formData.append('signature', signatureResponse.signature);
+        formData.append('public_id', signatureResponse.public_id);
+        formData.append('folder', signatureResponse.folder);
+        formData.append('type', 'private');
+
+        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${signatureResponse.resource_type}/upload`;
+        
+        const xhr = new XMLHttpRequest();
+        this.activeUploads.set(item.id, xhr);
+        
+        const cloudinaryData = await new Promise<any>((resolve, reject) => {
+            xhr.open('POST', cloudinaryUploadUrl, true);
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const progress = Math.round((event.loaded / event.total) * 100);
+                    this.updateUploadProgress(item.id, progress);
+                }
+            };
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch (e) { reject(new Error('Failed to parse Cloudinary response.')); }
+                } else {
+                    let errorMsg = `Upload failed with status ${xhr.status}`;
+                    try { const parsedError = JSON.parse(xhr.responseText); errorMsg = parsedError.error.message || errorMsg; } catch (e) {}
+                    reject(new Error(errorMsg));
+                }
+            };
+            xhr.onerror = () => reject(new Error('Network error during direct upload.'));
+            xhr.onabort = () => reject({ name: 'AbortError' });
+            xhr.send(formData);
+        });
+
+        // 4. Notify Backend of successful upload
+        const mediaPayload: MediaMessagePayload = {
+            client_temp_id: item.messageId,
+            chat_id: item.chatId,
+            public_id: cloudinaryData.public_id,
+            media_type: item.type,
+            cloudinary_metadata: cloudinaryData
+        };
+        await api.sendMediaMessage(mediaPayload);
+        
+        this.updateUploadStatus(item.id, 'completed');
+
     } catch (error: any) {
-      this.activeUploads.delete(item.id);
-      const currentItem = this.queue.find(q => q.id === item.id);
-      if (currentItem) {
-        currentItem.status = 'failed';
-        const errorCode = (error.cause || UploadErrorCode.SERVER_ERROR) as UploadErrorCode;
-        const uploadError: UploadError = { code: errorCode, message: error.message || ERROR_MESSAGES[errorCode] || 'An unknown error occurred.', retryable: [UploadErrorCode.NETWORK_ERROR, UploadErrorCode.SERVER_ERROR, UploadErrorCode.TIMEOUT].includes(errorCode), };
-        currentItem.error = uploadError;
-        await storageService.updateUploadItem(currentItem);
-        emitProgress({ messageId: item.messageId, status: 'failed', progress: 0, error: uploadError });
-        this.handleRetryLogic(currentItem);
-      }
+        if (error.name === 'AbortError') {
+            this.updateUploadStatus(item.id, 'cancelled');
+        } else {
+            console.error('Upload failed for item:', item.id, error);
+            this.updateUploadStatus(item.id, 'failed', {
+                code: UploadErrorCode.SERVER_ERROR,
+                message: error.message,
+                retryable: true
+            });
+        }
     } finally {
-      this.processQueue();
-    }
-  }
-
-  private handleRetryLogic(item: UploadItem): void {
-      if (item.error?.retryable && item.retryCount < 3) {
-          item.retryCount++;
-          const delay = Math.pow(2, item.retryCount) * 1000;
-          setTimeout(async () => {
-              const itemInQueue = this.queue.find(q => q.id === item.id);
-              if (itemInQueue && itemInQueue.status === 'failed') {
-                  itemInQueue.status = 'pending';
-                  await storageService.updateUploadItem(itemInQueue);
-                  this.processQueue();
-              }
-          }, delay);
-      }
-  }
-
-  public async retryUpload(messageId: string): Promise<void> {
-    const item = this.queue.find(q => q.messageId === messageId);
-    if (item && item.status === 'failed') {
-      item.status = 'pending';
-      item.error = undefined;
-      item.retryCount = 0;
-      await storageService.updateUploadItem(item);
-      this.processQueue();
-    }
-  }
-
-  public async cancelUpload(messageId: string): Promise<void> {
-    const itemIndex = this.queue.findIndex(q => q.messageId === messageId);
-    if (itemIndex !== -1) {
-        const item = this.queue[itemIndex];
-        const xhr = this.activeUploads.get(item.id);
-        if (xhr) { xhr.abort(); this.activeUploads.delete(item.id); }
-        item.status = 'cancelled';
-        emitProgress({ messageId: item.messageId, status: 'cancelled', progress: 0 });
-        await storageService.removeUploadItem(item.id);
-        this.queue.splice(itemIndex, 1);
+        this.activeUploads.delete(item.id);
         this.processQueue();
     }
+  }
+
+  private updateUploadProgress(itemId: string, progress: number) {
+    const item = this.queue.find(q => q.id === itemId);
+    if (item) {
+        item.progress = progress;
+        emitProgress({ messageId: item.messageId, status: 'uploading', progress });
+    }
+  }
+  
+  private async updateUploadStatus(itemId: string, status: UploadItem['status'], error?: UploadError) {
+      const itemIndex = this.queue.findIndex(q => q.id === itemId);
+      if (itemIndex > -1) {
+          const item = this.queue[itemIndex];
+          item.status = status;
+          item.error = error;
+          emitProgress({ messageId: item.messageId, status, progress: status === 'completed' ? 100 : item.progress, error });
+
+          if (status === 'completed' || status === 'cancelled') {
+              this.queue.splice(itemIndex, 1);
+              await storageService.removeUploadItem(item.id);
+          } else {
+              await storageService.updateUploadItem(item);
+          }
+      }
+  }
+
+  public retryUpload(messageId: string): void {
+      const item = this.queue.find(q => q.messageId === messageId && q.status === 'failed');
+      if (item) {
+          item.status = 'pending';
+          item.retryCount = (item.retryCount || 0) + 1;
+          this.processQueue();
+      }
+  }
+
+  public cancelUpload(messageId: string): void {
+      const xhr = Array.from(this.activeUploads.entries()).find(([id, _]) => this.queue.find(q => q.id === id)?.messageId === messageId)?.[1];
+      if (xhr) {
+          xhr.abort();
+      } else {
+          const item = this.queue.find(q => q.messageId === messageId);
+          if (item) this.updateUploadStatus(item.id, 'cancelled');
+      }
   }
 }
 
