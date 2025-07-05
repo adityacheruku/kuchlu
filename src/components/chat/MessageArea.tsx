@@ -1,4 +1,3 @@
-
 // ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
 import { memo, type RefObject, useEffect } from 'react';
 import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
@@ -42,8 +41,8 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
 
     useEffect(() => {
         // Preload logic only for sent messages with media that are in view margin
-        if (inView && message.status === 'sent' && message.media_metadata?.urls) {
-            const urls = message.media_metadata.urls;
+        if (inView && message.status === 'sent' && message.file_metadata?.urls) {
+            const urls = message.file_metadata.urls;
 
             if (message.message_subtype === 'image') {
                 if (urls.thumbnail_250) mediaCacheService.getOrFetchMediaUrl(message, 'thumbnail_250');

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import {
@@ -148,4 +147,3 @@ export default function FullScreenMediaModal({
     </Dialog>
   );
 }
-

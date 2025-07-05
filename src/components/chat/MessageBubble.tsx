@@ -68,7 +68,7 @@ const useCachedMediaUrl = (message: Message, version: string) => {
     useEffect(() => {
         let objectUrl: string | null = null;
         const loadMedia = async () => {
-            if (!message.media_metadata || message.status === 'uploading' || message.uploadStatus === 'pending_processing') {
+            if (!message.file_metadata || message.status === 'uploading' || message.uploadStatus === 'pending_processing') {
                 return;
             }
             setIsLoading(true);
