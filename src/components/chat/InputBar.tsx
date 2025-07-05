@@ -113,7 +113,6 @@ function InputBar({
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const documentInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null); 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -307,19 +306,16 @@ function InputBar({
   const AttachmentPicker = useCallback(() => (
     <Tabs defaultValue="media" className="w-full">
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="media">Media & Files</TabsTrigger>
+        <TabsTrigger value="media">Media</TabsTrigger>
         <TabsTrigger value="mode">Chat Mode</TabsTrigger>
       </TabsList>
       <TabsContent value="media" className="p-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
             <Button variant="outline" size="lg" onClick={() => cameraInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto py-4 items-center justify-center gap-2" style={{ animationDelay: '50ms' }}>
                 <Camera size={24} className="text-red-500"/><span className="text-sm font-normal">Camera</span>
             </Button>
             <Button variant="outline" size="lg" onClick={() => imageInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto py-4 items-center justify-center gap-2" style={{ animationDelay: '100ms' }}>
                 <ImageIcon size={24} className="text-purple-500"/><span className="text-sm font-normal">Gallery</span>
-            </Button>
-            <Button variant="outline" size="lg" onClick={() => documentInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto py-4 items-center justify-center gap-2" style={{ animationDelay: '150ms' }}>
-                <FileText size={24} className="text-blue-500"/><span className="text-sm font-normal">Document</span>
             </Button>
         </div>
       </TabsContent>
@@ -452,7 +448,6 @@ function InputBar({
       
       <input type="file" ref={cameraInputRef} accept="image/*,video/*" capture="environment" className="hidden" onChange={handleFileSelect} />
       <input type="file" ref={imageInputRef} accept="image/*,video/*" className="hidden" onChange={handleFileSelect} multiple />
-      <input type="file" ref={documentInputRef} className="hidden" onChange={handleFileSelect} multiple />
     </div>
   );
 }
