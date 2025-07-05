@@ -266,6 +266,7 @@ function InputBar({
   const handleCompositeSend = useCallback((e?: FormEvent) => {
     e?.preventDefault();
     if (disabled || isSending) return;
+    if (navigator.vibrate) navigator.vibrate(20);
     if (messageText.trim()) onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
     stagedAttachments.forEach(file => {
       if (file.type.startsWith('image/')) onSendImage(file, chatMode);

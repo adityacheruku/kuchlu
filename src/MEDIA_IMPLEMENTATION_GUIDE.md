@@ -1,83 +1,138 @@
+# ChirpChat Frontend: Implementation & Flow Deep Dive
 
-# ChirpChat: Media Handling Implementation Guide
-
-This document provides a detailed technical overview of how image and audio/voice messages are handled in the ChirpChat application. It is intended for developers to understand the end-to-end flow from user interaction to final delivery.
-
-## 1. High-Level Architecture: The "Instant Send" Illusion
-
-The media handling pipeline is designed to be robust, efficient, and user-friendly. It prioritizes a good user experience through optimistic UI updates and background processing, creating the illusion of an instant send.
-
-The core flow is as follows:
-1.  **User Action**: The user selects a file or records media via the `InputBar`.
-2.  **Client-Side Pre-processing**: The file is immediately processed **on the user's device**.
-    *   **Images**: Resized and compressed using `browser-image-compression`. A small thumbnail is generated.
-    *   **Videos/Audio**: Compressed using `ffmpeg.wasm`. A static thumbnail is extracted from videos.
-3.  **Optimistic UI Update**: An immediate message bubble appears in the `MessageArea`. It displays the locally generated thumbnail with a "Compressing..." or "Uploading..." status overlay.
-4.  **Direct Upload to Cloudinary**: The `uploadManager` takes the **compressed file** and uploads it directly to a secure, signed Cloudinary URL, bypassing our backend.
-5.  **Webhook Notification**: Cloudinary processes the file (e.g., generates different formats, HLS manifests) and sends a webhook notification to our backend when complete.
-6.  **Real-time Finalization**: The backend receives the webhook, updates the message in the database with the final media URLs, and broadcasts a `media_processed` WebSocket event to all chat participants. The UI then seamlessly replaces the local thumbnail with the final, high-quality media.
-
-## 2. Key Services and Components
-
--   **`src/app/chat/page.tsx`**: The main page component that orchestrates all chat functionality and state management. It initiates the media upload process.
--   **`src/components/chat/InputBar.tsx`**: The UI component for user input, including the attachment picker and voice recorder.
--   **`src/services/uploadManager.ts`**: A robust queue system that orchestrates the entire client-side flow: pre-processing, direct-to-Cloudinary upload, and status updates.
--   **`src/services/imageProcessor.ts`**: Uses `browser-image-compression` to resize and compress images efficiently.
--   **`src/services/videoCompressor.ts`**: Uses **FFmpeg.wasm** to compress videos/audio and extract video thumbnails directly in the browser.
--   **`src/services/api.ts`**: Handles HTTP communication, primarily to get the signed URL signature from the backend.
--   **`src/services/storageService.ts`**: A Dexie (IndexedDB) wrapper for client-side persistence of messages, chats, and the upload queue.
--   **`chirpchat-backend/app/routers/uploads.py`**: The FastAPI endpoint that provides a secure signature for the direct-to-Cloudinary upload.
--   **`chirpchat-backend/app/routers/webhooks.py`**: The FastAPI endpoint that listens for "processing complete" notifications from Cloudinary.
+This document provides a comprehensive technical guide to the ChirpChat frontend, detailing its implementation of core flows, real-time data handling, and performance strategies.
 
 ---
 
-## 3. Image Sending Flow (Step-by-Step)
+## 1. Core Messaging & Display Flow
 
-1.  **Initiation (`InputBar.tsx`)**:
-    *   A user clicks the "Gallery" button or drags an image file.
-    *   This triggers `handleFileUpload` in `chat/page.tsx`.
+### 1.1. Optimistic UI Updates & Failure Handling
 
-2.  **Optimistic Message Creation (`chat/page.tsx`)**:
-    *   `handleFileUpload` creates a temporary `client_temp_id` (UUID) for the message.
-    *   It creates an "optimistic" `Message` object with `status: 'uploading'` and `uploadStatus: 'pending'`. **Crucially, it does not yet have a local preview URL.**
-    *   This message is immediately saved to the local database via `storageService.addMessage()`, making a placeholder bubble appear instantly.
-    *   It then calls `uploadManager.addToQueue()` with the raw `File` object and message details.
+**How quickly does a sent message appear?**
+Instantly. The application uses **optimistic UI updates** to provide immediate feedback.
 
-3.  **Processing & Upload (`uploadManager.ts`)**:
-    *   The `uploadManager` picks the item from the queue and marks its status as `'processing'`.
-    *   It calls `imageProcessor.createThumbnail()` to generate a fast, low-res preview. It emits a progress event with this `thumbnailDataUrl`. The UI updates to show this preview inside the `UploadProgressIndicator`.
-    *   It then calls `imageProcessor.processImageForUpload()` to create the main compressed image. This happens in the background.
-    *   Once the image is compressed, the `uploadManager` gets a signed signature from your backend via `api.getCloudinaryUploadSignature`.
-    *   It updates the status to `'uploading'` and sends the **compressed** image `Blob` directly to Cloudinary via XHR, emitting progress events along the way.
-    *   Upon successful upload, it updates the status to `'pending_processing'`. The manager's job for this item is now done.
+*   **Optimistic Creation:** When a user sends a message, `chat/page.tsx` immediately creates a message object with a unique `client_temp_id` (a v4 UUID) and a status of `'sending'` or `'uploading'`.
+*   **Local Persistence:** This optimistic message is instantly saved to the local IndexedDB via `storageService`. The UI, powered by a `useLiveQuery` hook, reacts to this database change and renders the new message bubble.
+*   **Server Confirmation:** When the real-time service receives a `message_ack` event from the server, it includes the final server-assigned `id`. The `storageService` then updates the local message, replacing the `client_temp_id` with the permanent `id` and updating the status to `'sent'`.
+*   **Failure Handling:** If a message fails to send (due to a network error or a timeout defined in `chat/page.tsx`), its status is updated to `'failed'`. The `MessageBubble` component observes this status and displays a "Failed to send" message along with a "Retry" button, which allows the user to re-initiate the send process.
 
-4.  **Finalization (Webhook & WebSocket)**:
-    *   Cloudinary finishes its processing and sends a webhook to your backend.
-    *   Your backend updates the message in the database with the final `media_metadata` (containing all the different URLs).
-    *   Your backend broadcasts a `media_processed` event via WebSocket.
-    *   The client's `realtimeService` receives this event and updates the local message in IndexedDB.
-    *   The `MessageBubble` reactively re-renders, replacing the `UploadProgressIndicator` with the final `SecureMediaImage` component, which loads the high-quality, signed image URL.
+### 1.2. Message Uniqueness & Chronological Order
 
-## 4. Voice Message & Video Flow
+**How are messages ordered and de-duplicated?**
+The system uses a combination of timestamps and unique IDs.
 
-This flow is nearly identical to the image flow, with the primary difference being the pre-processing step.
+*   **Chronological Order:** The primary source of truth for ordering is the `created_at` timestamp on each message. The `useLiveQuery` hook continuously fetches messages from IndexedDB and sorts them by this timestamp, ensuring the display is always in the correct order.
+*   **Uniqueness:** To prevent duplicates, the `client_temp_id` serves as the primary key for a message before it receives a permanent ID from the server. When the `message_ack` or a `new_message` event arrives, the `storageService` uses `put` (or `upsert`) operations. If a message with that ID already exists, it's updated; otherwise, it's inserted. This handles cases where a WebSocket event might arrive for a message that was already optimistically rendered.
 
-1.  **Initiation**: The user records audio or selects a video file.
-2.  **Optimistic Creation**: Same as the image flow. An optimistic message is created and `uploadManager.addToQueue` is called.
-3.  **Processing & Upload (`uploadManager.ts`)**:
-    *   The `uploadManager` picks the item from the queue.
-    *   For videos, it first calls `videoCompressor.extractVideoThumbnail()`. It emits a progress update with this thumbnail URL so the UI can show a relevant preview.
-    *   It then calls `videoCompressor.compressVideo()` or `compressAudio()`. This uses FFmpeg.wasm and emits `'compressing'` progress events.
-    *   The rest of the flow (getting a signature, uploading the compressed file directly to Cloudinary) is identical to the image flow.
-4.  **Finalization**: The webhook/WebSocket flow is the same. The `MessageBubble` will render the `VideoPlayer` component instead of an image component.
+### 1.3. Chat Feed Scrolling & Performance
 
-## 5. Camera Flow
+**How does the chat feed handle long conversations?**
+Through a combination of on-demand loading and component memoization.
 
-1.  **Initiation (`InputBar.tsx`)**:
-    *   The user clicks the "Camera" button.
-    *   This triggers a hidden `<input type="file" accept="image/*,video/*" capture="environment">`.
-    *   The `capture` attribute signals to mobile OSes to open the camera app.
+*   **Infinite Scrolling:** The chat does not load all messages at once. `chat/page.tsx` initially fetches a batch of 50 messages. When the user scrolls to the top of the `MessageArea`, an "Load Older Messages" button becomes visible. Clicking it triggers the `loadMoreMessages` function, which fetches the next batch of older messages from the API and prepends them to the local database. The scroll position is maintained to prevent a jarring jump.
+*   **Auto-Scrolling:** The `useAutoScroll` hook ensures that if the user is already near the bottom of the chat, the view automatically scrolls down when a new message arrives.
+*   **Rendering Performance:** Every message bubble is wrapped in `React.memo`. This prevents the entire list from re-rendering when a single message changes (e.g., its status updates or a reaction is added).
+*   **Known Limitation:** The app does **not** currently use list virtualization. For extremely long conversations (tens of thousands of messages), this could become a performance bottleneck. Implementing a library like `react-virtual` would be a future optimization.
 
-2.  **File Handling**:
-    *   After the user takes a photo or video, the camera app returns a `File` object.
-    *   From this point, the flow merges with the standard **Image Sending Flow** or **Video/Audio Flow**.
+---
+
+## 2. Media Handling & Display
+
+### 2.1. Upload Progress States & Cancellation
+
+**How is upload progress communicated?**
+The `uploadManager` and `MessageBubble` work together to show granular progress.
+
+*   **States:** The `UploadItem` has several statuses: `pending`, `compressing` (for video/audio), `uploading` (direct-to-Cloudinary), `pending_processing` (waiting for webhook), and `failed`.
+*   **UI Feedback:** The `UploadProgressIndicator` component, shown within a `MessageBubble`, displays the current state. It shows a percentage for the upload and specific text like "Compressing..." or "Processing..." for other stages.
+*   **Cancellation:** There is not currently a user-facing UI to cancel an upload in progress. This is a potential future enhancement.
+
+### 2.2. Media Playback Experience
+
+**How is media playback optimized?**
+By using a dedicated player library and leveraging the multiple media formats generated by Cloudinary.
+
+*   **Adaptive Streaming:** The `VideoPlayer` component uses `react-player`, which internally supports `hls.js`. When rendering a video, it first requests a signed URL for the `hls_manifest` from the backend. If available, it provides a smooth, adaptive streaming experience. If not, it falls back to a direct MP4 link.
+*   **Previews:** The player uses the `static_thumbnail` URL from the `media_metadata` as the poster image, ensuring a fast initial render.
+*   **Loading/Buffering:** The player library handles its own internal loading and buffering indicators.
+
+### 2.3. Image Display
+
+**How are images optimized?**
+The application uses Cloudinary's transformations and requests signed URLs for specific versions.
+
+*   **`next/image` is not used** for chat media because the URLs are dynamic (signed and short-lived), which is not the primary use case for `next/image`'s static optimization.
+*   Instead, the `SecureMediaImage` component requests a signed URL for a `preview_800` (an 800px wide, optimized WebP) or `thumbnail_250` version of the image, ensuring that a reasonably sized, compressed image is loaded, not the multi-megabyte original.
+
+---
+
+## 3. Real-time Updates & WebSocket Integration
+
+### 3.1. Reconnection Strategy
+
+**What happens when the connection drops?**
+The `realtimeService` is designed to be resilient.
+
+*   **Detection:** It uses the browser's `navigator.onLine` API and WebSocket `onclose`/`onerror` events to detect connection loss.
+*   **Fallback:** If the WebSocket connection fails, it automatically falls back to a Server-Sent Events (SSE) connection, providing a read-only channel for receiving messages.
+*   **Reconnection:** If both connections fail, it enters a `disconnected` state and attempts to reconnect periodically using an exponential backoff strategy managed by `scheduleReconnect`.
+*   **Synchronization:** Upon successful reconnection, it immediately calls the `/events/sync` API endpoint, sending the `lastSequence` number it has stored. The backend returns all events that have occurred since, which are then processed to fill in any missed messages or updates, ensuring data consistency.
+
+### 3.2. Event Handling
+
+All WebSocket events are piped through a single `handleEvent` function in `realtimeService`, which then uses a `switch` statement to call the appropriate callback (e.g., `onMessageReceived`, `onPresenceUpdate`). This centralized approach, combined with the specific state update logic in `chat/page.tsx`, ensures that updates are handled efficiently without causing excessive re-renders of the entire component tree.
+
+---
+
+## 4. Offline Experience & Persistence
+
+### 4.1. Message Persistence (Outbox/Inbox)
+
+**Does the app work offline?**
+Yes, it has robust offline capabilities.
+
+*   **Outbox (Sending):** The `uploadManager` is built on top of the `storageService` (IndexedDB). When a user sends a message or media file while offline, it is added to the persistent `uploadQueue` table in IndexedDB. When `networkMonitor` detects that the connection is restored, it automatically calls `processQueue` to send all queued items.
+*   **Inbox (Receiving):** The app is a PWA with a service worker. When offline, the user can still receive push notifications for new messages. When they open the app, the `syncEvents` mechanism ensures all messages they missed are fetched from the server and integrated into the local chat history.
+
+### 4.2. Local Data Storage
+
+*   **Database:** The app uses **Dexie.js** to manage an IndexedDB database (`ChirpChatDB`). This database stores all chats, messages, users, and the upload queue. This ensures the entire chat history is available offline.
+*   **Synchronization:** The primary sync mechanism is the `syncEvents` call on startup and reconnection. This is a "last write wins" model where the server is the source of truth, and the client "catches up" to it. There is no complex conflict resolution, as a user can only write from one active client at a time.
+
+---
+
+## 5. Performance & Responsiveness
+
+### 5.1. Rendering Performance
+
+As mentioned in section 1.3, performance is primarily managed by **`React.memo`** on the `MessageBubble` component. The lack of list virtualization is a known area for future improvement.
+
+### 5.2. Input Responsiveness
+
+The chat input bar is a separate component from the message list. User typing and input state changes do not trigger re-renders of the `MessageArea`, ensuring that the typing experience remains smooth and responsive regardless of other activity.
+
+---
+
+## 6. Error Handling & User Feedback
+
+### 6.1. User-Friendly Errors
+
+The system provides both global and local error feedback.
+
+*   **Global Errors:** A connection status banner appears at the top of the screen for critical, app-wide issues like being offline or connected via a slower SSE fallback. `useToast` is used for authentication failures.
+*   **Local Errors:**
+    *   **Message Send Failure:** Handled directly on the `MessageBubble` with a "Retry" button.
+    *   **Media Upload Failure:** The `UploadProgressIndicator` shows a "Failed" state. `uploadManager` also attempts to parse specific error messages from Cloudinary to provide more context.
+    *   **Signed URL Failure:** The `useSignedUrl` hook has an error state. If a signed URL fails to load, the `MediaDisplay` component will show a "Could not load media" error message.
+
+---
+
+## 7. Frontend Security
+
+### 7.1. API Key Exposure
+
+No sensitive keys are exposed on the client. The Cloudinary API secret is used only by the backend to generate signatures. The client only ever receives the temporary, safe-to-use signature.
+
+### 7.2. XSS Protection
+
+The application does not render user-generated content as HTML. All message text is rendered as text content within React components, which automatically protects against Cross-Site Scripting (XSS) attacks. If rich text or HTML content were to be introduced, a sanitization library (like DOMPurify) would be required.

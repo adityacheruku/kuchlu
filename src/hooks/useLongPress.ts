@@ -20,6 +20,7 @@ export const useLongPress = (
 
   const start = useCallback(
     (event: PointerEvent<HTMLElement>) => {
+      if (navigator.vibrate) navigator.vibrate(50);
       isLongPressingRef.current = false;
       onStart?.(event);
       timeoutRef.current = setTimeout(() => {
