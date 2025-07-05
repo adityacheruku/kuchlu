@@ -31,6 +31,7 @@ import { useSwipe } from '@/hooks/useSwipe';
 import { useLongPress } from '@/hooks/useLongPress';
 import Spinner from '../common/Spinner';
 import UploadProgressIndicator from './UploadProgressIndicator';
+import { api } from '@/services/api';
 
 const EMOJI_ONLY_REGEX = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])+$/;
 
@@ -63,6 +64,44 @@ function formatDuration(seconds: number | null | undefined): string {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
+const useSignedUrl = (messageId: string) => {
+    const [url, setUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    useEffect(() => {
+        let isMounted = true;
+        const fetchUrl = async () => {
+            setIsLoading(true);
+            try {
+                const response = await api.getSignedMediaUrl(messageId);
+                if (isMounted) setUrl(response.url);
+            } catch (error) {
+                console.error("Failed to get signed URL", error);
+                if (isMounted) setUrl(null); // Set to null on error
+            } finally {
+                if (isMounted) setIsLoading(false);
+            }
+        };
+        fetchUrl();
+        return () => { isMounted = false; };
+    }, [messageId]);
+    return { url, isLoading };
+};
+
+const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onShowMedia: (url: string, type: 'image') => void; alt: string; }) => {
+    const { url, isLoading } = useSignedUrl(message.id);
+    const thumbnailUrl = message.preview_url || message.image_thumbnail_url;
+
+    if (isLoading && !thumbnailUrl) return <div className="w-full max-w-[250px] aspect-[4/3] bg-muted flex items-center justify-center rounded-md"><Spinner/></div>;
+    
+    return (
+        <button onClick={() => url && onShowMedia(url, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
+            <Image src={url || thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
+            {isLoading && url && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><Spinner/></div>}
+        </button>
+    );
+};
+
+
 const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: { message: Message; sender: User; isCurrentUser: boolean; PlayerIcon?: React.ElementType }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -72,8 +111,10 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
     const [hasError, setHasError] = useState(false);
     const { toast } = useToast();
 
+    const { url: signedAudioUrl } = useSignedUrl(message.id);
+
     const handlePlayPause = () => {
-        if (!audioRef.current) return;
+        if (!audioRef.current || !signedAudioUrl) return;
         
         if (isPlaying) {
             audioRef.current.pause();
@@ -152,7 +193,7 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
 
     return (
         <div className={cn("flex items-center gap-2 p-2 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
-            <audio ref={audioRef} src={message.clip_url!} preload="metadata" />
+            <audio ref={audioRef} src={signedAudioUrl!} preload="metadata" />
             <div className="relative flex-shrink-0">
                 <Avatar className="w-10 h-10">
                     <AvatarImage src={sender.avatar_url || undefined} alt={sender.display_name} />
@@ -165,8 +206,8 @@ const AudioPlayer = memo(({ message, sender, isCurrentUser, PlayerIcon = Mic }: 
                 )}
             </div>
 
-            <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"}>
-                {isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
+            <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl}>
+                {!signedAudioUrl ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
             </Button>
             
             <div className="flex-grow flex flex-col justify-center gap-1.5 w-full">
@@ -274,13 +315,7 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       onToggleSelection(message.id);
       return;
     }
-    if (message.message_subtype === 'image' && message.image_url && message.status !== 'failed') {
-        onShowMedia(message.image_url, 'image');
-    } else if (message.message_subtype === 'clip' && message.clip_type === 'video' && message.clip_url && message.status !== 'failed') {
-        onShowMedia(message.clip_url, 'video');
-    } else if (message.message_subtype === 'document' && message.document_url && message.status !== 'failed') {
-        onShowDocumentPreview(message);
-    }
+     // Document preview is handled by renderMessageContent button
   };
 
   const getReactorNames = (reactors: string[] | undefined) => {
@@ -330,26 +365,24 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     const content = (() => {
         switch (message.message_subtype) {
           case 'sticker': return message.sticker_image_url ? <Image src={message.sticker_image_url} alt="Sticker" width={128} height={128} className="bg-transparent animate-pop" unoptimized loading="lazy" /> : null;
-          case 'voice_message': return message.clip_url ? <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} /> : <p className="text-sm italic">Voice message unavailable</p>;
-          case 'audio': return message.clip_url ? <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} /> : <p className="text-sm italic">Audio file unavailable</p>;
+          case 'voice_message': return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
+          case 'audio': return <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} />;
           case 'image':
             return message.status === 'uploading' || (message.status === 'failed' && !message.image_url) ? (
                 <div className="w-[250px] aspect-[4/3] rounded-md overflow-hidden"><UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} /></div>
-            ) : message.image_url ? (
-              <button onClick={() => onShowMedia(message.image_url!, 'image')} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={`View image sent at ${formattedTime}`}>
-                  <Image src={message.preview_url || message.image_thumbnail_url || message.image_url} alt={`Image from ${sender.display_name}`} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
-              </button>
-            ) : <p className="text-sm italic">Image unavailable</p>;
+            ) : <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />;
           case 'clip':
             if (message.clip_type === 'video') {
-                return message.clip_url ? (
-                  <button onClick={() => onShowMedia(message.clip_url!, 'video')} className="block w-full max-w-[250px] aspect-video relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={`View video sent at ${formattedTime}`}>
+                return (
+                  <button onClick={() => {
+                      api.getSignedMediaUrl(message.id).then(res => onShowMedia(res.url, 'video'))
+                  }} className="block w-full max-w-[250px] aspect-video relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={`View video sent at ${formattedTime}`}>
                       <Image src={message.image_thumbnail_url || "https://placehold.co/250x140.png"} alt={`Video thumbnail from ${sender.display_name}`} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="video thumbnail" loading="lazy"/>
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                         <PlayCircle size={48} className="text-white/80 transition-transform group-hover/media:scale-110" />
                       </div>
                   </button>
-                ) : <p className="text-sm italic">Video unavailable</p>;
+                );
             }
             return <p className="text-sm italic">Clip unavailable</p>;
           case 'document':

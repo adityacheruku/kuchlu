@@ -141,14 +141,6 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages?${new URLSearchParams({ limit: String(limit), ...(before && { before_timestamp: before }) })}`, { headers: getApiHeaders() });
     return handleResponse<{messages: Message[]}>(response);
   },
-  sendMessageHttp: async (chatId: string, data: Partial<Message>): Promise<Message> => {
-    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(data) });
-    return handleResponse<Message>(response);
-  },
-  toggleReactionHttp: async (messageId: string, emoji: SupportedEmoji): Promise<Message> => {
-    const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/reactions`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ emoji }) });
-    return handleResponse<Message>(response);
-  },
   deleteMessageForEveryone: async (messageId: string, chatId: string): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}?chat_id=${chatId}`, { method: 'DELETE', headers: getApiHeaders() });
     await handleResponse<void>(response);
@@ -207,31 +199,18 @@ export const api = {
   },
   sendFileAnalytics: async (payload: FileAnalyticsPayload): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics/file`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(payload),
-        // No need to handle the response for fire-and-forget
-      });
-      if (!response.ok) {
-        console.warn('Failed to send file analytics', response.statusText);
-      }
-    } catch (error) {
-      console.warn('Error sending file analytics', error);
-    }
+      const response = await fetch(`${API_BASE_URL}/analytics/file`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(payload) });
+      if (!response.ok) console.warn('Failed to send file analytics', response.statusText);
+    } catch (error) { console.warn('Error sending file analytics', error); }
   },
   sendMoodAnalytics: async (payload: MoodAnalyticsPayload): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics/mood`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        console.warn('Failed to send mood analytics', response.statusText);
-      }
-    } catch (error) {
-      console.warn('Error sending mood analytics', error);
-    }
+      const response = await fetch(`${API_BASE_URL}/analytics/mood`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(payload) });
+      if (!response.ok) console.warn('Failed to send mood analytics', response.statusText);
+    } catch (error) { console.warn('Error sending mood analytics', error); }
+  },
+  getSignedMediaUrl: async (messageId: string): Promise<{ url: string }> => {
+    const response = await fetch(`${API_BASE_URL}/media/${messageId}`, { headers: getApiHeaders() });
+    return handleResponse<{ url: string }>(response);
   },
 };

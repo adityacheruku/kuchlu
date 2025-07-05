@@ -1,0 +1,74 @@
+
+import time
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
+from typing import Literal
+import cloudinary
+import cloudinary.utils
+from uuid import UUID
+
+from app.auth.dependencies import get_current_user
+from app.auth.schemas import UserPublic
+from app.database import db_manager
+from app.utils.logging import logger
+from app.config import settings
+
+router = APIRouter(prefix="/media", tags=["Media"])
+
+cloudinary.config(
+    cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+    api_key=settings.CLOUDINARY_API_KEY,
+    api_secret=settings.CLOUDINARY_API_SECRET,
+    secure=True
+)
+
+class SignedUrlResponse(BaseModel):
+    url: str
+
+@router.get("/{message_id}", response_model=SignedUrlResponse)
+async def get_signed_media_url(
+    message_id: UUID,
+    current_user: UserPublic = Depends(get_current_user),
+    version: Literal['original', 'thumbnail', 'preview'] = Query('original')
+):
+    """
+    Provides a secure, short-lived URL to access a private media asset.
+    This endpoint verifies that the user is a participant in the chat
+    before generating the signed URL.
+    """
+    # 1. Authorization: Verify user is a participant in the chat
+    message_resp = await db_manager.get_table("messages").select("chat_id, file_metadata").eq("id", str(message_id)).maybe_single().execute()
+    if not message_resp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media message not found.")
+        
+    chat_id = message_resp.data.get('chat_id')
+    participant_resp = await db_manager.get_table("chat_participants").select("user_id").eq("chat_id", str(chat_id)).eq("user_id", str(current_user.id)).maybe_single().execute()
+    
+    if not participant_resp.data:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to view this media.")
+
+    # 2. Fetch Media Metadata
+    metadata = message_resp.data.get('file_metadata')
+    if not metadata or not isinstance(metadata, dict) or 'public_id' not in metadata:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media metadata is missing or invalid.")
+    
+    public_id = metadata['public_id']
+    resource_type = metadata.get('resource_type', 'image')
+    
+    # 3. Generate Signed URL from Cloudinary
+    try:
+        # Define expiration time (e.g., 5 minutes from now)
+        expires_at = int(time.time()) + 300 
+        
+        # Use cloudinary.utils.private_download_url for private assets
+        signed_url = cloudinary.utils.private_download_url(
+            public_id,
+            resource_type=resource_type,
+            attachment=False,
+            expires_at=expires_at
+        )
+        return SignedUrlResponse(url=signed_url)
+
+    except Exception as e:
+        logger.error(f"Error generating signed URL for public_id {public_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not generate secure media URL.")
