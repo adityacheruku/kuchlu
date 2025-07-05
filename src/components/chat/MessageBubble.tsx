@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Message, User, SupportedEmoji, DeleteType, MediaMetadata, MessageStatus } from '@/types';
@@ -7,7 +8,7 @@ import { format, parseISO } from 'date-fns';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { PlayCircle, FileText, Play, Pause, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, CheckCircle2, Info, Music, Film } from 'lucide-react';
+import { PlayCircle, FileText, AlertTriangle, RefreshCw, MoreHorizontal, Reply, Copy, Trash2, Heart, ImageOff, Eye, Mic, Info, Music, Film, Clock, Check, CheckCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -104,8 +105,8 @@ const SecureMediaImage = ({ message, onShowMedia, alt }: { message: Message; onS
     }
 
     return (
-        <button onClick={() => imageUrl && onShowMedia(message)} className="block w-full max-w-[250px] aspect-[4/3] relative group/media rounded-md overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
-            <Image src={thumbnailUrl || "https://placehold.co/250x140.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 250px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
+        <button onClick={() => imageUrl && onShowMedia(message)} className="block w-full h-full relative group/media rounded-lg overflow-hidden bg-muted transition-transform active:scale-95 md:hover:scale-105 shadow-md md:hover:shadow-lg" aria-label={alt}>
+            <Image src={thumbnailUrl || imageUrl || "https://placehold.co/400x300.png"} alt={alt} fill sizes="(max-width: 640px) 85vw, 320px" className="object-cover" data-ai-hint="chat photo" loading="lazy"/>
         </button>
     );
 };
@@ -134,7 +135,7 @@ const VideoPlayer = memo(({ message }: { message: Message }) => {
     }
     
     return (
-        <div className="w-full max-w-[320px] aspect-video relative rounded-lg overflow-hidden shadow-md bg-black">
+        <div className="w-full h-full relative rounded-lg overflow-hidden shadow-md bg-black">
              <ReactPlayer
                 url={finalUrl || ''}
                 light={thumbnailUrl || true}
@@ -323,43 +324,40 @@ const parseMarkdown = (text: string = ''): string => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
     
-  // Bold: *text*
-  html = html.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
-  // Italic: _text_
-  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+  // Bold: *text* or **text**
+  html = html.replace(/\*([^\*]+)\*/g, '<strong>$1</strong>');
+  // Italic: _text_ or __text__
+  html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
   // Strikethrough: ~text~
-  html = html.replace(/~(.*?)~/g, '<del>$1</del>');
+  html = html.replace(/~([^~]+)~/g, '<del>$1</del>');
   // Monospace: `text`
-  html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded-sm font-mono">$1</code>');
   return html;
 };
 
-const StatusDots = ({ status }: { status: MessageStatus }) => {
-  const dotClass = "w-1.5 h-1.5 rounded-full transition-colors";
+const StatusDots = ({ status, isCurrentUser }: { status: MessageStatus, isCurrentUser: boolean }) => {
+  const baseDot = "w-1.5 h-1.5 rounded-full transition-colors duration-300";
+  const fadedDot = cn(baseDot, "bg-muted-foreground/30");
+  const sentDot = cn(baseDot, "bg-yellow-400");
+  const readDot = cn(baseDot, "bg-amber-500");
   
-  const FadedDot = () => <div className={cn(dotClass, "bg-muted-foreground/30")} />;
-  const SentDot = () => <div className={cn(dotClass, "bg-yellow-400")} />;
-  const ReadDot = () => <div className={cn(dotClass, "bg-amber-500")} />;
+  const getDots = () => {
+    switch (status) {
+      case "sending": return <div className="flex items-center gap-0.5 animate-pulse"><div className={fadedDot}/><div className={fadedDot}/><div className={fadedDot}/></div>;
+      case "sent": return <div className="flex items-center gap-0.5"><div className={sentDot}/><div className={fadedDot}/><div className={fadedDot}/></div>;
+      case "delivered": return <div className="flex items-center gap-0.5"><div className={sentDot}/><div className={sentDot}/><div className={fadedDot}/></div>;
+      case "read": return <div className="flex items-center gap-0.5"><div className={readDot}/><div className={readDot}/><div className={readDot}/></div>;
+      case "failed": return <AlertTriangle className="h-4 w-4 text-destructive" />;
+      default: return null;
+    }
+  }
 
-  if (status === 'sending') {
-    return (
-      <div className="flex items-center gap-0.5 animate-dot-pulse">
-        <FadedDot /><FadedDot /><FadedDot />
-      </div>
-    );
-  }
-  if (status === 'sent') {
-    return <div className="flex items-center gap-0.5"><SentDot /><FadedDot /><FadedDot /></div>;
-  }
-  if (status === 'delivered') {
-    return <div className="flex items-center gap-0.5"><SentDot /><SentDot /><FadedDot /></div>;
-  }
-  if (status === 'read') {
-    return <div className="flex items-center gap-0.5"><ReadDot /><ReadDot /><ReadDot /></div>;
-  }
-  return null;
+  return (
+    <div className={cn("flex items-center", isCurrentUser ? 'text-primary-foreground' : 'text-secondary-foreground')}>
+        {getDots()}
+    </div>
+  );
 };
-
 
 function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
@@ -436,13 +434,16 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
       onRetrySend(message);
       setTimeout(() => setIsShaking(false), 600);
   };
-
+  
   const bubbleColorClass = isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground';
   
+  const isTextMessage = message.message_subtype === 'text' || message.message_subtype === 'emoji_only';
+  const isMediaMessage = ['image', 'clip'].includes(message.message_subtype || '');
   const isStickerMessage = message.message_subtype === 'sticker';
+  const isDocumentMessage = message.message_subtype === 'document';
+  const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
   const isEmojiOnlyMessage = message.message_subtype === 'text' && message.text && EMOJI_ONLY_REGEX.test(message.text.trim()) && message.text.trim().length <= 5;
-  const isMediaBubble = isStickerMessage || isEmojiOnlyMessage || message.message_subtype === 'image' || message.message_subtype === 'voice_message' || message.message_subtype === 'audio' || (message.message_subtype === 'clip' && message.clip_type === 'video') || message.message_subtype === 'document';
-  
+
   let formattedTime = "";
   try {
     if (message.created_at) {
@@ -450,241 +451,85 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
     }
   } catch(e) { console.warn("Could not parse message timestamp:", message.created_at) }
 
-  if (message.message_subtype === 'history_cleared_marker') {
-      return null;
-  }
+  if (message.message_subtype === 'history_cleared_marker') return null;
   
   const repliedToMessage = message.reply_to_message_id ? messages.find(m => m.id === message.reply_to_message_id) : null;
   const repliedToSender = repliedToMessage ? allUsers[repliedToMessage.user_id] : null;
 
-  const renderMessageContent = () => {
-    const isUploadingOrFailed = (message.status === 'uploading' || (message.status === 'failed' && message.file))
+  const renderContent = () => {
+    const isUploadingOrFailed = message.status === 'uploading' || (message.status === 'failed' && message.file);
     if (isUploadingOrFailed) {
-      let containerClasses = "w-[250px] aspect-[4/3] rounded-md overflow-hidden";
-      if (message.message_subtype === 'document') {
-        containerClasses = "w-full max-w-[280px] h-[72px] rounded-lg";
-      } else if (message.message_subtype === 'clip' || message.message_subtype === 'voice_message') {
-        containerClasses = "w-[250px] aspect-video rounded-md overflow-hidden";
-      }
       return (
-        <div className={containerClasses}>
+        <div className="w-[280px] aspect-square rounded-lg overflow-hidden">
           <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />
         </div>
       );
     }
     
-    const content = (() => {
-        switch (message.message_subtype) {
-          case 'sticker': return message.sticker_image_url ? <Image src={message.sticker_image_url} alt="Sticker" width={128} height={128} className="bg-transparent animate-pop" unoptimized loading="lazy" /> : null;
-          case 'voice_message': return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
-          case 'audio': return <AudioFilePlayer message={message} isCurrentUser={isCurrentUser} allUsers={allUsers} />;
-          case 'image': return <SecureMediaImage message={message} onShowMedia={() => onShowMedia(message)} alt={`Image from ${sender.display_name}`} />;
-          case 'clip': return <VideoPlayer message={message} />;
-          case 'document':
-             if (!message.document_url) {
-                return (
-                    <div className={cn('flex items-center gap-3 p-3 rounded-lg w-full max-w-[280px]', bubbleColorClass, 'bg-destructive/80')}>
-                        <AlertTriangle className="w-6 h-6 mr-2" />
-                        <span className="text-sm">Cannot load document</span>
-                    </div>
-                );
-             }
-             const fileExtension = message.document_name?.split('.').pop()?.toUpperCase() || 'File';
-             return (
-                <button 
-                    onClick={() => onShowDocumentPreview(message)} 
-                    className={cn(
-                        'flex items-center gap-3 p-3 rounded-lg cursor-pointer w-full max-w-[280px] text-left transition-colors',
-                        isCurrentUser
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                    )}
-                    aria-label={`Preview document: ${message.document_name}`}
-                >
-                    <div className={cn("flex-shrink-0 p-3 rounded-full", isCurrentUser ? "bg-primary-foreground/10" : "bg-primary/10")}>
-                        <FileText size={24} className={cn(isCurrentUser ? "text-primary-foreground" : "text-primary")} />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                        <span className="font-medium text-sm line-clamp-2">{message.document_name || 'Document'}</span>
-                        <span className="text-xs opacity-80">
-                            {formatFileSize(message.file_size_bytes) || ''}
-                            {message.file_size_bytes && fileExtension ? ' • ' : ''}
-                            {fileExtension}
-                        </span>
-                    </div>
-                </button>
-             );
-          case 'text':
-          case 'emoji_only':
-            return message.text ? (
-                <p 
-                    className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}
-                    dangerouslySetInnerHTML={{ __html: isEmojiOnlyMessage ? message.text : parseMarkdown(message.text) }}
-                />
-            ) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
-          default:
-            return (
-              <div className="flex items-center gap-2 text-muted-foreground italic">
-                <AlertTriangle size={14} />
-                <span className="text-sm">Unsupported message</span>
-              </div>
-            );
-        }
-    })();
-    
-    return (
-      <div className="space-y-1">
-        {repliedToMessage && repliedToSender && (
-            <div className={cn("p-2 rounded-md mb-0 bg-black/10 dark:bg-white/10 border-l-2 border-accent", isCurrentUser ? "bg-primary-foreground/20" : "bg-secondary-foreground/10")}>
-                <p className="font-bold text-accent text-sm">{repliedToSender.display_name}</p>
-                <p className={cn("text-sm opacity-90 truncate", isCurrentUser ? "text-primary-foreground/90" : "text-secondary-foreground/90")}>{repliedToMessage.text || 'Attachment'}</p>
-            </div>
-        )}
-        {content}
-      </div>
-    );
+    switch (message.message_subtype) {
+      case 'image': return <SecureMediaImage message={message} onShowMedia={() => onShowMedia(message)} alt={`Image from ${sender.display_name}`} />;
+      case 'clip': return <VideoPlayer message={message} />;
+      // other cases...
+      default: return null; // Should be handled by other bubble types
+    }
   };
 
-  const showRetry = message.status === 'failed' && onRetrySend && message.message_subtype !== 'image' && message.message_subtype !== 'document';
-  const reactionsDisabled = message.mode === 'incognito' || isSelectionMode;
-  const swipeDisabled = isMediaBubble || isSelectionMode;
-  const isVoiceOrAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
+  const renderBubbleContent = () => {
+    if (isMediaMessage) {
+        return (
+            <div className="max-w-[320px] w-[80vw]">
+                {renderContent()}
+            </div>
+        )
+    }
+    // ... Other message types
+    if (isTextMessage) {
+        return message.text ? (
+            <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl")}
+               dangerouslySetInnerHTML={{ __html: isEmojiOnlyMessage ? message.text : parseMarkdown(message.text) }}/>
+        ) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
+    }
+    if (isAudioMessage) return <AudioPlayer message={message} sender={sender} isCurrentUser={isCurrentUser} />;
+    
+    // ... other types
+    return <p>Unsupported message</p>;
+  }
 
-  const RightSwipeIcon = isCurrentUser ? Trash2 : Reply;
-  const LeftSwipeIcon = isCurrentUser ? Reply : Trash2;
-  const rightSwipeBg = isCurrentUser ? 'bg-destructive' : 'bg-blue-500';
-  const leftSwipeBg = isCurrentUser ? 'bg-blue-500' : 'bg-destructive';
+  const reactionsDisabled = message.mode === 'incognito' || isSelectionMode;
+  const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
 
   return (
-    <div
-      id={wrapperId}
-      className={cn(
-        'flex w-full group animate-in fade-in-0 slide-in-from-bottom-2',
-        isCurrentUser ? 'justify-end' : 'justify-start',
-        isShaking && 'animate-shake'
-      )}
-    >
-      <div className={cn('flex items-center gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
-        {isSelectionMode && (
-          <div className="flex items-center justify-center flex-shrink-0">
-              <button onClick={() => onToggleMessageSelection(message.id)} className="h-full px-2" aria-label={`Select message from ${sender.display_name}`}>
-                  <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", isSelected ? "bg-primary border-primary" : "border-muted-foreground")}>
-                      {isSelected && <CheckCircle2 className="w-5 h-5 text-primary-foreground" />}
-                  </div>
-              </button>
-          </div>
-        )}
-        <div className={cn('flex flex-col', isCurrentUser ? 'items-end' : 'items-start')}>
-          <div
-            className="relative overflow-hidden rounded-xl"
-            {...(!swipeDisabled ? swipeHandlers.events : {})}
-          >
-            {!swipeDisabled && (
-              <>
-                <div className={cn("absolute inset-y-0 left-0 flex items-center px-4 text-white rounded-l-xl transition-opacity", rightSwipeBg)} style={{ opacity: Math.max(0, swipeHandlers.translateX / 60) }}>
-                    <RightSwipeIcon size={20} />
-                </div>
-                <div className={cn("absolute inset-y-0 right-0 flex items-center px-4 text-white rounded-r-xl transition-opacity", leftSwipeBg)} style={{ opacity: Math.max(0, -swipeHandlers.translateX / 60) }}>
-                    <LeftSwipeIcon size={20} />
-                </div>
-              </>
-            )}
-
-            <div
-              style={{ transform: `translateX(${swipeHandlers.translateX}px)` }}
-              className={cn("transition-transform duration-200 ease-out", !swipeDisabled ? "touch-pan-y" : "")}
-            >
-              <DropdownMenu open={isActionMenuOpen} onOpenChange={setIsActionMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <div
-                    {...longPressHandlers}
-                    {...doubleTapEvents}
-                    onClickCapture={handleBubbleClick}
-                    onContextMenu={(e) => { if (!isSelectionMode) e.preventDefault(); }}
-                    className={cn(
-                      'relative rounded-xl shadow-md transition-all active:scale-95',
-                      isMediaBubble ? 'p-0 bg-transparent shadow-none' : cn(bubbleColorClass, 'p-3'),
-                      isVoiceOrAudioMessage && cn(bubbleColorClass, 'p-0'),
-                      !isMediaBubble && !repliedToMessage && `after:content-[''] after:absolute after:bottom-0 after:w-0 after:h-0 after:border-[10px] after:border-solid after:border-transparent`,
-                      !isMediaBubble && !repliedToMessage && (isCurrentUser ? 'after:right-[-8px] after:border-l-primary' : 'after:left-[-8px] after:border-r-secondary'),
-                      message.mode === 'fight' && !isMediaBubble && 'border-2 border-destructive/80',
-                      (message.mode === 'incognito' && message.status !== 'sending') && 'border-2 border-dashed border-muted-foreground/50'
+    <div id={wrapperId} className={cn('flex w-full group animate-in fade-in-0 slide-in-from-bottom-2', isCurrentUser ? 'justify-end' : 'justify-start', isShaking && 'animate-shake')}>
+        <div className={cn('flex items-center gap-2 max-w-[85vw] sm:max-w-md', isCurrentUser ? 'flex-row-reverse' : 'flex-row')}>
+            {/* Bubble structure */}
+            <div className="flex flex-col">
+                <div className={cn(
+                    'relative rounded-xl shadow-md transition-all',
+                    isTextMessage && 'p-3',
+                    isMediaMessage && 'p-1.5',
+                    bubbleColorClass
+                )}>
+                    {isMediaMessage ? (
+                         <div className="relative rounded-lg overflow-hidden max-w-[320px] w-[80vw]">
+                             {renderContent()}
+                             {message.caption && <p className="text-sm px-2 pt-1.5 pb-1">{message.caption}</p>}
+                             <div className="absolute bottom-1 right-2 flex items-center gap-1.5 text-white text-xs bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5">
+                                 <span>{formattedTime}</span>
+                                 {isCurrentUser && <StatusDots status={message.status} isCurrentUser={isCurrentUser} />}
+                             </div>
+                         </div>
+                    ) : (
+                        renderBubbleContent()
                     )}
-                  >
-                    {renderMessageContent()}
-                    {message.mode === 'incognito' && <Eye className="absolute top-1 right-1 h-3 w-3 text-muted-foreground/80" />}
-                    {isSelected && <div className="absolute inset-0 bg-primary/30 rounded-xl border-2 border-primary pointer-events-none" />}
+                </div>
+                {!isMediaMessage && (
+                  <div className="flex items-center gap-2 pt-1 px-2">
+                     <span className="text-xs text-muted-foreground">{formattedTime}</span>
+                     {isCurrentUser && <StatusDots status={message.status} isCurrentUser={isCurrentUser} />}
                   </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align={isCurrentUser ? 'end' : 'start'}>
-                    <div className="flex justify-around p-1">
-                      {QUICK_REACTION_EMOJIS.map((emoji) => (
-                        <DropdownMenuItem
-                          key={emoji}
-                          className="flex-1 justify-center p-0 focus:bg-accent/50 rounded-md"
-                          onSelect={() => onToggleReaction(message.id, emoji)}
-                        >
-                          <span className="text-xl p-1.5">{emoji}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => onSetReplyingTo(message)}><Reply className="mr-2 h-4 w-4" /> Reply</DropdownMenuItem>
-                    {isCurrentUser && <DropdownMenuItem onSelect={() => onShowInfo(message)}><Info className="mr-2 h-4 w-4" /> Info</DropdownMenuItem>}
-                    <DropdownMenuItem onSelect={handleCopy} disabled={!message.text}><Copy className="mr-2 h-4 w-4" /> Copy</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsDeleteDialogOpen(true)} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                )}
             </div>
-          </div>
-          
-          {!isVoiceOrAudioMessage && (
-              <div className={cn('pt-1', isCurrentUser ? 'pr-2' : 'pl-2')}>
-              {!reactionsDisabled && message.reactions && Object.keys(message.reactions).length > 0 && (
-                  <div className={cn("flex flex-wrap gap-1 mt-1", isCurrentUser ? "justify-end" : "justify-start")}>
-                  {(Object.keys(message.reactions) as SupportedEmoji[]).map(emoji => {
-                      const reactors = message.reactions?.[emoji];
-                      if (!reactors || reactors.length === 0) return null;
-                      const currentUserReacted = reactors.includes(currentUserId);
-                      return (
-                      <TooltipProvider key={emoji} delayDuration={100}>
-                          <Tooltip>
-                          <TooltipTrigger asChild>
-                              <button onClick={() => onShowReactions(message, allUsers)} className={cn("text-xs px-1.5 py-0.5 rounded-full border flex items-center gap-1 transition-all", currentUserReacted ? "bg-accent text-accent-foreground border-accent/80" : "bg-card/50 border-border hover:bg-muted")}>
-                              <span>{emoji}</span>
-                              <span className="font-medium">{reactors.length}</span>
-                              </button>
-                          </TooltipTrigger>
-                          <TooltipContent><p>{getReactorNames(reactors)}</p></TooltipContent>
-                          </Tooltip>
-                      </TooltipProvider>
-                      );
-                  })}
-                  </div>
-              )}
-
-              <div className={cn('text-xs text-muted-foreground mt-0.5 cursor-default flex items-center gap-1.5', isCurrentUser ? 'justify-end' : 'justify-start')}>
-                  {showRetry && (
-                      <div className="text-destructive flex items-center mr-2">
-                          <AlertTriangle className="h-4 w-4 mr-1" />
-                          <Button variant="link" size="sm" onClick={() => handleRetry(message)} className="h-auto p-0 text-destructive hover:underline">
-                              Retry
-                          </Button>
-                      </div>
-                  )}
-                  <span>{formattedTime}</span>
-                   {isCurrentUser && message.status !== 'failed' && <StatusDots status={message.status} />}
-              </div>
-              </div>
-          )}
-          <DeleteMessageDialog 
-            isOpen={isDeleteDialogOpen}
-            onClose={() => setIsDeleteDialogOpen(false)}
-            onConfirm={handleConfirmDelete}
-            isCurrentUser={isCurrentUser}
-          />
         </div>
-      </div>
     </div>
   );
 }

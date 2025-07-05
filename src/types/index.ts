@@ -63,6 +63,7 @@ export interface Message {
   user_id: string; 
   chat_id: string; 
   text?: string | null;
+  caption?: string | null;
   created_at: string; 
   updated_at: string; 
   reactions?: Partial<Record<SupportedEmoji, string[]>> | null;
