@@ -30,17 +30,23 @@ interface MessageAreaProps {
   selectedMessageIds: Set<string>;
   onEnterSelectionMode: (messageId: string) => void;
   onToggleMessageSelection: (messageId: string) => void;
+  onMarkAsRead: (messageId: string, chatId: string) => void;
 }
 
 const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId'> & { currentUser: User }) => {
-    const { message, currentUser } = props;
+    const { message, currentUser, onMarkAsRead } = props;
     const { ref, inView } = useInView({
-        rootMargin: '200px', // Start preloading when message is within 200px of viewport
-        triggerOnce: false,  // Keep observing as user scrolls back and forth
+        threshold: 0.5,
+        triggerOnce: true,
     });
 
     useEffect(() => {
-        // Preload logic only for sent messages with media that are in view margin
+        if (inView && message.user_id !== currentUser.id && message.status !== 'read') {
+            onMarkAsRead(message.id, message.chat_id);
+        }
+    }, [inView, message, currentUser.id, onMarkAsRead]);
+
+    useEffect(() => {
         if (inView && message.status === 'sent' && message.file_metadata?.urls) {
             const urls = message.file_metadata.urls;
 
@@ -54,7 +60,6 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
         }
     }, [inView, message]);
 
-    // Find the sender for this specific message bubble
     const sender = props.allUsers[message.user_id] || (message.user_id === props.currentUser.id ? props.currentUser : null);
     if (!sender) {
         console.warn("Sender not found for message:", message.id, "senderId:", message.user_id);
@@ -99,6 +104,7 @@ function MessageArea({
   selectedMessageIds,
   onEnterSelectionMode,
   onToggleMessageSelection,
+  onMarkAsRead,
 }: MessageAreaProps) {
   const lastMessageId = messages[messages.length - 1]?.id;
   useAutoScroll(viewportRef, [lastMessageId]);
@@ -133,6 +139,7 @@ function MessageArea({
               selectedMessageIds={selectedMessageIds}
               onEnterSelectionMode={onEnterSelectionMode}
               onToggleMessageSelection={onToggleMessageSelection}
+              onMarkAsRead={onMarkAsRead}
             />
         ))}
       </div>

@@ -126,10 +126,11 @@ export type HeartbeatClientEvent = { event_type: "HEARTBEAT"; };
 export type MessageAckEventData = { event_type: "message_ack"; client_temp_id: string; server_assigned_id: string; status: MessageStatus; timestamp: string; };
 export type ChatModeChangedEventData = { event_type: "chat_mode_changed"; chat_id: string; mode: MessageMode; };
 export type ChatHistoryClearedEventData = { event_type: "chat_history_cleared"; chat_id: string; };
+export interface MessageStatusUpdateEventData { event_type: "message_status_update"; message_id: string; chat_id: string; status: MessageStatus; read_at?: string; }
 
 export type EventPayload = { sequence?: number; } & (
   | NewMessageEventData | MediaProcessedEventData | MessageDeletedEventData | MessageReactionUpdateEventData | UserPresenceUpdateEventData | TypingIndicatorEventData
-  | ThinkingOfYouReceivedEventData | UserProfileUpdateEventData | MessageAckEventData | ChatModeChangedEventData | ChatHistoryClearedEventData
+  | ThinkingOfYouReceivedEventData | UserProfileUpdateEventData | MessageAckEventData | ChatModeChangedEventData | ChatHistoryClearedEventData | MessageStatusUpdateEventData
   | { event_type: "error", detail: string }
 );
 

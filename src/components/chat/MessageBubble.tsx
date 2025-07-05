@@ -35,6 +35,7 @@ import UploadProgressIndicator from './UploadProgressIndicator';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import dynamic from 'next/dynamic';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { useInView } from 'react-intersection-observer';
 
 const ReactPlayer = dynamic(() => import('react-player/lazy'), { ssr: false, loading: () => <div className="w-full max-w-[320px] aspect-video bg-muted flex items-center justify-center rounded-lg"><Spinner /></div> });
 
@@ -55,6 +56,7 @@ export interface MessageBubbleProps {
   onRetrySend: (message: Message) => void;
   onDeleteMessage: (messageId: string, deleteType: DeleteType) => void;
   onSetReplyingTo: (message: Message | null) => void;
+  onMarkAsRead: (messageId: string, chatId: string) => void;
   wrapperId?: string;
   isSelectionMode: boolean;
   selectedMessageIds: Set<string>;
@@ -391,7 +393,7 @@ const StatusDots = ({ status }: { status: MessageStatus }) => {
     );
   };
 
-function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
+function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId, onToggleReaction, onShowReactions, onShowMedia, onShowDocumentPreview, onShowInfo, allUsers, onRetrySend, onDeleteMessage: onDelete, onSetReplyingTo, onMarkAsRead, wrapperId, isSelectionMode, onEnterSelectionMode, onToggleMessageSelection, isSelected }: MessageBubbleProps) {
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
@@ -552,8 +554,3 @@ function MessageBubble({ message, messages, sender, isCurrentUser, currentUserId
 }
 
 export default memo(MessageBubble);
-
-
-
-
-    

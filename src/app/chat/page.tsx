@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo, useLayoutEffect } from 'react';
@@ -6,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext, MediaProcessedEventData } from '@/types';
+import type { User, Message as MessageType, Mood, SupportedEmoji, Chat, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, MessageAckEventData, MessageMode, ChatModeChangedEventData, DeleteType, MessageDeletedEventData, ChatHistoryClearedEventData, UploadProgress, MessageSubtype, MoodAnalyticsPayload, MoodAnalyticsContext, MediaProcessedEventData, MessageStatusUpdateEventData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -117,12 +118,21 @@ export default function ChatPage() {
     await storageService.updateMessage(ackData.client_temp_id, { id: ackData.server_assigned_id, status: 'sent' });
   }, []);
 
+  const handleMessageStatusUpdate = useCallback(async (data: MessageStatusUpdateEventData) => {
+    await storageService.updateMessageByServerId(data.message_id, { status: data.status });
+  }, []);
+
   const handleNewMessage = useCallback(async (newMessageFromServer: MessageType) => {
-    await storageService.addMessage({ ...newMessageFromServer, status: newMessageFromServer.status || 'sent' });
+    if (currentUser && newMessageFromServer.user_id !== currentUser.id) {
+        await storageService.addMessage({ ...newMessageFromServer, status: 'delivered' });
+    } else {
+        await storageService.addMessage(newMessageFromServer);
+    }
+    
     if(otherUser && newMessageFromServer.user_id !== otherUser.id) {
        await storageService.upsertUser(otherUser);
     }
-  }, [otherUser]);
+  }, [currentUser, otherUser]);
 
   const handleMessageDeleted = useCallback((data: MessageDeletedEventData) => {
     storageService.deleteMessage(data.message_id);
@@ -159,7 +169,16 @@ export default function ChatPage() {
     onMessageAck: handleMessageAck, onChatModeChanged: handleChatModeChanged, onMessageDeleted: handleMessageDeleted,
     onChatHistoryCleared: (chatId) => { if (activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete(); },
     onMediaProcessed: handleMediaProcessed,
+    onMessageStatusUpdate: handleMessageStatusUpdate,
   });
+
+  const handleMarkAsRead = useCallback((messageId: string, chatId: string) => {
+    sendMessage({
+        event_type: 'mark_as_read',
+        message_id: messageId,
+        chat_id: chatId,
+    });
+  }, [sendMessage]);
 
   const sendMessageWithTimeout = useCallback((messagePayload: any) => {
     sendMessage(messagePayload);
@@ -592,6 +611,7 @@ export default function ChatPage() {
                 selectedMessageIds={selectedMessageIds}
                 onEnterSelectionMode={handleEnterSelectionMode}
                 onToggleMessageSelection={handleToggleMessageSelection}
+                onMarkAsRead={handleMarkAsRead}
               />
               <MemoizedInputBar onSendMessage={handleSendMessage} onSendSticker={handleSendSticker} onSendVoiceMessage={handleSendVoiceMessage} onSendImage={handleSendImage} onSendVideo={handleSendVideo} onSendDocument={handleSendDocument} isSending={isLoadingMore} onTyping={handleTyping} disabled={isInputDisabled} chatMode={chatMode} onSelectMode={handleSelectMode} replyingTo={replyingTo} onCancelReply={handleCancelReply} allUsers={allUsersForMessageArea} />
             </div>
