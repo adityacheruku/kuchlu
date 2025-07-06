@@ -57,8 +57,8 @@ async def _track_mood_analytics(user_id: UUID, mood_name: str, mood_emoji: str |
 @router.post("/update-mood", response_model=UserPublic)
 async def update_mood(
     payload: MoodUpdatePayload,
-    current_user: UserPublic = Depends(get_current_active_user),
-    background_tasks: BackgroundTasks = Depends()
+    background_tasks: BackgroundTasks,
+    current_user: UserPublic = Depends(get_current_active_user)
 ):
     """
     Updates the user's mood and notifies their partner.
@@ -98,8 +98,8 @@ async def update_mood(
 @router.post("/ping-mood", status_code=status.HTTP_200_OK)
 async def ping_mood(
     payload: MoodPingPayload,
-    current_user: UserPublic = Depends(get_current_active_user),
-    background_tasks: BackgroundTasks = Depends()
+    background_tasks: BackgroundTasks,
+    current_user: UserPublic = Depends(get_current_active_user)
 ):
     """
     Sends a one-time mood notification to the user's partner.
