@@ -56,10 +56,11 @@ const AudioPlayer = ({ message, isCurrentUser, onPlay, onPause, onEnded }: Audio
 
     const handlePlayPause = useCallback(() => {
         const audio = audioRef.current;
-        if (!audio || hasError || isLoadingSignedUrl || !signedAudioUrl || !isAudioLoaded) {
+        if (hasError || isLoadingSignedUrl || !signedAudioUrl || !isAudioLoaded) {
             if (hasError) toast({ variant: 'destructive', title: 'Audio Error', description: 'Cannot play due to previous error.' });
             return;
         }
+        if (!audio) return;
 
         if (isPlaying) {
             audio.pause();
@@ -138,11 +139,11 @@ const AudioPlayer = ({ message, isCurrentUser, onPlay, onPause, onEnded }: Audio
                 audio.load();
             }
         } else {
-            if (!audio.paused) audio.pause();
             if (audio.src) {
                 audio.removeAttribute('src');
                 audio.load();
             }
+            if (!audio.paused) audio.pause();
             setCurrentTime(0);
             setDuration(0);
             setIsPlaying(false);
@@ -191,7 +192,7 @@ const AudioPlayer = ({ message, isCurrentUser, onPlay, onPause, onEnded }: Audio
                 size="icon"
                 onClick={handlePlayPause}
                 className={cn(
-                    "w-10 h-10 rounded-full flex-shrink-0 transition-all duration-200 bg-black/20 hover:bg-black/30 text-white focus-visible:ring-offset-primary",
+                    "w-10 h-10 rounded-full flex-shrink-0 transition-all duration-200 bg-black hover:bg-zinc-800 text-white focus-visible:ring-offset-primary",
                     isDisabled && "opacity-50 cursor-not-allowed"
                 )}
                 aria-label={isPlaying ? "Pause audio" : "Play audio"}
@@ -205,14 +206,15 @@ const AudioPlayer = ({ message, isCurrentUser, onPlay, onPause, onEnded }: Audio
                     <Play size={20} className="ml-0.5 text-white" aria-hidden="true" />
                 )}
             </Button>
-
-            <div className="flex-grow flex flex-col justify-center gap-2 w-full min-w-[100px]">
+            
+            <div className="flex-grow flex items-center gap-2 w-full min-w-[100px]">
+                <span className="text-[0.6rem] font-mono opacity-80 select-none flex-shrink-0">{formatTime(currentTime)}</span>
                 <Slider
                     value={[currentTime]}
                     max={duration > 0 ? duration : 1}
                     step={0.1}
                     onValueChange={handleSeek}
-                    className="w-full h-1"
+                    className="w-full h-1 flex-grow"
                     classNames={{
                         track: cn('h-1.5 rounded-full', sliderTrackClass),
                         range: cn('h-1.5 rounded-full', sliderRangeClass),
@@ -221,11 +223,9 @@ const AudioPlayer = ({ message, isCurrentUser, onPlay, onPause, onEnded }: Audio
                     aria-label="Audio playback progress"
                     disabled={isDisabled}
                 />
-                 <div className="flex justify-between text-[0.7rem] font-medium opacity-80 select-none">
-                    <span>{formatTime(currentTime)}</span>
-                    <span>{formatTime(duration)}</span>
-                </div>
+                 <span className="text-[0.6rem] font-mono opacity-80 select-none flex-shrink-0">{formatTime(duration)}</span>
             </div>
+
 
             <Button
                 variant="ghost"
