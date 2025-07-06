@@ -78,11 +78,14 @@ async def get_cloudinary_upload_signature(
             ])
         elif request.resource_type == "video":
             eager_transformations.extend([
+                # Video specific transformations
                 {"format": "mp4", "quality": "auto:low", "video_codec": "auto"},
                 {"streaming_profile": "auto", "format": "m3u8"},
                 {"streaming_profile": "auto", "format": "mpd"},
                 {"format": "jpg", "start_offset": "1", "width": 400, "crop": "scale"},
-                {"format": "gif", "duration": "5", "width": 250, "crop": "fill"}
+                {"format": "gif", "duration": "5", "width": 250, "crop": "fill"},
+                # Audio-specific transformation
+                {"format": "mp3", "audio_codec": "mp3"}
             ])
 
         if eager_transformations:

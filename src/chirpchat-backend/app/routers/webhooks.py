@@ -92,6 +92,8 @@ def map_eager_to_urls(eager_list: Optional[List[EagerTransformation]], resource_
                 urls["animated_preview"] = t.secure_url
             if t.format == "mp4":
                 urls["mp4_video"] = t.secure_url
+            if t.format == "mp3":
+                urls["mp3_audio"] = t.secure_url
     return urls
 
 
@@ -138,7 +140,7 @@ async def handle_cloudinary_media_processed(
         "resource_type": payload.resource_type,
         "format": payload.format,
         "bytes": payload.bytes,
-        "duration": payload.duration,
+        "duration_seconds": payload.duration,
         "width": payload.width,
         "height": payload.height,
         "urls": {
