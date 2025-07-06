@@ -16,6 +16,13 @@ interface AudioPlayerProps {
     isCurrentUser: boolean;
 }
 
+function formatTime(seconds: number): string {
+    const roundedSeconds = Math.round(seconds);
+    const minutes = Math.floor(roundedSeconds / 60);
+    const remainingSeconds = roundedSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
 const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -115,12 +122,16 @@ const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
                     onValueChange={handleSeek}
                     className="w-full h-1"
                     classNames={{
-                      track: cn('h-1', sliderTrackClass),
-                      range: cn('h-1', sliderRangeClass),
-                      thumb: cn('h-3 w-3', sliderThumbClass)
+                      track: sliderTrackClass,
+                      range: sliderRangeClass,
+                      thumb: sliderThumbClass
                     }}
                     aria-label="Seek audio"
                  />
+                 <div className="flex justify-between">
+                    <span className="text-xs font-mono opacity-80">{formatTime(currentTime)}</span>
+                    <span className="text-xs font-mono opacity-80">{formatTime(duration)}</span>
+                 </div>
             </div>
             
             <Button variant="ghost" size="sm" onClick={handleTogglePlaybackRate} className={cn("w-12 h-8 rounded-full text-xs font-mono", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')}>
