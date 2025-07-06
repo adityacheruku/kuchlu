@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -8,14 +8,41 @@ from app.notifications.service import notification_service
 from app.database import db_manager
 from app.websocket import manager as ws_manager
 from app.utils.logging import logger
-from app.actions.schemas import MoodUpdatePayload
+from app.actions.schemas import MoodUpdatePayload, MoodPingPayload
+from app.analytics.schemas import MoodAnalyticsCreate, MoodAnalyticsContext
 
 router = APIRouter(prefix="/actions", tags=["Quick Actions"])
+
+async def _track_mood_analytics(user_id: UUID, mood_id: str):
+    """Helper function to be run in the background for tracking mood analytics."""
+    now = datetime.now(timezone.utc)
+    day_of_week = now.strftime('%A').lower()
+    time_of_day = 'night'
+    if 5 <= now.hour < 12: time_of_day = 'morning'
+    elif 12 <= now.hour < 17: time_of_day = 'afternoon'
+    elif 17 <= now.hour < 21: time_of_day = 'evening'
+    
+    analytics_payload = MoodAnalyticsCreate(
+        mood_id=mood_id,
+        context=MoodAnalyticsContext(time_of_day=time_of_day, day_of_week=day_of_week)
+    )
+    analytics_data = {
+        "user_id": str(user_id),
+        "mood_id": analytics_payload.mood_id,
+        "context": analytics_payload.context.model_dump_json(),
+        "created_at": now.isoformat(),
+    }
+    try:
+        await db_manager.admin_client.table("mood_analytics").insert(analytics_data).execute()
+    except Exception as e:
+        logger.error(f"Failed to log mood analytics for user {user_id}: {e}", exc_info=True)
+
 
 @router.post("/update-mood", response_model=UserPublic)
 async def update_mood(
     payload: MoodUpdatePayload,
-    current_user: UserPublic = Depends(get_current_active_user)
+    current_user: UserPublic = Depends(get_current_active_user),
+    background_tasks: BackgroundTasks = Depends()
 ):
     """
     Updates the user's mood and notifies their partner.
@@ -28,7 +55,6 @@ async def update_mood(
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     
-    # 1. Update the user's mood in the database
     updated_user_response_obj = await db_manager.get_table("users").update(update_data).eq("id", str(current_user.id)).select().single().execute()
     
     if not updated_user_response_obj.data:
@@ -36,12 +62,37 @@ async def update_mood(
 
     updated_user = UserPublic.model_validate(updated_user_response_obj.data)
 
-    # 2. Broadcast the mood update via WebSocket to the partner
+    background_tasks.add_task(_track_mood_analytics, current_user.id, payload.mood)
     await ws_manager.broadcast_user_profile_update(user_id=current_user.id, updated_data={"mood": updated_user.mood})
     
-    # 3. Send a push notification to the partner (if they are offline)
-    # The notification service will automatically check for DND status.
     if updated_user.partner_id and updated_user.mood != current_user.mood:
         await notification_service.send_mood_change_notification(user=updated_user, new_mood=updated_user.mood)
         
     return updated_user
+
+@router.post("/ping-mood", status_code=status.HTTP_200_OK)
+async def ping_mood(
+    payload: MoodPingPayload,
+    current_user: UserPublic = Depends(get_current_active_user),
+    background_tasks: BackgroundTasks = Depends()
+):
+    """
+    Sends a one-time mood notification to the user's partner.
+    This action is checked against the recipient's DND settings.
+    It also logs this action for analytics.
+    """
+    if not current_user.partner_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You do not have a partner to send a mood to.")
+    
+    logger.info(f"User {current_user.id} sending mood ping '{payload.mood_id}' to partner {current_user.partner_id}.")
+
+    background_tasks.add_task(_track_mood_analytics, current_user.id, payload.mood_id)
+    
+    await notification_service.send_mood_ping_notification(
+        sender=current_user,
+        recipient_id=current_user.partner_id,
+        mood_id=payload.mood_id,
+        mood_emoji=payload.mood_emoji
+    )
+
+    return {"status": "Mood ping sent"}

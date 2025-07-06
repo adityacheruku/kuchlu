@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from uuid import UUID
 import datetime
 
@@ -24,6 +24,8 @@ class NotificationSettingsUpdate(BaseModel):
     quiet_hours_weekdays_only: Optional[bool] = None
     timezone: Optional[str] = Field(None, max_length=50)
     is_dnd_enabled: Optional[bool] = None
+    custom_moods: Optional[List[Dict[str, str]]] = None # e.g., [{ "id": "Studying", "emoji": "📚" }]
+    quick_moods: Optional[List[str]] = None # e.g., ["Happy", "Sad", "Studying"]
 
 class NotificationSettingsResponse(BaseModel):
     user_id: UUID
@@ -38,6 +40,8 @@ class NotificationSettingsResponse(BaseModel):
     quiet_hours_weekdays_only: bool
     timezone: str
     is_dnd_enabled: bool
+    custom_moods: List[Dict[str, str]] = Field(default_factory=list)
+    quick_moods: List[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

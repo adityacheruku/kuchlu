@@ -74,7 +74,6 @@ class NotificationService:
         settings = await self._get_user_notification_settings(user_id)
         if not settings or not settings.get(notification_type, False): return
         
-        # Check DND status first
         if settings.get("is_dnd_enabled", False):
             logger.info(f"Notification to user {user_id} suppressed due to DND mode.")
             return
@@ -124,6 +123,17 @@ class NotificationService:
          payload = {"type": "thinking_of_you", "title": f"{sender.display_name} is thinking of you!", "options": {"body": "Send a thought back from the app.", "icon": sender.avatar_url, "badge": "/icons/badge-96x96.png", "tag": f"ping-{sender.id}-{recipient_id}", "data": {"senderId": str(sender.id)}}}
          await self._send_notification_to_user(recipient_id, "thinking_of_you", payload)
 
-notification_service = NotificationService()
+    async def send_mood_ping_notification(self, sender: UserPublic, recipient_id: UUID, mood_id: str, mood_emoji: str):
+        payload = {
+            "type": "mood_ping",
+            "title": f"{sender.display_name} is feeling {mood_id} {mood_emoji}",
+            "options": {
+                "body": "They wanted to share this mood with you.",
+                "icon": sender.avatar_url,
+                "tag": f"moodping-{sender.id}-{recipient_id}",
+                "data": {"senderId": str(sender.id), "mood": mood_id}
+            }
+        }
+        await self._send_notification_to_user(recipient_id, "mood_updates", payload)
 
-    
+notification_service = NotificationService()
