@@ -179,7 +179,7 @@ async def handle_mark_as_read(data: Dict[str, Any], current_user: UserPublic):
     if msg_resp.data["status"] == "read_by_recipient": return
     
     read_at_iso = datetime.now(timezone.utc).isoformat()
-    update_resp = await db_manager.get_table("messages").update({ "status": "read_by_recipient", "read_at": read_at_iso, "updated_at": "now()" }).eq("id", str(message_id)).execute()
+    update_resp = await db_manager.get_table("messages").update({ "status": "read_by_recipient", "updated_at": "now()" }).eq("id", str(message_id)).execute()
 
     if update_resp.data:
         await ws_manager.broadcast_message_status_update(

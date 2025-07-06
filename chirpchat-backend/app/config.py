@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
+    CLOUDINARY_WEBHOOK_URL: Optional[str] = None
+    API_BASE_URL: str = "http://localhost:8000"
     HUGGINGFACE_API_KEY: Optional[str] = None
     HUGGINGFACE_MOOD_MODEL_URL: Optional[str] = None
     NOTIFICATION_EMAIL_TO: Optional[str] = None

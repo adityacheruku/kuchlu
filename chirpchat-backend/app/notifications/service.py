@@ -116,3 +116,5 @@ class NotificationService:
          await self._send_notification_to_user(recipient_id, "thinking_of_you", payload)
 
 notification_service = NotificationService()
+
+    

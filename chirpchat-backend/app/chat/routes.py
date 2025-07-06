@@ -1,6 +1,6 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime, timezone
@@ -18,6 +18,7 @@ from app.database import db_manager
 from app.websocket import manager as ws_manager
 from app.utils.logging import logger 
 from app.notifications.service import notification_service
+from app.routers.uploads import delete_cloudinary_asset
 import uuid
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
@@ -70,11 +71,19 @@ async def get_chat_list_for_user(user_id: UUID) -> List[ChatResponse]:
         return []
 
 @router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_message(message_id: UUID, chat_id: UUID = Query(...), current_user: UserPublic = Depends(get_current_user)):
+async def delete_message(message_id: UUID, background_tasks: BackgroundTasks, chat_id: UUID = Query(...), current_user: UserPublic = Depends(get_current_user)):
     logger.info(f"User {current_user.id} attempting to delete message {message_id} from chat {chat_id}")
-    msg_resp = await db_manager.get_table("messages").select("user_id, chat_id").eq("id", str(message_id)).single().execute()
+    msg_resp = await db_manager.get_table("messages").select("user_id, chat_id, file_metadata").eq("id", str(message_id)).single().execute()
     if not msg_resp.data: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     if str(msg_resp.data["user_id"]) != str(current_user.id) or str(msg_resp.data["chat_id"]) != str(chat_id): raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own messages.")
+
+    file_metadata = msg_resp.data.get("file_metadata")
+    if file_metadata and isinstance(file_metadata, dict):
+        public_id = file_metadata.get("public_id")
+        resource_type = file_metadata.get("resource_type")
+        if public_id and resource_type:
+            background_tasks.add_task(delete_cloudinary_asset, public_id=public_id, resource_type=resource_type)
+
     await db_manager.get_table("messages").delete().eq("id", str(message_id)).execute()
     await ws_manager.broadcast_message_deletion(str(chat_id), str(message_id))
     return None

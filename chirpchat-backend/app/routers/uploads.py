@@ -1,8 +1,9 @@
+
 import os
 import time
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
-from typing import Literal, Optional, List, Dict, Any # Import Any
+from typing import Literal, Optional, List, Dict, Any
 
 import cloudinary
 from cloudinary.utils import api_sign_request
@@ -26,9 +27,6 @@ class GetUploadSignatureRequest(BaseModel):
     public_id: str
     resource_type: Literal["image", "video", "raw", "auto"] = "auto"
     folder: str = "user_media_uploads"
-    # NEW: Add upload_preset to the request if client decides it, or hardcode it in backend
-    # For simplicity, let's hardcode it in backend for now, as it's part of the preset setup.
-    # If client needs to choose, add it here.
 
 class UploadSignatureResponse(BaseModel):
     signature: str
@@ -38,9 +36,10 @@ class UploadSignatureResponse(BaseModel):
     public_id: str
     folder: str
     resource_type: str
-    upload_preset: str # <--- NEW: Add this to the response model
+    upload_preset: str
     eager: Optional[str] = None
     notification_url: Optional[str] = None
+    type: str # Added type for 'private' uploads
 
 @router.post("/get-cloudinary-upload-signature", response_model=UploadSignatureResponse, summary="Generate a signature for direct Cloudinary upload")
 async def get_cloudinary_upload_signature(
@@ -54,9 +53,7 @@ async def get_cloudinary_upload_signature(
     try:
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
-
-        # NEW: Define the upload preset name
-        upload_preset_name = "my_signed__upload_preset" # <--- MUST BE EXACTLY YOUR PRESET NAME!
+        upload_preset_name = "app_media_upload"
 
         if not settings.CLOUDINARY_WEBHOOK_URL:
             logger.error("CLOUDINARY_WEBHOOK_URL is not configured in the environment.")
@@ -71,7 +68,7 @@ async def get_cloudinary_upload_signature(
             "resource_type": request.resource_type,
             "type": "private", # This is the 'type' parameter (e.g., 'upload', 'private', 'authenticated')
             "notification_url": notification_url,
-            "upload_preset": upload_preset_name, # <--- NEW: Include upload_preset in signed params
+            "upload_preset": upload_preset_name,
         }
 
         eager_transformations: List[Dict[str, Any]] = []
@@ -83,28 +80,21 @@ async def get_cloudinary_upload_signature(
         elif request.resource_type == "video":
             eager_transformations.extend([
                 {"format": "mp4", "quality": "auto:low", "video_codec": "auto"},
+                {"format": "mp3"},
                 {"streaming_profile": "auto", "format": "m3u8"},
-                {"streaming_profile": "auto", "format": "mpd"},
                 {"format": "jpg", "start_offset": "1", "width": 400, "crop": "scale"},
                 {"format": "gif", "duration": "5", "width": 250, "crop": "fill"}
             ])
-        elif request.resource_type == "raw": # For documents, audio (if not video type)
-            # No eager transformations for raw files typically, or specific document transforms
-            pass
-        elif request.resource_type == "auto": # Handle auto detection if needed
-            # You might want to infer type from public_id or file extension here
-            pass
-
+        elif request.resource_type == "raw":
+            eager_transformations.extend([
+                {"format": "mp3"}
+            ])
 
         if eager_transformations:
-            # Cloudinary expects eager transformations as a list of dictionaries,
-            # but api_sign_request expects a string representation.
-            # The way you're building eager_strings is correct for signing.
             eager_strings = []
             for t in eager_transformations:
-                # Ensure keys are sorted for consistent signing if not already
                 sorted_t_items = sorted(t.items())
-                eager_strings.append(",".join([f"{k}_{v}" for k, v in sorted_t_items]))
+                eager_strings.append("/".join([f"{k}_{v}" for k, v in sorted_t_items]))
             params_to_sign["eager"] = "|".join(eager_strings)
 
         logger.info(f"Parameters to sign: {params_to_sign}")
@@ -118,12 +108,34 @@ async def get_cloudinary_upload_signature(
             public_id=request.public_id,
             folder=final_folder,
             resource_type=request.resource_type,
-            upload_preset=upload_preset_name, # <--- NEW: Return the preset name
+            upload_preset=upload_preset_name,
             eager=params_to_sign.get("eager"),
-            notification_url=notification_url
+            notification_url=notification_url,
+            type="private"
         )
-    except HTTPException: # Re-raise FastAPI HTTPExceptions directly
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error generating Cloudinary signature: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not generate upload signature.")
+
+async def delete_cloudinary_asset(public_id: str, resource_type: str):
+    """
+    Asynchronously deletes a media asset from Cloudinary.
+    Intended to be run as a background task.
+    """
+    try:
+        logger.info(f"Background task: Deleting Cloudinary asset {public_id} (Type: {resource_type})")
+        result = cloudinary.uploader.destroy(
+            public_id,
+            resource_type=resource_type,
+            invalidate=True
+        )
+        if result.get("result") == "ok":
+            logger.info(f"Successfully deleted Cloudinary asset: {public_id}")
+        elif result.get("result") == "not found":
+            logger.warning(f"Cloudinary asset {public_id} not found, assuming already deleted.")
+        else:
+            logger.error(f"Cloudinary API reported an error for asset {public_id}: {result.get('error', 'Unknown error')}")
+    except Exception as e:
+        logger.error(f"Exception during Cloudinary deletion for asset {public_id}: {e}", exc_info=True)

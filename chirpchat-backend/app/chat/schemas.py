@@ -43,6 +43,7 @@ class MessageBase(BaseModel):
     clip_url: Optional[str] = None
     image_url: Optional[str] = None
     image_thumbnail_url: Optional[str] = None
+    preview_url: Optional[str] = None
     document_url: Optional[str] = None
     document_name: Optional[str] = None
     duration_seconds: Optional[int] = None
