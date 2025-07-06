@@ -25,15 +25,15 @@ cloudinary.config(
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 class GetUploadSignatureRequest(BaseModel):
-    public_id: Optional[str] = None
-    folder: str = "user_uploads" # Default folder as per plan
+    public_id: str
+    folder: str = "user_uploads"
 
 class UploadSignatureResponse(BaseModel):
     signature: str
     timestamp: int
     api_key: str
     cloud_name: str
-    public_id: Optional[str] = None
+    public_id: str
     folder: str
     upload_preset: str
 
@@ -50,18 +50,16 @@ async def get_cloudinary_upload_signature(
     try:
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
-        # Use the upload preset name from the plan
         upload_preset = "app_media_upload" 
         
         params_to_sign: Dict[str, Any] = {
             "timestamp": timestamp,
             "upload_preset": upload_preset,
             "folder": final_folder,
+            "public_id": request.public_id,
         }
-        if request.public_id:
-            params_to_sign["public_id"] = request.public_id
         
-        signature = api_sign_request(params_to_sign, settings.CLOUDINARY_API_SECRET)
+        signature = cloudinary.utils.api_sign_request(params_to_sign, settings.CLOUDINARY_API_SECRET)
         
         return UploadSignatureResponse(
             signature=signature,
@@ -87,7 +85,7 @@ async def delete_cloudinary_asset(public_id: str, resource_type: str):
         result = cloudinary.uploader.destroy(
             public_id,
             resource_type=resource_type,
-            invalidate=True  # Invalidate CDN cache
+            invalidate=True
         )
         if result.get("result") == "ok":
             logger.info(f"Successfully deleted Cloudinary asset: {public_id}")
@@ -97,5 +95,3 @@ async def delete_cloudinary_asset(public_id: str, resource_type: str):
             logger.error(f"Cloudinary API reported an error for asset {public_id}: {result.get('error', 'Unknown error')}")
     except Exception as e:
         logger.error(f"Exception during Cloudinary deletion for asset {public_id}: {e}", exc_info=True)
-        # In a production system, you might re-queue this task or send it to a dead-letter queue.
-

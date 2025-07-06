@@ -91,24 +91,17 @@ class UploadManager {
     emitProgress({ messageId: item.messageId, status: 'processing', progress: 0 });
     
     try {
-        // Client-side processing is removed. We upload the raw file directly.
         const fileToUpload: Blob = item.file;
         let thumbnailDataUrl: string | undefined = item.thumbnailDataUrl;
 
-        // Generate a local preview URL for images if one doesn't exist
         if (!thumbnailDataUrl && item.file.type.startsWith('image/')) {
             thumbnailDataUrl = URL.createObjectURL(item.file);
         }
 
         item.status = 'uploading';
         emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
-
-        const resourceType = (item.subtype === 'image') ? 'image' : 'video';
-        const signatureResponse = await api.getCloudinaryUploadSignature({
-            public_id: item.id,
-            folder: "kuchlu_chat_media",
-            resource_type: resourceType
-        });
+        
+        const signatureResponse = await api.getCloudinaryUploadSignature({ public_id: item.id });
         
         const formData = new FormData();
         formData.append('file', fileToUpload);
@@ -119,6 +112,7 @@ class UploadManager {
         formData.append('folder', signatureResponse.folder);
         formData.append('upload_preset', signatureResponse.upload_preset);
 
+        const resourceType = item.subtype === 'image' ? 'image' : 'video';
         const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${resourceType}/upload`;
         
         const xhr = new XMLHttpRequest();
@@ -160,13 +154,10 @@ class UploadManager {
             xhr.send(formData);
         });
         
-        // After successful upload, we wait for the webhook to finalize the state.
         this.updateUploadStatus(item.id, 'pending_processing');
 
     } catch (error: any) {
-        if (error.name === 'AbortError') {
-             // Already handled in onabort
-        } else {
+        if (error.name !== 'AbortError') {
             console.error('Upload failed for item:', item.id, error);
             this.updateUploadStatus(item.id, 'failed', {
                 code: error.code || UploadErrorCode.SERVER_ERROR,
@@ -198,7 +189,7 @@ class UploadManager {
           item.error = error;
           emitProgress({ messageId: item.messageId, status, progress: status === 'completed' || status === 'pending_processing' ? 100 : item.progress, error });
 
-          if (status === 'cancelled' || status === 'failed') {
+          if (status === 'completed' || status === 'cancelled' || (status === 'failed' && !error?.retryable)) {
               this.queue.splice(itemIndex, 1);
               await storageService.removeUploadItem(item.id);
           } else {
@@ -222,7 +213,7 @@ class UploadManager {
 
       const xhr = this.activeUploads.get(itemToCancel.id);
       if (xhr) {
-          xhr.abort(); // This will trigger the onabort handler.
+          xhr.abort();
       } else if (itemToCancel.status === 'pending') {
           this.updateUploadStatus(itemToCancel.id, 'cancelled');
       }
