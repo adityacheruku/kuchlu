@@ -1,4 +1,3 @@
-
 // ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
 import { memo, type RefObject, useEffect } from 'react';
 import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
@@ -47,10 +46,12 @@ interface MessageAreaProps {
 interface MessageBubbleWithObserverProps extends MessageBubbleProps {
   onMarkAsRead: (messageId: string, chatId: string) => void;
   infoMessageId: string | null;
+  currentUser: User;
+  selectedMessageIds: Set<string>;
 }
 
 const MessageBubbleWithObserver = (props: MessageBubbleWithObserverProps) => {
-    const { message, currentUser, onMarkAsRead, isSelectionMode, selectedMessageIds, infoMessageId } = props;
+    const { message, currentUser, onMarkAsRead, isSelectionMode, selectedMessageIds, infoMessageId, allUsers } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
         triggerOnce: true,
@@ -87,7 +88,7 @@ const MessageBubbleWithObserver = (props: MessageBubbleWithObserverProps) => {
         )
     }
 
-    const sender = props.allUsers[message.user_id] || (message.user_id === props.currentUser.id ? props.currentUser : null);
+    const sender = allUsers[message.user_id] || (message.user_id === currentUser.id ? currentUser : null);
     if (!sender) {
         console.warn("Sender not found for message:", message.id, "senderId:", message.user_id);
         return null; // Don't render if sender can't be found
@@ -160,7 +161,7 @@ function MessageArea({
               onShowDocumentPreview={onShowDocumentPreview}
               onShowInfo={onShowInfo}
               onRetrySend={onRetrySend}
-              onDeleteMessage={() => onDeleteMessage(msg)} 
+              onDeleteMessage={() => onDeleteMessage(msg)}
               onSetReplyingTo={onSetReplyingTo}
               isSelectionMode={isSelectionMode}
               selectedMessageIds={selectedMessageIds}
@@ -168,7 +169,6 @@ function MessageArea({
               onToggleMessageSelection={onToggleMessageSelection}
               onMarkAsRead={onMarkAsRead}
               infoMessageId={infoMessageId}
-              // These props are part of MessageBubbleProps and are passed correctly
               sender={allUsers[msg.user_id] || currentUser}
               isCurrentUser={msg.user_id === currentUser.id}
               currentUserId={currentUser.id}
