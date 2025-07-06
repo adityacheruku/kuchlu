@@ -74,18 +74,48 @@ async def get_notification_settings(
 ):
     """
     Retrieves the current user's notification preferences.
+    If settings don't exist, it creates and returns default settings.
     """
     logger.info(f"Fetching notification settings for user {current_user.id}")
     try:
         settings_resp = await db_manager.get_table("user_notification_settings").select("*").eq("user_id", str(current_user.id)).maybe_single().execute()
-        if not settings_resp or not settings_resp.data:
-            logger.warning(f"No notification settings found for user {current_user.id}, this shouldn't happen due to trigger.")
-            raise HTTPException(status_code=404, detail="Notification settings not found")
         
+        if not settings_resp or not settings_resp.data:
+            logger.warning(f"No notification settings found for user {current_user.id}. Creating default settings.")
+            
+            # Create default settings
+            default_settings = {
+                "user_id": str(current_user.id),
+                "messages": True,
+                "mood_updates": True,
+                "thinking_of_you": True,
+                "voice_messages": True,
+                "media_sharing": True,
+                "quiet_hours_enabled": False,
+                "quiet_hours_start": None,
+                "quiet_hours_end": None,
+                "quiet_hours_weekdays_only": False,
+                "timezone": "UTC",
+                "is_dnd_enabled": False,
+                "custom_moods": [],
+                "quick_moods": [],
+            }
+            
+            # Insert default settings into the database
+            insert_resp = await db_manager.admin_client.table("user_notification_settings").insert(default_settings).execute()
+            
+            if not insert_resp.data:
+                raise HTTPException(status_code=500, detail="Failed to create default notification settings.")
+            
+            # Return the newly created settings
+            return NotificationSettingsResponse(**insert_resp.data[0])
+
+        # If settings were found, return them
         return NotificationSettingsResponse(**settings_resp.data)
+
     except APIError as e:
-        logger.error(f"Error fetching notification settings for user {current_user.id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve notification settings")
+        logger.error(f"Error fetching/creating notification settings for user {current_user.id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve or create notification settings.")
 
 @router.put("/settings", response_model=NotificationSettingsResponse)
 async def update_notification_settings(
@@ -111,9 +141,7 @@ async def update_notification_settings(
         if not updated_settings_resp or not updated_settings_resp.data:
              raise HTTPException(status_code=404, detail="Failed to update settings or user not found")
 
-        return NotificationSettingsResponse(**updated_settings_resp.data[0])
+        return NotificationSettingsResponse(**updated_settings_resp.data)
     except APIError as e:
         logger.error(f"Error updating notification settings for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not update notification settings")
-
-    
