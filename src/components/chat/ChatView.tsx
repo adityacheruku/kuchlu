@@ -14,6 +14,7 @@ import InputBar from '@/components/ui/../chat/InputBar';
 import FullPageLoader from '@/components/common/FullPageLoader';
 import Spinner from '@/components/common/Spinner';
 import dynamic from 'next/dynamic';
+import { api } from '@/services/api';
 
 import {
   AlertDialog,
@@ -72,6 +73,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
       pullY,
       isPulling,
       activationThreshold,
+      viewportRef,
       
       // Modals State
       isMoodModalOpen,
@@ -157,7 +159,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
   }, [currentUser, fetchAndUpdateUser, toast, handleContinueWithCurrentMood]);
 
   if (isChatLoading || !currentUser) return <FullPageLoader />;
-  if (!otherUser || !activeChatId) return <div className="flex min-h-screen items-center justify-center bg-background p-4 text-center"><div><FullPageLoader /><p className="text-lg text-foreground">Setting up your chat...</p>{chatSetupErrorMessage && <p className="text-destructive mt-2">{chatSetupErrorMessage}</p>}</div></div>;
+  if (!otherUser || !activeChatId || !messages) return <div className="flex min-h-screen items-center justify-center bg-background p-4 text-center"><div><FullPageLoader /><p className="text-lg text-foreground">Setting up your chat...</p>{chatSetupErrorMessage && <p className="text-destructive mt-2">{chatSetupErrorMessage}</p>}</div></div>;
   
   const allUsersForComponents = { [currentUser.id]: currentUser, [otherUser.id]: otherUser };
   const isInputDisabled = protocol === 'disconnected' || isSelectionMode;
@@ -219,6 +221,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 activationThreshold={activationThreshold}
+                viewportRef={viewportRef}
             />
             <InputBar
                 onSendMessage={handleSendMessage}

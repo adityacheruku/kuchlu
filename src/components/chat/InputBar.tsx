@@ -49,8 +49,8 @@ const AttachmentPreview = ({ file, onRemove }: { file: File; onRemove: () => voi
         <Image src={fileUrl} alt={file.name} fill sizes="64px" className="object-cover" />
       ) : file.type.startsWith('audio/') ? (
          <div className="flex flex-col items-center justify-center h-full p-1 text-center bg-primary/20">
-          <Mic className="w-6 h-6 text-primary" />
-          <span className="text-xs truncate text-primary/80">Voice</span>
+          <Music className="w-6 h-6 text-primary" />
+          <span className="text-xs truncate text-primary/80">Audio</span>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center h-full p-1 text-center">
@@ -194,8 +194,7 @@ function InputBar({
     if (!files) return;
     const newAttachments = Array.from(files).map(file => {
         const validation = validateFile(file);
-        let subtype: MessageSubtype = validation.fileType;
-        if (validation.fileType === 'video') subtype = 'clip';
+        let subtype: MessageSubtype = validation.fileType === 'video' ? 'clip' : validation.fileType;
         return { file, subtype };
     });
     setStagedAttachments(prev => [...prev, ...newAttachments]);
@@ -257,7 +256,7 @@ function InputBar({
     }
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        await Haptics.vibrate();
+        await Haptics.impact();
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
         mediaRecorderRef.current.ondataavailable = (event) => audioChunksRef.current.push(event.data);
@@ -306,11 +305,11 @@ function InputBar({
     });
 
     setMessageText(''); setStagedAttachments([]); setEmojiSearch(''); onTyping(false);
-  }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio, onTyping, chatMode, replyingTo]);
+    if(replyingTo) onCancelReply();
+  }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio, onTyping, chatMode, replyingTo, onCancelReply]);
   
   const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0, [messageText, stagedAttachments]);
-  const showSmileButton = useMemo(() => isInputFocused || showSendButton, [isInputFocused, showSendButton]);
-
+  
   const handleMicOrSendClick = useCallback(() => {
     if (isRecording) {
       handleStopAndSendRecording();
@@ -490,9 +489,10 @@ function InputBar({
                         variant="ghost" size="icon" type="button"
                         className={cn(
                             'rounded-full h-11 w-11 flex-shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-accent transition-all duration-300 ease-in-out',
-                            showSmileButton ? 'scale-100 opacity-100' : 'scale-0 opacity-0 w-0'
+                            (isInputFocused || showSendButton) && 'scale-100 opacity-100',
+                            !isInputFocused && !showSendButton && 'scale-0 opacity-0 w-0'
                         )}
-                        disabled={!showSmileButton || disabled} aria-label="Open emoji and sticker panel"
+                        disabled={disabled} aria-label="Open emoji and sticker panel"
                     >
                         <Smile size={22} />
                     </Button>

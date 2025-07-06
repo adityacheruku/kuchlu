@@ -69,6 +69,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const pendingMessageTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const startY = useRef(0);
+    const viewportRef = useRef<HTMLDivElement>(null);
 
     const setMessageAsFailed = useCallback((clientTempId: string) => {
         storageService.updateMessage(clientTempId, { status: 'failed' });
@@ -112,10 +113,10 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onUserProfileUpdate: (data) => { setOtherUser(prev => (prev && data.user_id === prev.id) ? { ...prev, ...data } : prev); if (otherUser && data.user_id === otherUser.id) storageService.upsertUser({ ...otherUser, ...data })},
         onMessageAck: handleMessageAck,
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
-        onMessageDeleted: (data) => { const placeholder: Message = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
+        onMessageDeleted: (data) => { const placeholder: MessageType = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
         onChatHistoryCleared: (chatId) => { if(activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete(); },
         onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id, data.message),
-        onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status }),
+        onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
 
     const sendMessageWithTimeout = useCallback((messagePayload: any) => {
@@ -152,7 +153,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     useEffect(() => { performLoadChatData(); }, [performLoadChatData]);
 
     const loadMoreMessages = useCallback(async () => {
-        if (isLoadingMore || !hasMoreMessages || !activeChatId || messages.length === 0) return;
+        if (isLoadingMore || !hasMoreMessages || !activeChatId || !messages || messages.length === 0) return;
         setIsLoadingMore(true);
         try {
             const oldestMessage = messages[0];
@@ -199,7 +200,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     }, [currentUser, activeChatId, sendMessageWithTimeout]);
 
     const handleToggleReaction = useCallback(async (messageId: string, emoji: SupportedEmoji) => {
-        if (!currentUser || !activeChatId || messages.find(m => m.id === messageId)?.mode === 'incognito') return;
+        if (!currentUser || !activeChatId || !messages || messages.find(m => m.id === messageId)?.mode === 'incognito') return;
         const message = messages.find(m => m.id === messageId);
         if(message) {
             const r = { ...message.reactions }; if (!r[emoji]) r[emoji] = []; const i = r[emoji]!.indexOf(currentUser.id); if (i > -1) r[emoji]!.splice(i, 1); else r[emoji]!.push(currentUser.id); if (r[emoji]!.length === 0) delete r[emoji];
@@ -214,7 +215,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     }, []);
 
     const handleDeleteSelected = useCallback(async (deleteType: DeleteType) => {
-        if (!activeChatId || !currentUser) return;
+        if (!activeChatId || !currentUser || !messages) return;
         const messagesToDelete = messages.filter(m => selectedMessageIds.has(m.id));
         if (deleteType === 'everyone') {
             for (const msg of messagesToDelete) await api.deleteMessageForEveryone(msg.id, activeChatId);
@@ -239,11 +240,11 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const handleEnterSelectionMode = useCallback((messageId: string) => { setIsSelectionMode(true); setSelectedMessageIds(new Set([messageId])); }, []);
     const handleExitSelectionMode = useCallback(() => { setIsSelectionMode(false); setSelectedMessageIds(new Set()); }, []);
     const handleToggleMessageSelection = useCallback((messageId: string) => { setSelectedMessageIds(prev => { const newSet = new Set(prev); if (newSet.has(messageId)) newSet.delete(messageId); else newSet.add(messageId); if (newSet.size === 0) setIsSelectionMode(false); return newSet; }); }, [setIsSelectionMode]);
-    const handleCopySelected = useCallback(() => { const text = messages.filter(m => selectedMessageIds.has(m.id)).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(m => `[${new Date(m.created_at).toLocaleTimeString()}] ${allUsers[m.user_id]?.display_name}: ${m.text || 'Attachment'}`).join('\n'); navigator.clipboard.writeText(text); toast({ title: "Copied!", description: `${selectedMessageIds.size} messages copied.` }); handleExitSelectionMode(); }, [messages, selectedMessageIds, toast, handleExitSelectionMode, allUsers]);
+    const handleCopySelected = useCallback(() => { if (!messages) return; const text = messages.filter(m => selectedMessageIds.has(m.id)).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(m => `[${new Date(m.created_at).toLocaleTimeString()}] ${otherUser?.display_name}: ${m.text || 'Attachment'}`).join('\n'); navigator.clipboard.writeText(text); toast({ title: "Copied!", description: `${selectedMessageIds.size} messages copied.` }); handleExitSelectionMode(); }, [messages, selectedMessageIds, toast, handleExitSelectionMode, otherUser]);
     const handleShareSelected = useCallback(async () => { /* ... sharing logic ... */ handleExitSelectionMode(); }, [handleExitSelectionMode]);
     
     // Gesture handlers
-    const handlePointerDown = (e: React.PointerEvent) => { if ((e.currentTarget as HTMLElement).scrollTop === 0) { startY.current = e.clientY; setIsPulling(true); }};
+    const handlePointerDown = (e: React.PointerEvent) => { if (viewportRef.current?.scrollTop === 0) { startY.current = e.clientY; setIsPulling(true); }};
     const handlePointerMove = (e: React.PointerEvent) => { if (!isPulling) return; const diffY = e.clientY - startY.current; if (diffY > 0) { e.preventDefault(); setPullY(Math.min(diffY, 150)); }};
     const handlePointerUp = () => { if (!isPulling) return; if (pullY > ACTIVATION_THRESHOLD) { Haptics.impact({ style: ImpactStyle.Medium }); setIsModeSelectorOpen(true); } setIsPulling(false); setPullY(0); };
 
@@ -263,6 +264,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
 
     return {
         currentUser, otherUser, messages, activeChatId, chatMode, dynamicBgClass, protocol, isBrowserOnline, isChatLoading, chatSetupErrorMessage, isLoadingMore, hasMoreMessages, typingUsers, activeThoughtNotificationFor, isSelectionMode, selectedMessageIds, replyingTo, pullY, isPulling, activationThreshold,
+        viewportRef,
         isMoodModalOpen, initialMoodOnLoad, reactionModalData, mediaModalData, documentPreview, messageInfo, isModeSelectorOpen, isDeleteDialogOpen, isClearChatDialogOpen, isFullScreenAvatarOpen, fullScreenUserData,
         setIsMoodModalOpen, setReactionModalData, setMediaModalData, setDocumentPreview, setMessageInfo, setIsModeSelectorOpen, setIsDeleteDialogOpen, setIsClearChatDialogOpen, setIsFullScreenAvatarOpen, setFullScreenUserData,
         loadMoreMessages, handleSendMessage, handleFileUpload, handleSendSticker, handleTyping, handleToggleReaction, handleRetrySend, handleDeleteSelected, handleClearChat,

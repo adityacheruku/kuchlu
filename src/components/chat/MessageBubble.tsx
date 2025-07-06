@@ -1,3 +1,4 @@
+
 "use client";
 
 // Imports from React and libraries
@@ -9,7 +10,6 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 // UI Components
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import DeleteMessageDialog from './DeleteMessageDialog';
 import StatusDots from './StatusDots';
 import AudioPlayer from './media/AudioPlayer';
 import VideoPlayer from './media/VideoPlayer';
@@ -18,13 +18,12 @@ import RepliedMessagePreview from './RepliedMessagePreview';
 import UploadProgressIndicator from './UploadProgressIndicator';
 
 // Hooks
-import { useToast } from '@/hooks/use-toast';
 import { useDoubleTap } from '@/hooks/useDoubleTap';
 import { useSwipe } from '@/hooks/useSwipe';
 import { useLongPress } from '@/hooks/useLongPress';
 
 // Types and Icons
-import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
+import type { Message, User, SupportedEmoji } from '@/types';
 import { EMOJI_ONLY_REGEX } from '@/types';
 import { Reply, Trash2, Info, FileText } from 'lucide-react';
 
@@ -47,6 +46,8 @@ export interface MessageBubbleProps {
   isSelectionMode: boolean;
   onEnterSelectionMode: (messageId: string) => void;
   onToggleMessageSelection: (messageId: string) => void;
+  isSelected: boolean;
+  isInfoOpen: boolean;
 }
 
 const parseMarkdown = (text: string = ''): string => {
@@ -67,23 +68,16 @@ function MessageBubble({
     onToggleReaction, onShowMedia, onShowDocumentPreview, 
     onShowInfo, allUsers, onRetrySend, 
     onDeleteMessage: onDelete, onSetReplyingTo, isSelectionMode, 
-    onEnterSelectionMode, onToggleMessageSelection 
+    onEnterSelectionMode, onToggleMessageSelection, isSelected, isInfoOpen
 }: MessageBubbleProps) {
   
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
-  const { toast } = useToast();
 
   const handleDoubleTap = useCallback(() => {
     if (message.status !== 'failed' && message.status !== 'sending' && message.mode !== 'incognito' && !isSelectionMode) {
       onToggleReaction(message.id, '❤️');
     }
   }, [message.id, message.status, message.mode, onToggleReaction, isSelectionMode]);
-  
-  const handleConfirmDelete = (deleteType: DeleteType) => {
-    onDelete(message);
-    setIsDeleteDialogOpen(false);
-  }
   
   const handleRetry = (message: Message) => {
       setIsShaking(true);
@@ -102,11 +96,11 @@ function MessageBubble({
   const { translateX, isDragging, events: swipeEvents } = useSwipe({
     onSwipeLeft: () => {
       if (swipeDisabled) return;
-      isCurrentUser ? setIsDeleteDialogOpen(true) : onSetReplyingTo(message);
+      isCurrentUser ? onDelete(message) : onSetReplyingTo(message);
     },
     onSwipeRight: () => {
       if (swipeDisabled) return;
-      isCurrentUser ? onSetReplyingTo(message) : setIsDeleteDialogOpen(true);
+      isCurrentUser ? onSetReplyingTo(message) : onDelete(message);
     },
     onSwipeStart: () => Haptics.impact({ style: ImpactStyle.Light }),
   });
@@ -195,7 +189,9 @@ function MessageBubble({
                           'transition-all flex flex-col', 
                           !hasNoBubble && 'rounded-xl shadow-md',
                           isCurrentUser ? 'items-end' : 'items-start',
-                          !hasNoBubble && (isCurrentUser ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-secondary text-secondary-foreground rounded-bl-none')
+                          !hasNoBubble && (isCurrentUser ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-secondary text-secondary-foreground rounded-bl-none'),
+                          isInfoOpen && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+                          isSelected && "ring-2 ring-blue-500 ring-offset-2 ring-offset-card"
                         )}>
                             {repliedToMessage && repliedToSender && <RepliedMessagePreview message={repliedToMessage} senderName={repliedToSender.display_name}/>}
                             <div className={cn(hasStandardBubble && 'p-3', isAudioMessage && 'p-1')}>
@@ -224,7 +220,6 @@ function MessageBubble({
                  )}
             </div>
         </div>
-      <DeleteMessageDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} messages={[message]} currentUserId={currentUserId} />
     </div>
   );
 }

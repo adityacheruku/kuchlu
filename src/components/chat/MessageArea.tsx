@@ -100,7 +100,6 @@ const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBub
                 currentUserId={currentUser.id}
                 isSelected={isSelected}
                 isInfoOpen={isInfoOpen}
-                wrapperId={`message-${message.id}`}
              />
         </div>
     );
