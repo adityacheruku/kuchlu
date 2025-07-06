@@ -158,6 +158,50 @@ async def send_message_http(chat_id: UUID, message_create: MessageCreate, curren
     await notification_service.send_new_message_notification(sender=current_user, chat_id=chat_id, message=message_for_response)
     return message_for_response
 
+class MediaMessagePayload(BaseModel):
+    client_temp_id: str
+    chat_id: str
+    public_id: str
+    media_type: str
+    cloudinary_metadata: dict
+
+@router.post("/send-media-message", response_model=MessageInDB)
+async def send_media_message(payload: MediaMessagePayload, current_user: UserPublic = Depends(get_current_active_user)):
+    chat_id = UUID(payload.chat_id)
+    is_participant_resp = await db_manager.get_table("chat_participants").select("user_id").eq("chat_id", str(chat_id)).eq("user_id", str(current_user.id)).maybe_single().execute()
+    if not is_participant_resp.data: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant of this chat")
+    if await ws_manager.is_message_processed(payload.client_temp_id): raise HTTPException(status_code=status.HTTP_200_OK, detail="Duplicate media message, already processed.")
+    
+    message_db_id = uuid.uuid4()
+    cloudinary_meta = payload.cloudinary_metadata
+    
+    message_data_to_insert = {
+        "id": str(message_db_id), "chat_id": str(chat_id), "user_id": str(current_user.id),
+        "media_type": payload.media_type, "mode": MessageModeEnum.NORMAL.value, "status": MessageStatusEnum.SENT.value,
+        "upload_status": "completed", "created_at": "now()", "updated_at": "now()", "reactions": {},
+        "client_temp_id": payload.client_temp_id,
+        "media_url": cloudinary_meta.get('secure_url'),
+        "file_size": cloudinary_meta.get('bytes'),
+        "thumbnail_url": next((item['secure_url'] for item in cloudinary_meta.get('eager', []) if item.get('transformation')), None),
+        "file_metadata": json.dumps({
+            "duration_seconds": cloudinary_meta.get('duration'),
+            "audio_format": cloudinary_meta.get('audio', {}).get('codec'),
+            "document_name": cloudinary_meta.get('original_filename'),
+            "clip_type": cloudinary_meta.get('resource_type')
+        })
+    }
+    
+    await db_manager.get_table("messages").insert(message_data_to_insert).execute()
+    await ws_manager.mark_message_as_processed(payload.client_temp_id)
+    await db_manager.get_table("chats").update({"updated_at": "now()"}).eq("id", str(chat_id)).execute()
+    
+    message_out = await get_message_with_details_from_db(message_db_id)
+    if not message_out: raise Exception(f"Could not retrieve media message details for ID: {message_db_id}")
+    await ws_manager.broadcast_chat_message(str(chat_id), message_out)
+    await notification_service.send_new_message_notification(sender=current_user, chat_id=chat_id, message=message_out)
+    return message_out
+
+
 @router.post("/messages/{message_id}/reactions", response_model=MessageInDB)
 async def react_to_message(message_id: UUID, reaction_toggle: ReactionToggle, current_user: UserPublic = Depends(get_current_active_user)):
     message_resp_obj = await db_manager.get_table("messages").select("*").eq("id", str(message_id)).maybe_single().execute()
