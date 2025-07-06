@@ -10,6 +10,7 @@ export const useCachedMediaUrl = (message: Message | null, version: string) => {
 
     useEffect(() => {
         let objectUrl: string | null = null;
+        let isCancelled = false;
         
         const loadMedia = async () => {
             if (!message) {
@@ -26,19 +27,26 @@ export const useCachedMediaUrl = (message: Message | null, version: string) => {
             setIsLoading(true);
             try {
                 const url = await mediaCacheService.getOrFetchMediaUrl(message, version);
-                objectUrl = url; // Keep track to revoke later
-                setDisplayUrl(url);
+                if (!isCancelled) {
+                    objectUrl = url; // Keep track to revoke later
+                    setDisplayUrl(url);
+                }
             } catch (error) {
-                console.error(`useCachedMediaUrl: Failed to load media version '${version}' for message '${message.id}'`, error);
-                setDisplayUrl(null);
+                if (!isCancelled) {
+                    console.error(`useCachedMediaUrl: Failed to load media version '${version}' for message '${message.id}'`, error);
+                    setDisplayUrl(null);
+                }
             } finally {
-                setIsLoading(false);
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
             }
         };
 
         loadMedia();
 
         return () => {
+            isCancelled = true;
             if (objectUrl) {
                 URL.revokeObjectURL(objectUrl);
             }
