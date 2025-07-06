@@ -4,5 +4,5 @@ class MoodUpdatePayload(BaseModel):
     mood: str
 
 class MoodPingPayload(BaseModel):
-    mood_id: str
+    mood_name: str
     mood_emoji: str

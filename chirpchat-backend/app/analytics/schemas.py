@@ -20,6 +20,6 @@ class MoodAnalyticsContext(BaseModel):
 
 
 class MoodAnalyticsCreate(BaseModel):
-    mood_id: str = Field(..., max_length=50)
+    mood_name: str = Field(..., max_length=50)
     mood_emoji: Optional[str] = None
     context: MoodAnalyticsContext

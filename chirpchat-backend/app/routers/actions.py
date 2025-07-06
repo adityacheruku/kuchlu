@@ -14,7 +14,7 @@ from app.analytics.schemas import MoodAnalyticsCreate, MoodAnalyticsContext
 
 router = APIRouter(prefix="/actions", tags=["Quick Actions"])
 
-async def _track_mood_analytics(user_id: UUID, mood_id: str, mood_emoji: str | None, context: dict):
+async def _track_mood_analytics(user_id: UUID, mood_name: str, mood_emoji: str | None, context: dict):
     """Helper function to be run in the background for tracking mood analytics."""
     now = datetime.now(timezone.utc)
     day_of_week = now.strftime('%A').lower()
@@ -23,26 +23,33 @@ async def _track_mood_analytics(user_id: UUID, mood_id: str, mood_emoji: str | N
     elif 12 <= now.hour < 17: time_of_day = 'afternoon'
     elif 17 <= now.hour < 21: time_of_day = 'evening'
     
-    analytics_payload = MoodAnalyticsCreate(
-        mood_id=mood_id,
-        mood_emoji=mood_emoji,
-        context=MoodAnalyticsContext(
-            time_of_day=time_of_day, 
-            day_of_week=day_of_week,
-            partner_id=context.get("partner_id"),
-            source=context.get("source")
-        )
+    analytics_context_payload = MoodAnalyticsContext(
+        time_of_day=time_of_day, 
+        day_of_week=day_of_week,
+        partner_id=context.get("partner_id"),
+        source=context.get("source")
     )
+    
+    # This is for validation only
+    analytics_payload = MoodAnalyticsCreate(
+        mood_name=mood_name,
+        mood_emoji=mood_emoji,
+        context=analytics_context_payload
+    )
+
     analytics_data = {
         "user_id": str(user_id),
-        "mood_id": analytics_payload.mood_id,
-        "mood_emoji": analytics_payload.mood_emoji,
-        "context": analytics_payload.context.model_dump_json(),
+        "partner_id": str(context.get("partner_id")) if context.get("partner_id") else None,
+        "mood_name": mood_name,
+        "mood_emoji": mood_emoji,
+        "source": context.get("source"),
+        "context": analytics_context_payload.model_dump_json(),
         "created_at": now.isoformat(),
     }
+    
     try:
         await db_manager.admin_client.table("mood_analytics").insert(analytics_data).execute()
-        logger.info(f"Logged mood analytics for user {user_id}: {mood_id}")
+        logger.info(f"Logged mood analytics for user {user_id}: {mood_name}")
     except Exception as e:
         logger.error(f"Failed to log mood analytics for user {user_id}: {e}", exc_info=True)
 
@@ -74,7 +81,7 @@ async def update_mood(
     background_tasks.add_task(
         _track_mood_analytics,
         user_id=current_user.id,
-        mood_id=payload.mood,
+        mood_name=payload.mood,
         mood_emoji=None, # Not available in this simpler context
         context={
             "partner_id": updated_user.partner_id,
@@ -102,12 +109,12 @@ async def ping_mood(
     if not current_user.partner_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You do not have a partner to send a mood to.")
     
-    logger.info(f"User {current_user.id} sending mood ping '{payload.mood_id}' to partner {current_user.partner_id}.")
+    logger.info(f"User {current_user.id} sending mood ping '{payload.mood_name}' to partner {current_user.partner_id}.")
 
     background_tasks.add_task(
         _track_mood_analytics,
         user_id=current_user.id,
-        mood_id=payload.mood_id,
+        mood_name=payload.mood_name,
         mood_emoji=payload.mood_emoji,
         context={
             "partner_id": current_user.partner_id,
@@ -118,7 +125,7 @@ async def ping_mood(
     await notification_service.send_mood_ping_notification(
         sender=current_user,
         recipient_id=current_user.partner_id,
-        mood_id=payload.mood_id,
+        mood_id=payload.mood_name,
         mood_emoji=payload.mood_emoji
     )
 
