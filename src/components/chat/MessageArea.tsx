@@ -43,8 +43,14 @@ interface MessageAreaProps {
   activationThreshold: number;
 }
 
-const MessageBubbleWithObserver = (props: MessageBubbleProps & { message: Message; currentUser: User; infoMessageId: string | null; }) => {
-    const { message, currentUser, onMarkAsRead } = props;
+// New interface definition for the observer wrapper component
+interface MessageBubbleWithObserverProps extends MessageBubbleProps {
+  onMarkAsRead: (messageId: string, chatId: string) => void;
+  infoMessageId: string | null;
+}
+
+const MessageBubbleWithObserver = (props: MessageBubbleWithObserverProps) => {
+    const { message, currentUser, onMarkAsRead, isSelectionMode, selectedMessageIds, infoMessageId } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
         triggerOnce: true,
@@ -88,8 +94,8 @@ const MessageBubbleWithObserver = (props: MessageBubbleProps & { message: Messag
     }
 
     const isCurrentUser = message.user_id === currentUser.id;
-    const isSelected = props.isSelectionMode && props.selectedMessageIds.has(message.id);
-    const isInfoOpen = props.infoMessageId === message.id;
+    const isSelected = isSelectionMode && selectedMessageIds.has(message.id);
+    const isInfoOpen = infoMessageId === message.id;
 
     return (
         <div ref={ref} data-selected={isSelected} data-info-open={isInfoOpen} className="group/bubble-wrapper message-bubble-wrapper has-[[data-selected=true]]:bg-primary/5 has-[[data-info-open=true]]:bg-primary/5 rounded-lg transition-colors">
@@ -162,6 +168,12 @@ function MessageArea({
               onToggleMessageSelection={onToggleMessageSelection}
               onMarkAsRead={onMarkAsRead}
               infoMessageId={infoMessageId}
+              // These props are part of MessageBubbleProps and are passed correctly
+              sender={allUsers[msg.user_id] || currentUser}
+              isCurrentUser={msg.user_id === currentUser.id}
+              currentUserId={currentUser.id}
+              isSelected={selectedMessageIds.has(msg.id)}
+              isInfoOpen={infoMessageId === msg.id}
             />
         ))}
       </div>
