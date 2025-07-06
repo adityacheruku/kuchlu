@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Sparkles, PlusCircle, Trash2, Edit, X } from 'lucide-react';
+import { CheckCircle2, Sparkles, PlusCircle, Trash2, Edit, X, Heart } from 'lucide-react';
 import SettingsHeader from '@/components/settings/SettingsHeader';
 import FullPageLoader from '@/components/common/FullPageLoader';
 import Spinner from '@/components/common/Spinner';
@@ -132,38 +132,45 @@ export default function MoodCustomizationPage() {
     
     const [suggestedMoods, setSuggestedMoods] = useState<MoodOption[]>([]);
     const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+    const [partnerSuggestions, setPartnerSuggestions] = useState<MoodOption[]>([]);
+    const [isLoadingPartnerSuggestions, setIsLoadingPartnerSuggestions] = useState(true);
 
     const [editingMood, setEditingMood] = useState<MoodOption | null>(null);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
 
     // Fetch initial settings
     useEffect(() => {
-        const fetchSettings = async () => {
+        const fetchAllData = async () => {
             setIsLoadingSettings(true);
+            setIsLoadingSuggestions(true);
+            setIsLoadingPartnerSuggestions(true);
+
             try {
-                const settings = await api.getNotificationSettings();
+                const settingsPromise = api.getNotificationSettings();
+                const suggestionsPromise = api.getSuggestedMoods();
+                const partnerSuggestionsPromise = currentUser?.partner_id ? api.getPartnerSuggestedMoods() : Promise.resolve({ suggestions: [] });
+
+                const [settings, suggestionsResponse, partnerSuggestionsResponse] = await Promise.all([settingsPromise, suggestionsPromise, partnerSuggestionsPromise]);
+
                 setAllSettings(settings);
                 setCustomMoods(settings.custom_moods.map(m => ({ id: m.id, label: m.label, emoji: m.emoji, color: '#cccccc' })));
                 setQuickMoods(new Set(settings.quick_moods));
+                setSuggestedMoods(suggestionsResponse.suggestions);
+                setPartnerSuggestions(partnerSuggestionsResponse.suggestions);
+
             } catch (error) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load your mood settings.' });
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load your mood settings and suggestions.' });
             } finally {
                 setIsLoadingSettings(false);
+                setIsLoadingSuggestions(false);
+                setIsLoadingPartnerSuggestions(false);
             }
         };
-
-        const fetchSuggestions = async () => {
-            setIsLoadingSuggestions(true);
-            try {
-                const response = await api.getSuggestedMoods();
-                setSuggestedMoods(response.suggestions);
-            } catch (error) { console.error("Failed to fetch suggested moods", error);
-            } finally { setIsLoadingSuggestions(false); }
-        };
-
-        fetchSettings();
-        fetchSuggestions();
-    }, [toast]);
+        
+        if (currentUser) {
+            fetchAllData();
+        }
+    }, [toast, currentUser]);
     
     const handleQuickMoodToggle = useCallback((moodId: string) => {
         setQuickMoods(prev => {
@@ -258,7 +265,25 @@ export default function MoodCustomizationPage() {
                     </CardContent>
                 </Card>
 
-                {/* Suggestions */}
+                {isLoadingPartnerSuggestions ? <Spinner/> : partnerSuggestions.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Heart className="text-pink-500 h-5 w-5"/> Inspired by Your Partner</CardTitle>
+                            <CardDescription>Based on moods your partner sends.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2">
+                                {partnerSuggestions.map(mood => (
+                                    <Button key={`partner-sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
+                                        {quickMoods.has(mood.id) ? <CheckCircle2 className="mr-2 text-lg h-4 w-4"/> : <span className="mr-2 text-lg">{mood.emoji}</span>}
+                                        {mood.label}
+                                    </Button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {isLoadingSuggestions ? <Spinner/> : suggestedMoods.length > 0 && (
                     <Card>
                         <CardHeader>
@@ -278,7 +303,6 @@ export default function MoodCustomizationPage() {
                     </Card>
                 )}
 
-                {/* All & Custom Moods */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Mood Library</CardTitle>

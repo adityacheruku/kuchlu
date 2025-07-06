@@ -239,4 +239,8 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/analytics/moods/suggestions`, { headers: getApiHeaders() });
     return handleResponse<{ suggestions: MoodOption[] }>(response);
   },
+  getPartnerSuggestedMoods: async (): Promise<{ suggestions: MoodOption[] }> => {
+    const response = await fetch(`${API_BASE_URL}/analytics/moods/partner-suggestions`, { headers: getApiHeaders() });
+    return handleResponse<{ suggestions: MoodOption[] }>(response);
+  },
 };

@@ -95,3 +95,14 @@ async def get_suggested_moods(current_user: UserPublic = Depends(get_current_act
     """
     suggestions = await analytics_service.get_frequently_used_moods(user_id=current_user.id)
     return MoodSuggestionResponse(suggestions=[MoodSuggestion(**s) for s in suggestions])
+
+@router.get("/moods/partner-suggestions", response_model=MoodSuggestionResponse)
+async def get_partner_suggested_moods(current_user: UserPublic = Depends(get_current_active_user)):
+    """
+    Returns a list of suggested moods based on the user's partner's usage history.
+    """
+    if not current_user.partner_id:
+        return MoodSuggestionResponse(suggestions=[])
+        
+    suggestions = await analytics_service.get_partner_influenced_mood_suggestions(partner_id=current_user.partner_id)
+    return MoodSuggestionResponse(suggestions=[MoodSuggestion(**s) for s in suggestions])
