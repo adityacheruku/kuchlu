@@ -139,6 +139,8 @@ class UploadManager {
         formData.append('signature', signatureResponse.signature);
         formData.append('public_id', signatureResponse.public_id);
         formData.append('folder', signatureResponse.folder);
+        formData.append('resource_type', signatureResponse.resource_type);
+        if (signatureResponse.type) formData.append('type', signatureResponse.type);
         if(signatureResponse.eager) formData.append('eager', signatureResponse.eager);
         if(signatureResponse.notification_url) formData.append('notification_url', signatureResponse.notification_url);
 

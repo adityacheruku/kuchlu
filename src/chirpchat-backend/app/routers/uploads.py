@@ -37,6 +37,7 @@ class UploadSignatureResponse(BaseModel):
     public_id: str
     folder: str
     resource_type: str
+    type: str = "private"
     eager: Optional[str] = None
     notification_url: Optional[str] = None
 
@@ -100,6 +101,7 @@ async def get_cloudinary_upload_signature(
             public_id=request.public_id,
             folder=final_folder,
             resource_type=request.resource_type,
+            type="private",
             eager=params_to_sign.get("eager"),
             notification_url=notification_url
         )

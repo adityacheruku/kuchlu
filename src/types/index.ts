@@ -195,6 +195,7 @@ export interface CloudinaryUploadParams {
     public_id: string;
     folder: string;
     resource_type: 'image' | 'video' | 'raw' | 'auto';
+    type?: 'private' | 'upload' | 'authenticated';
     eager?: string;
     notification_url?: string;
 }
