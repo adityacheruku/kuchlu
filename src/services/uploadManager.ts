@@ -149,7 +149,14 @@ class UploadManager {
                 }
             };
             xhr.onerror = () => { this.activeUploads.delete(item.id); reject({ message: 'Network error during direct upload.', code: UploadErrorCode.NETWORK_ERROR }); };
-            xhr.onabort = () => { this.activeUploads.delete(item.id); reject({ name: 'AbortError' }); };
+            xhr.onabort = () => { 
+                const cancelledItem = this.queue.find(q => q.id === item.id);
+                if (cancelledItem) {
+                    this.updateUploadStatus(cancelledItem.id, 'cancelled');
+                }
+                this.activeUploads.delete(item.id); 
+                reject({ name: 'AbortError' });
+            };
             xhr.send(formData);
         });
         
@@ -158,7 +165,7 @@ class UploadManager {
 
     } catch (error: any) {
         if (error.name === 'AbortError') {
-            this.updateUploadStatus(item.toCancel.id, 'cancelled');
+             // Already handled in onabort
         } else {
             console.error('Upload failed for item:', item.id, error);
             this.updateUploadStatus(item.id, 'failed', {
@@ -191,10 +198,7 @@ class UploadManager {
           item.error = error;
           emitProgress({ messageId: item.messageId, status, progress: status === 'completed' || status === 'pending_processing' ? 100 : item.progress, error });
 
-          // We now wait for the webhook, so we don't remove from queue until it's confirmed.
-          // The webhook handler will need to somehow signal completion back to the manager or another service.
-          // For now, we leave it in the queue until a timeout or explicit completion signal.
-          if (status === 'cancelled') {
+          if (status === 'cancelled' || status === 'failed') {
               this.queue.splice(itemIndex, 1);
               await storageService.removeUploadItem(item.id);
           } else {
@@ -218,7 +222,7 @@ class UploadManager {
 
       const xhr = this.activeUploads.get(itemToCancel.id);
       if (xhr) {
-          xhr.abort(); // This will trigger the onerror/onabort handlers.
+          xhr.abort(); // This will trigger the onabort handler.
       } else if (itemToCancel.status === 'pending') {
           this.updateUploadStatus(itemToCancel.id, 'cancelled');
       }

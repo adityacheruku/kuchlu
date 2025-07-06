@@ -25,8 +25,7 @@ cloudinary.config(
 router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 class GetUploadSignatureRequest(BaseModel):
-    public_id: str
-    resource_type: Literal["image", "video", "raw", "auto"] = "auto"
+    public_id: Optional[str] = None
     folder: str = "kuchlu_chat_media"
 
 class UploadSignatureResponse(BaseModel):
@@ -34,7 +33,7 @@ class UploadSignatureResponse(BaseModel):
     timestamp: int
     api_key: str
     cloud_name: str
-    public_id: str
+    public_id: Optional[str] = None
     folder: str
     upload_preset: str
 
@@ -46,7 +45,7 @@ async def get_cloudinary_upload_signature(
     """
     Generates a secure, time-sensitive signature that allows the client
     to upload a file directly to Cloudinary using a signed upload preset.
-    The preset handles transformations, tagging, etc. on Cloudinary's side.
+    The preset handles transformations, tagging, and webhook notifications.
     """
     try:
         timestamp = int(time.time())
@@ -58,10 +57,11 @@ async def get_cloudinary_upload_signature(
         
         params_to_sign: Dict[str, Any] = {
             "timestamp": timestamp,
-            "public_id": request.public_id,
-            "folder": final_folder,
             "upload_preset": upload_preset,
+            "folder": final_folder,
         }
+        if request.public_id:
+            params_to_sign["public_id"] = request.public_id
         
         signature = api_sign_request(params_to_sign, settings.CLOUDINARY_API_SECRET)
         

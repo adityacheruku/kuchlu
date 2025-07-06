@@ -102,7 +102,7 @@ export const api = {
     });
     return handleResponse<UserInToken>(response);
   },
-  getCloudinaryUploadSignature: async (payload: { public_id: string; folder: string; resource_type: string; eager?: string }): Promise<CloudinaryUploadParams> => {
+  getCloudinaryUploadSignature: async (payload: { public_id?: string; folder?: string; }): Promise<CloudinaryUploadParams> => {
     const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
         method: 'POST',
         headers: getApiHeaders(),

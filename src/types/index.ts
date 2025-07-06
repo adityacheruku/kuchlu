@@ -191,7 +191,7 @@ export interface CloudinaryUploadParams {
     timestamp: number;
     api_key: string;
     cloud_name: string;
-    public_id: string;
+    public_id?: string;
     folder: string;
     upload_preset: string;
 }
