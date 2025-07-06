@@ -49,6 +49,15 @@ export default function NotificationSettingsPage() {
                             <Label htmlFor="master-toggle" className="font-semibold pr-4">Enable Push Notifications</Label>
                             <Switch id="master-toggle" checked={masterNotificationsEnabled} onCheckedChange={masterNotificationsEnabled ? unsubscribeFromPush : subscribeToPush} disabled={isSubscribing || (permissionStatus === 'denied' && !masterNotificationsEnabled)} />
                         </SettingsItem>
+                        <SettingsItem>
+                            <Label htmlFor="dnd-toggle" className="font-semibold pr-4">Do Not Disturb</Label>
+                            <Switch 
+                                id="dnd-toggle" 
+                                checked={localNotificationSettings.is_dnd_enabled ?? false}
+                                onCheckedChange={(checked) => handleSettingChange('is_dnd_enabled', checked)}
+                                disabled={isSubscribing}
+                            />
+                        </SettingsItem>
                         <div className={`space-y-1 pt-4 transition-opacity ${!masterNotificationsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                             <p className="text-sm text-muted-foreground pb-2">Notify me about...</p>
                             <SettingsItem>
@@ -56,8 +65,8 @@ export default function NotificationSettingsPage() {
                                 <Switch id="messages-toggle" checked={localNotificationSettings.messages ?? true} onCheckedChange={(c) => handleSettingChange('messages', c)} />
                             </SettingsItem>
                             <SettingsItem>
-                                <Label htmlFor="reactions-toggle">Message Reactions</Label>
-                                <Switch id="reactions-toggle" checked={localNotificationSettings.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
+                                <Label htmlFor="mood-updates-toggle">Mood Updates</Label>
+                                <Switch id="mood-updates-toggle" checked={localNotificationSettings.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
                             </SettingsItem>
                             <SettingsItem>
                                 <Label htmlFor="pings-toggle">"Thinking of You" Pings</Label>

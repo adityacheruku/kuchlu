@@ -8,29 +8,22 @@ type CapacitorEvent = 'singleTap' | 'doubleTap' | 'longPress' | 'moodSelected';
 type CapacitorEventListener = (data?: any) => void;
 
 interface AssistiveTouchPlugin {
-  // Methods
   requestOverlayPermission(): Promise<void>;
-  show(options: { opacity: number }): Promise<void>;
+  show(options: { opacity: number; authToken?: string }): Promise<void>;
   hide(): Promise<void>;
   getStatus(): Promise<{ isEnabled: boolean }>;
   updateMenu(options: { moods: MoodOption[] }): Promise<void>;
+  setAuthToken(options: { token: string }): Promise<void>;
+  setOpacity(options: { opacity: number }): Promise<void>;
 
-
-  // Event Listeners
   addListener(eventName: 'singleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
   addListener(eventName: 'doubleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
   addListener(eventName: 'longPress', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
   addListener(eventName: 'moodSelected', listenerFunc: (event: { moodId: string }) => void): Promise<PluginListenerHandle> & PluginListenerHandle;
 }
 
-// Define the Share plugin interface
 interface SharePlugin {
-  share(options: {
-    title?: string;
-    text?: string;
-    url?: string;
-    dialogTitle?: string;
-  }): Promise<any>;
+  share(options: { title?: string; text?: string; url?: string; dialogTitle?: string; }): Promise<any>;
 }
 
 
@@ -50,7 +43,6 @@ class CapacitorService {
     }
     
     private isPluginAvailable = (): boolean => {
-        // More robust check to ensure the plugin and its methods are available
         return this.isNative && !!this.assistiveTouch && typeof this.assistiveTouch.addListener === 'function';
     }
 
@@ -62,10 +54,8 @@ class CapacitorService {
         if (this.isSharePluginAvailable()) {
             await this.sharePlugin!.share(options);
         } else if (navigator.share) {
-            // Fallback to Web Share API
             await navigator.share(options);
         } else {
-            // Fallback for browsers that don't support either
             if (options.url) {
                 navigator.clipboard.writeText(options.url);
                 alert("Link copied to clipboard. Sharing not available on this device.");
@@ -81,36 +71,26 @@ class CapacitorService {
     public on(event: CapacitorEvent, callback: CapacitorEventListener): (() => void) {
         if (!this.isPluginAvailable()) {
             console.log(`[Web Simulator] Skipping listener for '${event}' event because plugin is not available.`);
-            return () => {}; // Return a no-op unsubscribe function for web
+            return () => {};
         }
 
         const handlePromise = this.assistiveTouch!.addListener(event as any, callback);
         
-        // Handle both the promise and the direct return value for compatibility
         if (handlePromise instanceof Promise) {
             let handle: PluginListenerHandle;
             handlePromise.then(h => handle = h);
-            return () => {
-                handle?.remove();
-            };
+            return () => { handle?.remove(); };
         }
         
         const handle = handlePromise;
-        return () => {
-            handle.remove();
-        };
+        return () => { handle.remove(); };
     }
 
-    public requestOverlayPermission = async (
-        showDialog: (callbacks: { onConfirm: () => void, onCancel: () => void }) => void
-    ): Promise<boolean> => {
+    public requestOverlayPermission = async (showDialog: (callbacks: { onConfirm: () => void, onCancel: () => void }) => void): Promise<boolean> => {
         if (!this.isPluginAvailable()) {
             console.log('[Web Simulator] Simulating permission request dialog.');
             return new Promise(resolve => {
-                showDialog({ 
-                    onConfirm: () => resolve(true),
-                    onCancel: () => resolve(false)
-                });
+                showDialog({ onConfirm: () => resolve(true), onCancel: () => resolve(false) });
             });
         }
         
@@ -129,7 +109,7 @@ class CapacitorService {
         });
     };
 
-    public showFloatingButton = async (options: { opacity: number }): Promise<void> => {
+    public showFloatingButton = async (options: { opacity: number; authToken?: string }): Promise<void> => {
         if (!this.isPluginAvailable()) {
             console.log("[Web Simulator] Show floating button with options:", options);
             return;
@@ -177,6 +157,30 @@ class CapacitorService {
             console.error('CapacitorService: Error executing native updateMenu():', error);
         }
     }
+
+    public setAuthToken = async (token: string): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log("[Web Simulator] Setting auth token.");
+            return;
+        }
+        try {
+            await this.assistiveTouch!.setAuthToken({ token });
+        } catch (error) {
+            console.error('CapacitorService: Error executing native setAuthToken():', error);
+        }
+    };
+
+    public setOpacity = async (opacity: number): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log(`[Web Simulator] Setting opacity to ${opacity}.`);
+            return;
+        }
+        try {
+            await this.assistiveTouch!.setOpacity({ opacity });
+        } catch (error) {
+            console.error('CapacitorService: Error executing native setOpacity():', error);
+        }
+    };
 }
 
 export const capacitorService = new CapacitorService();

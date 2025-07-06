@@ -44,21 +44,18 @@ const SettingsRow = ({ children, onClick, disabled = false, href }: { children: 
 };
 
 export default function AccessibilitySettingsPage() {
-    const { currentUser, isLoading: isAuthLoading } = useAuth();
+    const { currentUser, isLoading: isAuthLoading, token } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
 
-    // State for the feature itself
     const [assistiveTouchEnabled, setAssistiveTouchEnabled] = useState(false);
     const [isLoadingStatus, setIsLoadingStatus] = useState(true);
     const [idleOpacity, setIdleOpacity] = useState([80]);
     
-    // State for the dialogs
     const [isExplanationDialogOpen, setIsExplanationDialogOpen] = useState(false);
     const [isPermissionDeniedDialogOpen, setIsPermissionDeniedDialogOpen] = useState(false);
     const [permissionDialogCallbacks, setPermissionDialogCallbacks] = useState<{ onConfirm: () => void, onCancel: () => void } | null>(null);
 
-    // Fetch initial status from the native plugin when the component mounts
     useEffect(() => {
       async function checkInitialStatus() {
         setIsLoadingStatus(true);
@@ -85,7 +82,7 @@ export default function AccessibilitySettingsPage() {
         if (checked) {
             const granted = await capacitorService.requestOverlayPermission(showPermissionDialog);
             if (granted) {
-                await capacitorService.showFloatingButton({ opacity: idleOpacity[0] / 100 });
+                await capacitorService.showFloatingButton({ opacity: idleOpacity[0] / 100, authToken: token || undefined });
                 setAssistiveTouchEnabled(true);
                 toast({ title: "AssistiveTouch Enabled", description: "The floating button is now active." });
             } else {
@@ -104,9 +101,9 @@ export default function AccessibilitySettingsPage() {
       setIdleOpacity(value);
     }
     
-    const handleOpacityCommit = (value: number[]) => {
+    const handleOpacityCommit = async (value: number[]) => {
       if(assistiveTouchEnabled) {
-          capacitorService.showFloatingButton({ opacity: value[0] / 100 });
+          await capacitorService.setOpacity(value[0] / 100);
       }
       // TODO: Save idle opacity to storage
     }

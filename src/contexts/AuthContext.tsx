@@ -7,6 +7,7 @@ import { api } from '@/services/api';
 import type { UserInToken, AuthResponse, CompleteRegistrationRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { storageService } from '@/services/storageService';
+import { capacitorService } from '@/services/capacitorService';
 
 interface AuthContextType {
   currentUser: UserInToken | null;
@@ -38,6 +39,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(data.access_token);
     // Store user profile in IndexedDB for offline access
     await storageService.upsertUser(data.user);
+    // Send token to native plugin if available
+    await capacitorService.setAuthToken(data.access_token);
   }, []);
 
   const logout = useCallback(async () => {
@@ -64,6 +67,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setCurrentUser(userProfile);
           await storageService.upsertUser(userProfile);
           setToken(tokenToLoad);
+          // Also set token for native plugin on initial load
+          await capacitorService.setAuthToken(tokenToLoad);
         } catch (error) {
           console.error("Failed to load user from token", error);
           logout(); 
