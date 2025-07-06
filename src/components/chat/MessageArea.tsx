@@ -43,7 +43,7 @@ interface MessageAreaProps {
   activationThreshold: number;
 }
 
-const MessageBubbleWithObserver = (props: { message: Message } & Omit<MessageBubbleProps, 'sender' | 'isCurrentUser' | 'currentUserId' | 'isSelected' | 'wrapperId' | 'isInfoOpen' | 'onDeleteMessage'> & { currentUser: User; infoMessageId: string | null; isSelectionMode: boolean; onDeleteMessage: (message: Message) => void;}) => {
+const MessageBubbleWithObserver = (props: MessageBubbleProps & { message: Message; currentUser: User; infoMessageId: string | null; }) => {
     const { message, currentUser, onMarkAsRead } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,

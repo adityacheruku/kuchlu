@@ -10,7 +10,7 @@ import { useChat } from '@/hooks/useChat';
 import { cn } from '@/lib/utils';
 import ChatHeader from '@/components/chat/ChatHeader';
 import MessageArea from '@/components/chat/MessageArea';
-import InputBar from '@/components/ui/../chat/InputBar';
+import InputBar from '@/components/chat/InputBar';
 import FullPageLoader from '@/components/common/FullPageLoader';
 import Spinner from '@/components/common/Spinner';
 import dynamic from 'next/dynamic';
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { buttonVariants } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
-import ConnectionStatusBanner from './ConnectionStatusBanner';
+import ConnectionStatusBanner from '@/components/chat/ConnectionStatusBanner';
 import MessageInfoModal from './MessageInfoModal';
 import ChatModeSelector from './ChatModeSelector';
 import DeleteMessageDialog from './DeleteMessageDialog';
@@ -188,7 +188,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
                 onShareSelected={handleShareSelected}
                 onClearChat={() => setIsClearChatDialogOpen(true)}
                 onReplySelected={() => {
-                    const msg = messages.find(m => m.id === Array.from(selectedMessageIds)[0]);
+                    const msg = messages.find((m: MessageType) => m.id === Array.from(selectedMessageIds)[0]);
                     if (msg) handleSetReplyingTo(msg);
                     handleExitSelectionMode();
                 }}
@@ -249,7 +249,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
         {reactionModalData && <ReactionSummaryModal isOpen={!!reactionModalData} onClose={() => setReactionModalData(null)} reactions={reactionModalData.reactions} allUsers={reactionModalData.allUsers} />}
         {documentPreview && <DocumentPreviewModal isOpen={!!documentPreview} onClose={() => setDocumentPreview(null)} message={documentPreview} />}
         {messageInfo && <MessageInfoModal isOpen={!!messageInfo} onClose={() => setMessageInfo(null)} message={messageInfo} />}
-        <DeleteMessageDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={(type: DeleteType) => handleDeleteSelected(type)} messages={messages.filter(m => selectedMessageIds.has(m.id))} currentUserId={currentUser.id} />
+        <DeleteMessageDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={(type: DeleteType) => handleDeleteSelected(type)} messages={messages.filter((m: MessageType) => selectedMessageIds.has(m.id))} currentUserId={currentUser.id} />
         <AlertDialog open={isClearChatDialogOpen} onOpenChange={setIsClearChatDialogOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will clear the entire chat history from your view. Your partner will still be able to see the messages. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>

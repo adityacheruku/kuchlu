@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatHistoryClearedEventData, MediaProcessedEventData, MessageAckEventData, MessageDeletedEventData, MessageReactionUpdateEventData, MessageStatusUpdateEventData, NewMessageEventData, ThinkingOfYouReceivedEventData, TypingIndicatorEventData, UserProfileUpdateEventData, ChatModeChangedEventData, MoodAnalyticsPayload, MoodAnalyticsContext } from '@/types';
+import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatHistoryClearedEventData, MediaProcessedEventData, MessageAckEventData, MessageDeletedEventData, MessageReactionUpdateEventData, MessageStatusUpdateEventData, NewMessageEventData, ThinkingOfYouReceivedEventData, TypingIndicatorEventData, UserProfileUpdateEventData, UserPresenceUpdateEventData, ChatModeChangedEventData, MoodAnalyticsPayload, MoodAnalyticsContext } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -103,7 +103,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         });
     }, []);
     
-    // Setup realtime listeners
     const { protocol, sendMessage, isBrowserOnline } = useRealtime({
         onMessageReceived: handleNewMessage,
         onReactionUpdate: async (data) => await storageService.updateMessageByServerId(data.message_id, { reactions: data.reactions }),
@@ -114,7 +113,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onMessageAck: handleMessageAck,
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
         onMessageDeleted: (data) => { const placeholder: MessageType = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
-        onChatHistoryCleared: (chatId) => { if(activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete(); },
+        onChatHistoryCleared: (data) => { if(activeChatId === data.chat_id) storageService.messages.where('chat_id').equals(data.chat_id).delete(); },
         onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id, data.message),
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
@@ -214,6 +213,11 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         else storageService.updateMessage(message.client_temp_id, { status: 'sending' });
     }, []);
 
+    const handleExitSelectionMode = useCallback(() => {
+        setIsSelectionMode(false);
+        setSelectedMessageIds(new Set());
+    }, []);
+
     const handleDeleteSelected = useCallback(async (deleteType: DeleteType) => {
         if (!activeChatId || !currentUser || !messages) return;
         const messagesToDelete = messages.filter(m => selectedMessageIds.has(m.id));
@@ -238,7 +242,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     
     // Selection mode handlers
     const handleEnterSelectionMode = useCallback((messageId: string) => { setIsSelectionMode(true); setSelectedMessageIds(new Set([messageId])); }, []);
-    const handleExitSelectionMode = useCallback(() => { setIsSelectionMode(false); setSelectedMessageIds(new Set()); }, []);
     const handleToggleMessageSelection = useCallback((messageId: string) => { setSelectedMessageIds(prev => { const newSet = new Set(prev); if (newSet.has(messageId)) newSet.delete(messageId); else newSet.add(messageId); if (newSet.size === 0) setIsSelectionMode(false); return newSet; }); }, [setIsSelectionMode]);
     const handleCopySelected = useCallback(() => { if (!messages) return; const text = messages.filter(m => selectedMessageIds.has(m.id)).sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map(m => `[${new Date(m.created_at).toLocaleTimeString()}] ${otherUser?.display_name}: ${m.text || 'Attachment'}`).join('\n'); navigator.clipboard.writeText(text); toast({ title: "Copied!", description: `${selectedMessageIds.size} messages copied.` }); handleExitSelectionMode(); }, [messages, selectedMessageIds, toast, handleExitSelectionMode, otherUser]);
     const handleShareSelected = useCallback(async () => { /* ... sharing logic ... */ handleExitSelectionMode(); }, [handleExitSelectionMode]);

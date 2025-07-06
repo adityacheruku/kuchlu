@@ -11,14 +11,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTrigger, SheetTitle, SheetDescri
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StickerPicker from './StickerPicker';
-import { PICKER_EMOJIS, EMOJI_ONLY_REGEX, type MessageMode, type Message, type User, type MessageSubtype } from '@/types';
+import { PICKER_EMOJIS, type MessageMode, type Message, type User, type MessageSubtype } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import Spinner from '../common/Spinner';
-import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { validateFile } from '@/utils/fileValidation';
+
+const EMOJI_ONLY_REGEX = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])+$/;
 
 interface InputBarProps {
   onSendMessage: (text: string, mode: MessageMode, replyToId?: string) => void;
@@ -194,12 +195,17 @@ function InputBar({
     if (!files) return;
     const newAttachments = Array.from(files).map(file => {
         const validation = validateFile(file);
-        let subtype: MessageSubtype = validation.fileType === 'video' ? 'clip' : validation.fileType;
+        if (validation.fileType === 'unknown' || !validation.isValid) {
+            toast({ variant: 'destructive', title: 'Invalid File', description: validation.errors.join(', ') || 'This file type is not supported.' });
+            return null;
+        }
+        const subtype: MessageSubtype = validation.fileType === 'video' ? 'clip' : validation.fileType;
         return { file, subtype };
-    });
+    }).filter(Boolean) as { file: File; subtype: MessageSubtype }[];
+
     setStagedAttachments(prev => [...prev, ...newAttachments]);
     setIsAttachmentOpen(false);
-  }, []);
+  }, [toast]);
   
   const handleRemoveAttachment = useCallback((indexToRemove: number) => {
     setStagedAttachments(prev => prev.filter((_, index) => index !== indexToRemove));
@@ -231,32 +237,17 @@ function InputBar({
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
-    setIsRecording(false);
-    setRecordingSeconds(0);
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    // No need to set isRecording/seconds here, the onstop handler will deal with cleanup.
   }, []);
 
   const handleStartRecording = useCallback(async () => {
     if (isRecording) return;
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const permStatus = await Capacitor.Plugins.Permissions.requestPermissions({ permissions: ['microphone'] });
-            if (permStatus.microphone.state !== 'granted') {
-                toast({ variant: 'destructive', title: 'Permission Denied', description: 'Microphone access is required to record audio. Please enable it in your device settings.' });
-                return;
-            }
-        } catch (e) {
-            console.error("Failed to check/request microphone permission", e);
-            toast({ variant: 'destructive', title: 'Permission Error', description: 'Could not request microphone permission. Please check your app settings.' });
-            return;
-        }
-    }
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       toast({ variant: 'destructive', title: 'Unsupported Device', description: 'Your browser does not support voice recording.' }); return;
     }
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        await Haptics.impact();
+        Haptics.impact({ style: ImpactStyle.Light });
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
         mediaRecorderRef.current.ondataavailable = (event) => audioChunksRef.current.push(event.data);
@@ -267,6 +258,9 @@ function InputBar({
               onSendVoiceMessage(audioFile, chatMode);
             }
             stream.getTracks().forEach(track => track.stop());
+            setIsRecording(false);
+            setRecordingSeconds(0);
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         };
         mediaRecorderRef.current.start();
         setIsRecording(true);
@@ -308,7 +302,7 @@ function InputBar({
     if(replyingTo) onCancelReply();
   }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio, onTyping, chatMode, replyingTo, onCancelReply]);
   
-  const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0, [messageText, stagedAttachments]);
+  const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0 || isRecording, [messageText, stagedAttachments, isRecording]);
   
   const handleMicOrSendClick = useCallback(() => {
     if (isRecording) {
@@ -514,7 +508,7 @@ function InputBar({
         >
           {isSending ? (
             <Spinner />
-          ) : isRecording || showSendButton ? (
+          ) : showSendButton ? (
             <Send size={22} className="animate-pop" key="send"/>
           ) : (
             <Mic size={22} className="animate-pop" key="mic"/>

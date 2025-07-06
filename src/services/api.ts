@@ -7,7 +7,7 @@ import type {
   MoodAnalyticsPayload, CloudinaryUploadParams, MediaMessagePayload
 } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://9711-49-43-231-86.ngrok-free.app';
 let currentAuthToken: string | null = null;
 
 function getAuthToken(): string | null {

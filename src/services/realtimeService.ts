@@ -6,7 +6,7 @@ import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingI
 import { api } from './api';
 import { storageService } from './storageService';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://d512-49-43-231-86.ngrok-free.app';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://9711-49-43-231-86.ngrok-free.app';
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
 const EVENTS_BASE_URL = API_BASE_URL;
 
