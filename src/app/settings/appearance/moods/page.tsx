@@ -155,8 +155,8 @@ export default function MoodCustomizationPage() {
                 setAllSettings(settings);
                 setCustomMoods(settings.custom_moods.map(m => ({ id: m.id, label: m.label, emoji: m.emoji, color: '#cccccc' })));
                 setQuickMoods(new Set(settings.quick_moods));
-                setSuggestedMoods(suggestionsResponse.suggestions);
-                setPartnerSuggestions(partnerSuggestionsResponse.suggestions);
+                setSuggestedMoods(suggestionsResponse.suggestions.map(s => ({...s, label: s.label || s.id, color: '#cccccc'})));
+                setPartnerSuggestions(partnerSuggestionsResponse.suggestions.map(s => ({...s, label: s.label || s.id, color: '#cccccc'})));
 
             } catch (error) {
                 toast({ variant: 'destructive', title: 'Error', description: 'Could not load your mood settings and suggestions.' });
@@ -217,7 +217,10 @@ export default function MoodCustomizationPage() {
             await api.updateNotificationSettings({ ...allSettings, custom_moods: customMoodsToSave, quick_moods: quickMoodsArray });
             
             const allAvailableMoods = [...MOOD_OPTIONS, ...customMoods];
-            const menuOptions = quickMoodsArray.map(id => allAvailableMoods.find(m => m.id === id)).filter(Boolean) as MoodOption[];
+            const menuOptions = quickMoodsArray.map(id => {
+                const mood = allAvailableMoods.find(m => m.id === id);
+                return mood ? { id: mood.id, label: mood.label, emoji: mood.emoji } : null;
+            }).filter(Boolean) as { id: string, label: string, emoji: string }[];
             
             await capacitorService.updateAssistiveTouchMenu(menuOptions);
             toast({ title: 'Preferences Saved', description: 'Your AssistiveTouch menu has been updated.' });
@@ -345,7 +348,7 @@ export default function MoodCustomizationPage() {
                                     return (
                                         <button key={mood.id} onClick={() => handleQuickMoodToggle(mood.id)} className={cn("p-4 rounded-lg border-2 text-center transition-all flex flex-col items-center justify-center gap-2 h-24", isSelected ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted/50')} aria-pressed={isSelected}>
                                             <span className="text-3xl">{mood.emoji}</span>
-                                            <span className="font-medium text-sm text-foreground">{mood.id}</span>
+                                            <span className="font-medium text-sm text-foreground">{mood.label}</span>
                                             {isSelected && <CheckCircle2 className="absolute top-2 right-2 w-5 h-5 text-primary" />}
                                         </button>
                                     );
