@@ -101,7 +101,8 @@ class UploadManager {
         item.status = 'uploading';
         emitProgress({ messageId: item.messageId, status: 'uploading', progress: 0, thumbnailDataUrl });
         
-        const signatureResponse = await api.getCloudinaryUploadSignature({ public_id: item.id });
+        const resourceType = item.subtype === 'image' ? 'image' : (item.subtype === 'clip' ? 'video' : 'raw');
+        const signatureResponse = await api.getCloudinaryUploadSignature({ public_id: item.id, resource_type: resourceType });
         
         const formData = new FormData();
         formData.append('file', fileToUpload);
@@ -111,9 +112,12 @@ class UploadManager {
         formData.append('public_id', signatureResponse.public_id);
         formData.append('folder', signatureResponse.folder);
         formData.append('upload_preset', signatureResponse.upload_preset);
+        formData.append('resource_type', signatureResponse.resource_type);
+        formData.append('type', signatureResponse.type);
+        if (signatureResponse.notification_url) formData.append('notification_url', signatureResponse.notification_url);
+        if (signatureResponse.eager) formData.append('eager', signatureResponse.eager);
 
-        const resourceType = item.subtype === 'image' ? 'image' : 'video';
-        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${resourceType}/upload`;
+        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${signatureResponse.resource_type}/upload`;
         
         const xhr = new XMLHttpRequest();
         this.activeUploads.set(item.id, xhr);
