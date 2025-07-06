@@ -24,6 +24,7 @@ from app.routers.events import router as events_router
 from app.routers.analytics import router as analytics_router
 from app.routers.webhooks import router as webhooks_router
 from app.routers.media import router as media_router
+from app.routers.actions import router as actions_router
 
 app = FastAPI(
     title="Kuchlu API",
@@ -103,3 +104,4 @@ app.include_router(events_router)
 app.include_router(analytics_router)
 app.include_router(webhooks_router)
 app.include_router(media_router)
+app.include_router(actions_router)
