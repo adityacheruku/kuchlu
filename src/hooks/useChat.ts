@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatHistoryClearedEventData, MediaProcessedEventData, MessageAckEventData, MessageDeletedEventData, MessageReactionUpdateEventData, MessageStatusUpdateEventData, NewMessageEventData, ThinkingOfYouReceivedEventData, TypingIndicatorEventData, UserProfileUpdateEventData, UserPresenceUpdateEventData, ChatModeChangedEventData, MoodAnalyticsPayload, MoodAnalyticsContext } from '@/types';
+import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatHistoryClearedEventData, MediaProcessedEventData, MessageAckEventData, MessageDeletedEventData, MessageReactionUpdateEventData, MessageStatusUpdateEventData, NewMessageEventData, ThinkingOfYouReceivedEventData, TypingIndicatorEventData, UserProfileUpdateEventData, ChatModeChangedEventData, MoodAnalyticsPayload, MoodAnalyticsContext, SupportedEmoji } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -118,7 +118,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onMessageAck: handleMessageAck,
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
         onMessageDeleted: (data) => { const placeholder: MessageType = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
-        onChatHistoryCleared: (data) => { if(activeChatId === data.chat_id) storageService.messages.where('chat_id').equals(data.chat_id).delete(); },
+        onChatHistoryCleared: (chatId: string) => { if(activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete(); },
         onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id!, data.message),
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
@@ -199,7 +199,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const handleSendSticker = useCallback(async (stickerId: string, mode: MessageMode) => { 
         if (!currentUser || !activeChatId) return; 
         const clientTempId = uuidv4();
-        const optimisticMessage: MessageType = { client_temp_id, user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sticker_id: stickerId, mode, message_subtype: 'sticker', status: 'sending', reactions: {}, id: clientTempId };
+        const optimisticMessage: MessageType = { client_temp_id: clientTempId, user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sticker_id: stickerId, mode, message_subtype: 'sticker', status: 'sending', reactions: {}, id: clientTempId };
         await storageService.addMessage(optimisticMessage);
         sendMessageWithTimeout({ event_type: "send_message", ...optimisticMessage });
     }, [currentUser, activeChatId, sendMessageWithTimeout]);

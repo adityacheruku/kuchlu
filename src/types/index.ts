@@ -96,6 +96,7 @@ export interface Message {
   file?: File; // Not stored in DB
   thumbnailDataUrl?: string; // Not stored in DB
   is_starred?: boolean;
+  read_at?: string;
 }
 
 export interface Chat {
