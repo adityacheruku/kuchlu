@@ -1,14 +1,26 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BaseModel
 from app.auth.dependencies import get_current_active_user
 from app.auth.schemas import UserPublic
 from app.database import db_manager
 from app.utils.logging import logger
 from app.analytics.schemas import FileAnalyticsCreate, MoodAnalyticsCreate
+from app.analytics.service import analytics_service
 from datetime import datetime, timezone
+from typing import Optional, List
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+
+class MoodSuggestion(BaseModel):
+    id: str
+    label: str
+    emoji: Optional[str] = None
+
+class MoodSuggestionResponse(BaseModel):
+    suggestions: List[MoodSuggestion]
+
 
 @router.post("/file", status_code=status.HTTP_201_CREATED)
 async def track_file_analytics(
@@ -56,6 +68,7 @@ async def track_mood_analytics(
     analytics_data = {
         "user_id": str(current_user.id),
         "mood_id": payload.mood_id,
+        "mood_emoji": payload.mood_emoji,
         "context": payload.context.model_dump_json(), # Store context as a JSON string
         "created_at": datetime.now(timezone.utc).isoformat(),
         # Outcome fields are null initially, to be filled in later by another service/process
@@ -73,3 +86,12 @@ async def track_mood_analytics(
         logger.error(f"Could not store mood analytics: {e}", exc_info=True)
         # This is a background task, so we don't want to fail the user's primary action.
         return {"status": "error"}
+
+
+@router.get("/moods/suggestions", response_model=MoodSuggestionResponse)
+async def get_suggested_moods(current_user: UserPublic = Depends(get_current_active_user)):
+    """
+    Returns a list of suggested moods for the user based on their usage history.
+    """
+    suggestions = await analytics_service.get_frequently_used_moods(user_id=current_user.id)
+    return MoodSuggestionResponse(suggestions=[MoodSuggestion(**s) for s in suggestions])

@@ -6,6 +6,7 @@ import type {
   CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FileAnalyticsPayload,
   MoodAnalyticsPayload, CloudinaryUploadParams, MediaMessagePayload
 } from '@/types';
+import type { MoodOption } from '@/config/moods';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://9711-49-43-231-86.ngrok-free.app';
 let currentAuthToken: string | null = null;
@@ -102,7 +103,7 @@ export const api = {
     });
     return handleResponse<UserInToken>(response);
   },
-  getCloudinaryUploadSignature: async (payload: { public_id: string; folder?: string; }): Promise<CloudinaryUploadParams> => {
+  getCloudinaryUploadSignature: async (payload: { public_id: string; folder?: string; resource_type: 'image' | 'video' | 'raw' | 'auto' }): Promise<CloudinaryUploadParams> => {
     const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
         method: 'POST',
         headers: getApiHeaders(),
@@ -233,5 +234,9 @@ export const api = {
   getSignedMediaUrl: async (messageId: string, version: string = 'original'): Promise<{ url: string }> => {
     const response = await fetch(`${API_BASE_URL}/media/${messageId}?version=${version}`, { headers: getApiHeaders() });
     return handleResponse<{ url: string }>(response);
+  },
+  getSuggestedMoods: async (): Promise<{ suggestions: MoodOption[] }> => {
+    const response = await fetch(`${API_BASE_URL}/analytics/moods/suggestions`, { headers: getApiHeaders() });
+    return handleResponse<{ suggestions: MoodOption[] }>(response);
   },
 };
