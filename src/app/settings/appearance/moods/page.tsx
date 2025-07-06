@@ -265,13 +265,17 @@ export default function MoodCustomizationPage() {
                     </CardContent>
                 </Card>
 
-                {isLoadingPartnerSuggestions ? <Spinner/> : partnerSuggestions.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Heart className="text-pink-500 h-5 w-5"/> Inspired by Your Partner</CardTitle>
-                            <CardDescription>Based on moods your partner sends.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Heart className="text-pink-500 h-5 w-5"/> Inspired by Your Partner</CardTitle>
+                        <CardDescription>Based on moods your partner sends.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isLoadingPartnerSuggestions ? (
+                            <div className="flex justify-center items-center h-20">
+                                <Spinner />
+                            </div>
+                        ) : partnerSuggestions.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                                 {partnerSuggestions.map(mood => (
                                     <Button key={`partner-sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
@@ -280,9 +284,13 @@ export default function MoodCustomizationPage() {
                                     </Button>
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
-                )}
+                        ) : (
+                            <div className="text-center text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
+                                <p>No recent moods from your partner to suggest.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {isLoadingSuggestions ? <Spinner/> : suggestedMoods.length > 0 && (
                     <Card>
