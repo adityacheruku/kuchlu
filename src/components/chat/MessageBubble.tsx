@@ -24,7 +24,6 @@ import { useLongPress } from '@/hooks/useLongPress';
 
 // Types and Icons
 import type { Message, User, SupportedEmoji } from '@/types';
-import { EMOJI_ONLY_REGEX } from '@/types';
 import { Reply, Trash2, Info, FileText } from 'lucide-react';
 
 
@@ -90,7 +89,6 @@ function MessageBubble({
   const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
   const isDocumentMessage = message.message_subtype === 'document';
   const isStickerMessage = message.message_subtype === 'sticker';
-  const isEmojiOnlyMessage = !!(isTextMessage && message.text && EMOJI_ONLY_REGEX.test(message.text));
   const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
   
   const { translateX, isDragging, events: swipeEvents } = useSwipe({
@@ -148,8 +146,8 @@ function MessageBubble({
     }
     if (isTextMessage) {
         return message.text ? (
-            <p className={cn("text-sm whitespace-pre-wrap break-words", isEmojiOnlyMessage && "text-5xl animate-pop")}
-               dangerouslySetInnerHTML={{ __html: isEmojiOnlyMessage ? message.text : parseMarkdown(message.text) }}/>
+            <p className="text-sm whitespace-pre-wrap break-words"
+               dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}/>
         ) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
     }
     if (isAudioMessage) return <AudioPlayer message={message} isCurrentUser={isCurrentUser} />;
@@ -172,7 +170,7 @@ function MessageBubble({
   }
 
   const hasStandardBubble = isTextMessage || isAudioMessage || isDocumentMessage;
-  const hasNoBubble = isEmojiOnlyMessage || isStickerMessage || isMediaMessage;
+  const hasNoBubble = isStickerMessage || isMediaMessage;
   
   return (
     <div className={cn('w-full flex items-start', isCurrentUser ? 'justify-end' : 'justify-start')}>
