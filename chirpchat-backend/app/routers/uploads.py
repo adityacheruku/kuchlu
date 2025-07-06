@@ -39,7 +39,7 @@ class UploadSignatureResponse(BaseModel):
     upload_preset: str
     eager: Optional[str] = None
     notification_url: Optional[str] = None
-    type: str # Added type for 'private' uploads
+    type: str
 
 @router.post("/get-cloudinary-upload-signature", response_model=UploadSignatureResponse, summary="Generate a signature for direct Cloudinary upload")
 async def get_cloudinary_upload_signature(
@@ -53,7 +53,7 @@ async def get_cloudinary_upload_signature(
     try:
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
-        upload_preset_name = "app_media_upload"
+        upload_preset_name = "my_signed__upload_preset"
 
         if not settings.CLOUDINARY_WEBHOOK_URL:
             logger.error("CLOUDINARY_WEBHOOK_URL is not configured in the environment.")
