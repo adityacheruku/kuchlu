@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { buttonVariants } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
-import ConnectionStatusBanner from '@/components/chat/ConnectionStatusBanner';
+import ConnectionStatusBanner from './ConnectionStatusBanner';
 import MessageInfoModal from './MessageInfoModal';
 import ChatModeSelector from './ChatModeSelector';
 import DeleteMessageDialog from './DeleteMessageDialog';
@@ -199,7 +199,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
                 currentUser={currentUser}
                 allUsers={allUsersForComponents}
                 onToggleReaction={handleToggleReaction}
-                onShowReactions={(m, u) => setReactionModalData({ reactions: m.reactions!, allUsers: u })}
+                onShowReactions={(m: MessageType, u: Record<string, User>) => setReactionModalData({ reactions: m.reactions!, allUsers: u })}
                 onShowMedia={setMediaModalData}
                 onShowDocumentPreview={setDocumentPreview}
                 onShowInfo={setMessageInfo}

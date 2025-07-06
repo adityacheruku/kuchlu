@@ -70,6 +70,11 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const startY = useRef(0);
     const viewportRef = useRef<HTMLDivElement>(null);
+    
+    const handleExitSelectionMode = useCallback(() => {
+        setIsSelectionMode(false);
+        setSelectedMessageIds(new Set());
+    }, []);
 
     const setMessageAsFailed = useCallback((clientTempId: string) => {
         storageService.updateMessage(clientTempId, { status: 'failed' });
@@ -114,7 +119,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
         onMessageDeleted: (data) => { const placeholder: MessageType = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
         onChatHistoryCleared: (data) => { if(activeChatId === data.chat_id) storageService.messages.where('chat_id').equals(data.chat_id).delete(); },
-        onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id, data.message),
+        onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id!, data.message),
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
 
@@ -188,12 +193,13 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         if (!currentUser || !activeChatId) return;
         const optimisticMessage: MessageType = { id: uuidv4(), user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'uploading', uploadStatus: 'pending', client_temp_id: uuidv4(), message_subtype: intendedSubtype, mode, file, document_name: file.name };
         await storageService.addMessage(optimisticMessage);
-        await uploadManager.addToQueue({ id: optimisticMessage.id, file, messageId: optimisticMessage.client_temp_id, chatId: activeChatId, priority: 5, subtype: intendedSubtype! });
+        await uploadManager.addToQueue({ id: optimisticMessage.id, file, messageId: optimisticMessage.client_temp_id!, chatId: activeChatId, priority: 5, subtype: intendedSubtype! });
     }, [currentUser, activeChatId]);
     
     const handleSendSticker = useCallback(async (stickerId: string, mode: MessageMode) => { 
         if (!currentUser || !activeChatId) return; 
-        const optimisticMessage: MessageType = { client_temp_id: uuidv4(), user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sticker_id: stickerId, mode, message_subtype: 'sticker', status: 'sending', reactions: {}, id: uuidv4() };
+        const clientTempId = uuidv4();
+        const optimisticMessage: MessageType = { client_temp_id, user_id: currentUser.id, chat_id: activeChatId, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sticker_id: stickerId, mode, message_subtype: 'sticker', status: 'sending', reactions: {}, id: clientTempId };
         await storageService.addMessage(optimisticMessage);
         sendMessageWithTimeout({ event_type: "send_message", ...optimisticMessage });
     }, [currentUser, activeChatId, sendMessageWithTimeout]);
@@ -203,19 +209,14 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         const message = messages.find(m => m.id === messageId);
         if(message) {
             const r = { ...message.reactions }; if (!r[emoji]) r[emoji] = []; const i = r[emoji]!.indexOf(currentUser.id); if (i > -1) r[emoji]!.splice(i, 1); else r[emoji]!.push(currentUser.id); if (r[emoji]!.length === 0) delete r[emoji];
-            await storageService.updateMessage(message.client_temp_id, { reactions: r });
+            await storageService.updateMessage(message.client_temp_id!, { reactions: r });
         }
         sendMessage({ event_type: "toggle_reaction", message_id: messageId, chat_id: activeChatId, emoji });
     }, [currentUser, activeChatId, sendMessage, messages]);
 
     const handleRetrySend = useCallback((message: MessageType) => {
-        if (message.uploadStatus === 'failed' && message.file) uploadManager.retryUpload(message.client_temp_id);
-        else storageService.updateMessage(message.client_temp_id, { status: 'sending' });
-    }, []);
-
-    const handleExitSelectionMode = useCallback(() => {
-        setIsSelectionMode(false);
-        setSelectedMessageIds(new Set());
+        if (message.uploadStatus === 'failed' && message.file) uploadManager.retryUpload(message.client_temp_id!);
+        else storageService.updateMessage(message.client_temp_id!, { status: 'sending' });
     }, []);
 
     const handleDeleteSelected = useCallback(async (deleteType: DeleteType) => {
@@ -224,7 +225,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         if (deleteType === 'everyone') {
             for (const msg of messagesToDelete) await api.deleteMessageForEveryone(msg.id, activeChatId);
         } else {
-            for (const msg of messagesToDelete) await storageService.deleteMessage(msg.client_temp_id || msg.id);
+            for (const msg of messagesToDelete) await storageService.deleteMessage(msg.client_temp_id!);
         }
         setIsDeleteDialogOpen(false); handleExitSelectionMode();
     }, [activeChatId, currentUser, selectedMessageIds, messages, handleExitSelectionMode]);
@@ -266,7 +267,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     useEffect(() => { const timeouts = pendingMessageTimeouts.current; return () => Object.values(timeouts).forEach(clearTimeout); }, []);
 
     return {
-        currentUser, otherUser, messages, activeChatId, chatMode, dynamicBgClass, protocol, isBrowserOnline, isChatLoading, chatSetupErrorMessage, isLoadingMore, hasMoreMessages, typingUsers, activeThoughtNotificationFor, isSelectionMode, selectedMessageIds, replyingTo, pullY, isPulling, activationThreshold,
+        currentUser, otherUser, messages, activeChatId, chatMode, dynamicBgClass, protocol, isBrowserOnline, isChatLoading, chatSetupErrorMessage, isLoadingMore, hasMoreMessages, typingUsers, activeThoughtNotificationFor, isSelectionMode, selectedMessageIds, replyingTo, pullY, isPulling, activationThreshold: ACTIVATION_THRESHOLD,
         viewportRef,
         isMoodModalOpen, initialMoodOnLoad, reactionModalData, mediaModalData, documentPreview, messageInfo, isModeSelectorOpen, isDeleteDialogOpen, isClearChatDialogOpen, isFullScreenAvatarOpen, fullScreenUserData,
         setIsMoodModalOpen, setReactionModalData, setMediaModalData, setDocumentPreview, setMessageInfo, setIsModeSelectorOpen, setIsDeleteDialogOpen, setIsClearChatDialogOpen, setIsFullScreenAvatarOpen, setFullScreenUserData,
