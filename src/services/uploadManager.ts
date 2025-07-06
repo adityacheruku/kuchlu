@@ -4,8 +4,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { api } from './api';
 import type { UploadItem, UploadProgress, MessageSubtype, Message, CloudinaryUploadParams } from '@/types';
+import { getUploadError, UploadErrorCode } from '@/types/uploadErrors';
 import type { UploadError } from '@/types/uploadErrors';
-import { UploadErrorCode } from '@/types/uploadErrors';
 import { storageService } from './storageService';
 import { networkMonitor, type NetworkQuality } from './networkMonitor';
 
@@ -159,11 +159,9 @@ class UploadManager {
     } catch (error: any) {
         if (error.name !== 'AbortError') {
             console.error('Upload failed for item:', item.id, error);
-            this.updateUploadStatus(item.id, 'failed', {
-                code: error.code || UploadErrorCode.SERVER_ERROR,
-                message: error.message,
-                retryable: true
-            });
+            const errorCode = error.code || UploadErrorCode.SERVER_ERROR;
+            const finalError = getUploadError(errorCode, { originalMessage: error.message });
+            this.updateUploadStatus(item.id, 'failed', finalError);
         }
     } finally {
         if(this.activeUploads.has(item.id)) {

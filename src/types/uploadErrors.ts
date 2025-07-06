@@ -31,4 +31,21 @@ export const ERROR_MESSAGES: Record<UploadErrorCode, string> = {
   [UploadErrorCode.VALIDATION_FAILED]: 'The file is not valid for upload.'
 };
 
+export function getUploadError(code: UploadErrorCode, details?: Record<string, any>): UploadError {
+    const message = ERROR_MESSAGES[code] || 'An unknown error occurred.';
     
+    // Define retryability based on error code
+    const retryableCodes = [
+        UploadErrorCode.NETWORK_ERROR,
+        UploadErrorCode.SERVER_ERROR,
+        UploadErrorCode.TIMEOUT,
+        UploadErrorCode.CLOUDINARY_API_ERROR // Sometimes retryable
+    ];
+    
+    return {
+        code,
+        message,
+        retryable: retryableCodes.includes(code),
+        details,
+    };
+}
