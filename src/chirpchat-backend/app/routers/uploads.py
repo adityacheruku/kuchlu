@@ -26,7 +26,7 @@ router = APIRouter(prefix="/uploads", tags=["Uploads"])
 
 class GetUploadSignatureRequest(BaseModel):
     public_id: Optional[str] = None
-    folder: str = "kuchlu_chat_media"
+    folder: str = "user_uploads" # Default folder as per plan
 
 class UploadSignatureResponse(BaseModel):
     signature: str
@@ -50,10 +50,8 @@ async def get_cloudinary_upload_signature(
     try:
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
-        # NOTE: This upload preset must be created in your Cloudinary account
-        # and configured as a 'signed' preset. It should also contain the
-        # eager transformations and webhook notification URL.
-        upload_preset = "kuchlu_signed_uploads"
+        # Use the upload preset name from the plan
+        upload_preset = "app_media_upload" 
         
         params_to_sign: Dict[str, Any] = {
             "timestamp": timestamp,
@@ -100,3 +98,4 @@ async def delete_cloudinary_asset(public_id: str, resource_type: str):
     except Exception as e:
         logger.error(f"Exception during Cloudinary deletion for asset {public_id}: {e}", exc_info=True)
         # In a production system, you might re-queue this task or send it to a dead-letter queue.
+
