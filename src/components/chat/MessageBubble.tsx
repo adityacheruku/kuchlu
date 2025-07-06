@@ -2,7 +2,7 @@
 "use client";
 
 // Imports from React and libraries
-import { memo, useCallback, useState, useRef } from 'react';
+import { memo, useCallback, useState } from 'react';
 import Image from 'next/image';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -91,6 +91,8 @@ function MessageBubble({
   const isDocumentMessage = message.message_subtype === 'document';
   const isStickerMessage = message.message_subtype === 'sticker';
   const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode || isJumboEmoji;
+  const hasCaption = isMediaMessage && message.caption;
+  const isUploadingOrFailed = message.status === 'uploading' || message.status === 'failed' || message.uploadStatus === 'pending' || message.uploadStatus === 'compressing' || message.uploadStatus === 'pending_processing' || message.uploadStatus === 'failed';
   
   const { translateX, isDragging, events: swipeEvents } = useSwipe({
     onSwipeLeft: () => {
@@ -132,32 +134,17 @@ function MessageBubble({
 
   const renderBubbleContent = () => {
     if (isMediaMessage) {
-      const isUploading = message.status === 'uploading' || message.uploadStatus === 'pending' || message.uploadStatus === 'compressing' || message.uploadStatus === 'pending_processing';
-      const isFailed = message.status === 'failed' || message.uploadStatus === 'failed';
-      const showOverlay = isUploading || isFailed;
-      return (
-        <div className="relative max-w-[320px] w-[80vw] aspect-auto">
-          <div className={cn('rounded-lg overflow-hidden', showOverlay && "filter blur-sm brightness-75")}>
-            {message.message_subtype === 'image' && <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />}
-            {message.message_subtype === 'clip' && <VideoPlayer message={message} />}
-          </div>
-          {showOverlay && <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />}
-        </div>
-      );
+        return (
+            <div className={cn('relative rounded-lg overflow-hidden', isUploadingOrFailed && 'filter blur-sm brightness-75')}>
+                {message.message_subtype === 'image' && <SecureMediaImage message={message} onShowMedia={onShowMedia} alt={`Image from ${sender.display_name}`} />}
+                {message.message_subtype === 'clip' && <VideoPlayer message={message} />}
+            </div>
+        );
     }
-    if (isJumboEmoji) {
-        return <p className="text-5xl animate-pop">{message.text}</p>;
-    }
-    if (isTextMessage) {
-        return message.text ? (
-            <p className="text-sm whitespace-pre-wrap break-words"
-               dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}/>
-        ) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
-    }
+    if (isJumboEmoji) return <p className="text-5xl animate-pop">{message.text}</p>;
+    if (isTextMessage) return message.text ? (<p className="text-sm whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}/>) : <p className="text-sm italic text-muted-foreground">Message empty</p>;
     if (isAudioMessage) return <AudioPlayer message={message} isCurrentUser={isCurrentUser} />;
-    if (isStickerMessage && message.sticker_image_url) {
-      return <Image src={message.sticker_image_url} alt="Sticker" width={128} height={128} unoptimized />;
-    }
+    if (isStickerMessage && message.sticker_image_url) return <Image src={message.sticker_image_url} alt="Sticker" width={128} height={128} unoptimized />;
     if(isDocumentMessage) {
         return (
              <button onClick={() => onShowDocumentPreview(message)} className="flex items-center gap-3 p-2">
@@ -169,12 +156,12 @@ function MessageBubble({
             </button>
         )
     }
-    
     return <p className="text-sm italic">Unsupported message type</p>;
   }
 
   const hasStandardBubble = isTextMessage || isAudioMessage || isDocumentMessage;
-  const hasNoBubble = isStickerMessage || isMediaMessage || isJumboEmoji;
+  const hasMediaBubble = isMediaMessage;
+  const hasNoBubble = isStickerMessage || isJumboEmoji;
   
   return (
     <div className={cn('w-full flex items-start', isCurrentUser ? 'justify-end' : 'justify-start')}>
@@ -188,38 +175,41 @@ function MessageBubble({
                     </div>
                     <div className={cn('relative transition-transform w-full', !isDragging && 'duration-300 ease-out')} style={{ transform: `translateX(${translateX}px)` }} {...swipeEvents} {...doubleTapEvents} onClick={handleBubbleClick}>
                         <div className={cn(
-                          'transition-all flex flex-col', 
+                          'transition-all flex flex-col relative', 
                           !hasNoBubble && 'rounded-xl shadow-md',
-                          isCurrentUser ? 'items-end' : 'items-start',
-                          !hasNoBubble && (isCurrentUser ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-secondary text-secondary-foreground rounded-bl-none'),
+                          isCurrentUser ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-secondary text-secondary-foreground rounded-bl-none',
                           isInfoOpen && "ring-2 ring-primary ring-offset-2 ring-offset-card",
-                          isSelected && "ring-2 ring-blue-500 ring-offset-2 ring-offset-card"
+                          isSelected && "ring-2 ring-blue-500 ring-offset-2 ring-offset-card",
+                          isMediaMessage && 'overflow-hidden'
                         )}>
                             {repliedToMessage && repliedToSender && <RepliedMessagePreview message={repliedToMessage} senderName={repliedToSender.display_name}/>}
+                            
                             <div className={cn(hasStandardBubble && 'p-3', isAudioMessage && 'p-1')}>
                                 {renderBubbleContent()}
                             </div>
+                            
+                            {hasCaption && (
+                                <p className="px-3 pb-2 pt-1 text-sm opacity-90">{message.caption}</p>
+                            )}
+                            
+                            {isUploadingOrFailed && isMediaMessage && <UploadProgressIndicator message={message} onRetry={() => handleRetry(message)} />}
+
+                            {isMediaMessage && isCurrentUser && !isUploadingOrFailed && (
+                                 <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 text-white shadow-lg">
+                                    <span className="text-xs font-medium" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{formattedTime}</span>
+                                    <StatusDots status={message.status} />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
-                {hasStandardBubble && (
+                {(hasStandardBubble) && (
                     <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
                         <span className="text-xs text-muted-foreground">{formattedTime}</span>
                         {isCurrentUser && <StatusDots status={message.status} />}
                         {isCurrentUser && message.status !== 'sending' && message.status !== 'failed' && <button onClick={() => onShowInfo(message)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"><Info size={14}/></button>}
                     </div>
                 )}
-                 {!hasStandardBubble && !isMediaMessage && (
-                     <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
-                        {isCurrentUser && <StatusDots status={message.status} />}
-                    </div>
-                 )}
-                 {isMediaMessage && (
-                     <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-2 py-1 text-white shadow-lg">
-                        <span className="text-xs font-medium" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{formattedTime}</span>
-                        {isCurrentUser && <StatusDots status={message.status} />}
-                    </div>
-                 )}
             </div>
         </div>
     </div>
