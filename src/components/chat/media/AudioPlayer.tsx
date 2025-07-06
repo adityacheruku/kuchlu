@@ -101,7 +101,6 @@ const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
         };
     }, [toast, signedAudioUrl, playbackRate]);
     
-    const playerColorClass = isCurrentUser ? 'text-primary-foreground' : 'text-secondary-foreground';
     const sliderThumbClass = isCurrentUser ? '[&>span]:bg-primary-foreground' : '[&>span]:bg-primary';
     const sliderTrackClass = isCurrentUser ? 'bg-primary-foreground/30' : 'bg-secondary-foreground/30';
     const sliderRangeClass = isCurrentUser ? 'bg-primary-foreground' : 'bg-secondary-foreground';
@@ -109,10 +108,10 @@ const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
     if (hasError) return <div className={cn("flex items-center gap-2 p-2", isCurrentUser ? "text-red-300" : "text-red-500")}><AlertTriangle size={18} /><span className="text-sm">Audio error</span></div>;
 
     return (
-        <div className={cn("flex items-center gap-3 w-full max-w-[250px] sm:max-w-xs", playerColorClass)}>
+        <div className={cn("flex items-center gap-2 w-full max-w-[280px] sm:max-w-xs")}>
             <audio ref={audioRef} preload="metadata" />
             <Button variant="ghost" size="icon" onClick={handlePlayPause} className={cn("w-10 h-10 rounded-full flex-shrink-0", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')} aria-label={isPlaying ? "Pause audio" : "Play audio"} disabled={!signedAudioUrl || isLoading}>
-                {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className={playerColorClass} /> : <Play size={20} className={cn("ml-0.5", playerColorClass)} />}
+                {(!signedAudioUrl || isLoading) ? <Spinner/> : isPlaying ? <Pause size={20} className="text-black dark:text-white" /> : <Play size={20} className={cn("ml-0.5", "text-black dark:text-white")} />}
             </Button>
             
             <div className="flex-grow flex flex-col justify-center gap-1.5 w-full">
@@ -121,7 +120,7 @@ const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
                     max={duration || 1}
                     step={0.1}
                     onValueChange={handleSeek}
-                    className="w-full h-1"
+                    className="w-full"
                     classNames={{
                       track: sliderTrackClass,
                       range: sliderRangeClass,
@@ -129,15 +128,18 @@ const AudioPlayer = ({ message, isCurrentUser }: AudioPlayerProps) => {
                     }}
                     aria-label="Seek audio"
                  />
-                 <div className="flex justify-between items-center">
-                    <Button variant="ghost" size="sm" onClick={handleTogglePlaybackRate} className={cn("w-12 h-6 rounded-full text-xs font-mono", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')}>
-                        {playbackRate.toFixed(1)}x
-                    </Button>
-                    <span className="text-xs font-mono opacity-80">
-                        {formatTime(currentTime)} / {formatTime(duration)}
+                 <div className="flex justify-between items-center -mt-1">
+                    <span className="text-[11px] font-mono opacity-80">
+                        {formatTime(currentTime)}
+                    </span>
+                    <span className="text-[11px] font-mono opacity-80">
+                        {formatTime(duration)}
                     </span>
                  </div>
             </div>
+             <Button variant="ghost" size="sm" onClick={handleTogglePlaybackRate} className={cn("w-12 h-6 rounded-full text-xs font-mono", isCurrentUser ? 'hover:bg-white/20' : 'hover:bg-black/10')}>
+                {playbackRate.toFixed(1)}x
+            </Button>
         </div>
     );
 };
