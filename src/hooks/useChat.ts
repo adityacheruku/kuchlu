@@ -182,10 +182,37 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         if (!currentUser || !activeChatId || !text.trim()) return;
         handleTyping(false);
         const clientTempId = uuidv4();
-        const optimisticMessage: MessageType = { id: clientTempId, user_id: currentUser.id, chat_id: activeChatId, text, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), reactions: {}, client_temp_id: clientTempId, status: "sending", message_subtype: "text", mode: mode, reply_to_message_id: replyToId };
+        
+        // Regex to detect if the string contains only emojis and whitespace
+        const emojiOnlyRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji_Modifier_Base}|\p{Emoji_Component}|\p{Extended_Pictographic}|\s)+$/u;
+        const messageSubtype = emojiOnlyRegex.test(text.trim()) ? 'emoji_only' : 'text';
+
+        const optimisticMessage: MessageType = { 
+            id: clientTempId, 
+            user_id: currentUser.id, 
+            chat_id: activeChatId, 
+            text, 
+            created_at: new Date().toISOString(), 
+            updated_at: new Date().toISOString(), 
+            reactions: {}, 
+            client_temp_id: clientTempId, 
+            status: "sending", 
+            message_subtype: messageSubtype, 
+            mode: mode, 
+            reply_to_message_id: replyToId 
+        };
         
         await storageService.addMessage(optimisticMessage);
-        sendMessageWithTimeout({ event_type: "send_message", text, mode, client_temp_id: clientTempId, message_subtype: "text", reply_to_message_id: replyToId, chat_id: activeChatId });
+        sendMessageWithTimeout({ 
+            event_type: "send_message", 
+            text, 
+            mode, 
+            client_temp_id: clientTempId, 
+            message_subtype: messageSubtype, 
+            reply_to_message_id: replyToId, 
+            chat_id: activeChatId 
+        });
+
         if (replyToId) setReplyingTo(null);
     }, [currentUser, activeChatId, handleTyping, sendMessageWithTimeout]);
 

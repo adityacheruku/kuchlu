@@ -84,12 +84,13 @@ function MessageBubble({
       setTimeout(() => setIsShaking(false), 600);
   };
   
-  const isTextMessage = message.message_subtype === 'text' || message.message_subtype === 'emoji_only';
+  const isJumboEmoji = message.message_subtype === 'emoji_only';
+  const isTextMessage = message.message_subtype === 'text';
   const isMediaMessage = ['image', 'clip'].includes(message.message_subtype || '');
   const isAudioMessage = message.message_subtype === 'voice_message' || message.message_subtype === 'audio';
   const isDocumentMessage = message.message_subtype === 'document';
   const isStickerMessage = message.message_subtype === 'sticker';
-  const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode;
+  const swipeDisabled = isMediaMessage || isStickerMessage || isSelectionMode || isJumboEmoji;
   
   const { translateX, isDragging, events: swipeEvents } = useSwipe({
     onSwipeLeft: () => {
@@ -144,6 +145,9 @@ function MessageBubble({
         </div>
       );
     }
+    if (isJumboEmoji) {
+        return <p className="text-5xl animate-pop">{message.text}</p>;
+    }
     if (isTextMessage) {
         return message.text ? (
             <p className="text-sm whitespace-pre-wrap break-words"
@@ -170,7 +174,7 @@ function MessageBubble({
   }
 
   const hasStandardBubble = isTextMessage || isAudioMessage || isDocumentMessage;
-  const hasNoBubble = isStickerMessage || isMediaMessage;
+  const hasNoBubble = isStickerMessage || isMediaMessage || isJumboEmoji;
   
   return (
     <div className={cn('w-full flex items-start', isCurrentUser ? 'justify-end' : 'justify-start')}>
