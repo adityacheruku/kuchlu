@@ -7,8 +7,6 @@ import type { UploadItem, UploadProgress, MessageSubtype, Message, CloudinaryUpl
 import type { UploadError } from '@/types/uploadErrors';
 import { UploadErrorCode } from '@/types/uploadErrors';
 import { storageService } from './storageService';
-import { imageProcessor } from './imageProcessor';
-import { videoCompressor, type CompressionProgress } from './videoCompressor';
 import { networkMonitor, type NetworkQuality } from './networkMonitor';
 
 // A simple event emitter
@@ -93,33 +91,13 @@ class UploadManager {
     emitProgress({ messageId: item.messageId, status: 'processing', progress: 0 });
     
     try {
-        let fileToUpload: Blob = item.file;
+        // Client-side processing is removed. We upload the raw file directly.
+        const fileToUpload: Blob = item.file;
         let thumbnailDataUrl: string | undefined = item.thumbnailDataUrl;
 
-        const handleCompressionProgress = (p: CompressionProgress) => {
-             emitProgress({ 
-                messageId: item.messageId, 
-                status: 'compressing', 
-                progress: p.progress, 
-                thumbnailDataUrl 
-            });
-        };
-
-        if (item.subtype === 'image') {
-            emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
-            fileToUpload = await imageProcessor.processImageForUpload(item.file);
-            if (!thumbnailDataUrl) {
-                thumbnailDataUrl = await imageProcessor.createThumbnail(item.file);
-                emitProgress({ messageId: item.messageId, status: 'compressing', progress: 100, thumbnailDataUrl });
-            }
-        } else if (item.subtype === 'clip') { // Video
-             if (!thumbnailDataUrl) {
-                thumbnailDataUrl = await videoCompressor.extractVideoThumbnail(item.file);
-                emitProgress({ messageId: item.messageId, status: 'compressing', progress: 0, thumbnailDataUrl });
-            }
-            fileToUpload = await videoCompressor.compressVideo(item.file, 'medium', handleCompressionProgress);
-        } else if (item.subtype === 'voice_message' || item.subtype === 'audio') {
-            fileToUpload = await videoCompressor.compressAudio(item.file, handleCompressionProgress);
+        // Generate a local preview URL for images if one doesn't exist
+        if (!thumbnailDataUrl && item.file.type.startsWith('image/')) {
+            thumbnailDataUrl = URL.createObjectURL(item.file);
         }
 
         item.status = 'uploading';
@@ -139,12 +117,9 @@ class UploadManager {
         formData.append('signature', signatureResponse.signature);
         formData.append('public_id', signatureResponse.public_id);
         formData.append('folder', signatureResponse.folder);
-        formData.append('resource_type', signatureResponse.resource_type);
-        if (signatureResponse.type) formData.append('type', signatureResponse.type);
-        if(signatureResponse.eager) formData.append('eager', signatureResponse.eager);
-        if(signatureResponse.notification_url) formData.append('notification_url', signatureResponse.notification_url);
+        formData.append('upload_preset', signatureResponse.upload_preset);
 
-        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${signatureResponse.resource_type}/upload`;
+        const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${signatureResponse.cloud_name}/${resourceType}/upload`;
         
         const xhr = new XMLHttpRequest();
         this.activeUploads.set(item.id, xhr);
@@ -178,11 +153,12 @@ class UploadManager {
             xhr.send(formData);
         });
         
+        // After successful upload, we wait for the webhook to finalize the state.
         this.updateUploadStatus(item.id, 'pending_processing');
 
     } catch (error: any) {
         if (error.name === 'AbortError') {
-            this.updateUploadStatus(item.id, 'cancelled');
+            this.updateUploadStatus(item.toCancel.id, 'cancelled');
         } else {
             console.error('Upload failed for item:', item.id, error);
             this.updateUploadStatus(item.id, 'failed', {
@@ -215,7 +191,10 @@ class UploadManager {
           item.error = error;
           emitProgress({ messageId: item.messageId, status, progress: status === 'completed' || status === 'pending_processing' ? 100 : item.progress, error });
 
-          if (status === 'completed' || status === 'cancelled') {
+          // We now wait for the webhook, so we don't remove from queue until it's confirmed.
+          // The webhook handler will need to somehow signal completion back to the manager or another service.
+          // For now, we leave it in the queue until a timeout or explicit completion signal.
+          if (status === 'cancelled') {
               this.queue.splice(itemIndex, 1);
               await storageService.removeUploadItem(item.id);
           } else {

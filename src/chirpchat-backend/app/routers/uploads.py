@@ -36,10 +36,7 @@ class UploadSignatureResponse(BaseModel):
     cloud_name: str
     public_id: str
     folder: str
-    resource_type: str
-    type: str = "private"
-    eager: Optional[str] = None
-    notification_url: Optional[str] = None
+    upload_preset: str
 
 @router.post("/get-cloudinary-upload-signature", response_model=UploadSignatureResponse, summary="Generate a signature for direct Cloudinary upload")
 async def get_cloudinary_upload_signature(
@@ -48,52 +45,24 @@ async def get_cloudinary_upload_signature(
 ):
     """
     Generates a secure, time-sensitive signature that allows the client
-    to upload a file directly to Cloudinary, bypassing our backend.
+    to upload a file directly to Cloudinary using a signed upload preset.
+    The preset handles transformations, tagging, etc. on Cloudinary's side.
     """
     try:
         timestamp = int(time.time())
         final_folder = f"{request.folder}/user_{current_user.id}"
+        # NOTE: This upload preset must be created in your Cloudinary account
+        # and configured as a 'signed' preset. It should also contain the
+        # eager transformations and webhook notification URL.
+        upload_preset = "kuchlu_signed_uploads"
         
         params_to_sign: Dict[str, Any] = {
             "timestamp": timestamp,
             "public_id": request.public_id,
             "folder": final_folder,
-            "resource_type": request.resource_type,
-            "type": "private",
+            "upload_preset": upload_preset,
         }
         
-        notification_url = None
-        if settings.CLOUDINARY_WEBHOOK_URL:
-            notification_url = settings.CLOUDINARY_WEBHOOK_URL
-            params_to_sign["notification_url"] = notification_url
-        else:
-            logger.warning("CLOUDINARY_WEBHOOK_URL is not set. Direct uploads will work, but server-side processing notifications will not be received.")
-
-
-        eager_transformations: List[Dict[str, Any]] = []
-        if request.resource_type == "image":
-            eager_transformations.extend([
-                {"width": 250, "height": 250, "crop": "fill", "quality": "auto", "format": "jpg"},
-                {"width": 800, "quality": "auto", "format": "webp"}
-            ])
-        elif request.resource_type == "video":
-            eager_transformations.extend([
-                # Video specific transformations
-                {"format": "mp4", "quality": "auto:low", "video_codec": "auto"},
-                {"streaming_profile": "auto", "format": "m3u8"},
-                {"streaming_profile": "auto", "format": "mpd"},
-                {"format": "jpg", "start_offset": "1", "width": 400, "crop": "scale"},
-                {"format": "gif", "duration": "5", "width": 250, "crop": "fill"},
-                # Audio-specific transformation
-                {"format": "mp3", "audio_codec": "mp3"}
-            ])
-
-        if eager_transformations:
-            eager_strings = []
-            for t in eager_transformations:
-                eager_strings.append(",".join([f"{k}_{v}" for k, v in t.items()]))
-            params_to_sign["eager"] = "|".join(eager_strings)
-
         signature = api_sign_request(params_to_sign, settings.CLOUDINARY_API_SECRET)
         
         return UploadSignatureResponse(
@@ -103,14 +72,12 @@ async def get_cloudinary_upload_signature(
             cloud_name=settings.CLOUDINARY_CLOUD_NAME,
             public_id=request.public_id,
             folder=final_folder,
-            resource_type=request.resource_type,
-            type="private",
-            eager=params_to_sign.get("eager"),
-            notification_url=notification_url
+            upload_preset=upload_preset
         )
     except Exception as e:
         logger.error(f"Error generating Cloudinary signature: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not generate upload signature.")
+
 
 async def delete_cloudinary_asset(public_id: str, resource_type: str):
     """

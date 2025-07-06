@@ -42,6 +42,7 @@ export interface MediaMetadata {
   format: string;
   bytes: number;
   duration?: number;
+  duration_seconds?: number;
   width?: number;
   height?: number;
   title?: string;
@@ -192,10 +193,7 @@ export interface CloudinaryUploadParams {
     cloud_name: string;
     public_id: string;
     folder: string;
-    resource_type: 'image' | 'video' | 'raw' | 'auto';
-    type?: 'private' | 'upload' | 'authenticated';
-    eager?: string;
-    notification_url?: string;
+    upload_preset: string;
 }
 
 export interface MediaMessagePayload {
