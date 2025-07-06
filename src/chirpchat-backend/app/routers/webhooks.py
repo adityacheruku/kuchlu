@@ -25,8 +25,6 @@ def verify_cloudinary_signature(body: bytes, signature_header: str, timestamp_he
         return False
         
     try:
-        # The signature header is a string of space-separated key=value pairs
-        # We need to find the v1 signature
         sig_parts = {p.split('=')[0]: p.split('=')[1] for p in signature_header.split(' ')}
         v1_signature = sig_parts.get('v1')
 
@@ -34,7 +32,6 @@ def verify_cloudinary_signature(body: bytes, signature_header: str, timestamp_he
             logger.warning("Webhook signature 'v1' not found in header.")
             return False
 
-        # Create the string to sign: body + timestamp + secret
         string_to_sign = body + timestamp_header.encode('utf-8') + settings.CLOUDINARY_API_SECRET.encode('utf-8')
         
         expected_signature = sha1(string_to_sign).hexdigest()
@@ -78,22 +75,20 @@ def map_eager_to_urls(eager_list: Optional[List[EagerTransformation]], resource_
     for t in eager_list:
         if resource_type == "image":
             if "w_250" in t.transformation:
-                urls["thumbnail_250"] = t.secure_url
+                urls["thumbnail_250"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
             elif "w_800" in t.transformation:
-                urls["preview_800"] = t.secure_url
+                urls["preview_800"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
         elif resource_type == "video":
             if "sp_auto" in t.transformation and t.format == "m3u8":
-                urls["hls_manifest"] = t.secure_url
-            if "sp_auto" in t.transformation and t.format == "mpd":
-                urls["dash_manifest"] = t.secure_url
+                urls["hls_manifest"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
             if "f_jpg" in t.transformation:
-                urls["static_thumbnail"] = t.secure_url
+                urls["static_thumbnail"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
             if "f_gif" in t.transformation:
-                urls["animated_preview"] = t.secure_url
+                urls["animated_preview"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
             if t.format == "mp4":
-                urls["mp4_video"] = t.secure_url
+                urls["mp4_video"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
             if t.format == "mp3":
-                urls["mp3_audio"] = t.secure_url
+                urls["mp3_audio"] = t.secure_url.split(t.url.split('/')[-1])[0] + t.url.split('/')[-1]
     return urls
 
 
@@ -103,15 +98,9 @@ async def handle_cloudinary_media_processed(
     x_cld_timestamp: str = Header(...),
     x_cld_signature: str = Header(...)
 ):
-    """
-    Handles webhook notifications from Cloudinary after a file upload and processing is complete.
-    It updates the message in the database with the final media URLs and metadata.
-    """
     body_bytes = await request.body()
     
-    # In a production environment, this signature verification is CRITICAL to ensure
-    # that the webhook is coming from Cloudinary and not a malicious actor. It is
-    # commented out here to simplify testing with Cloudinary's "Test Webhook" button.
+    # In a production environment, signature verification is CRITICAL.
     # if not verify_cloudinary_signature(body_bytes, x_cld_signature, x_cld_timestamp):
     #     logger.warning("Invalid Cloudinary webhook signature received.")
     #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
@@ -134,7 +123,6 @@ async def handle_cloudinary_media_processed(
     message_db_id = message_resp.data['id']
     chat_id = str(message_resp.data['chat_id'])
 
-    # Prepare a comprehensive media_metadata object
     final_media_metadata = {
         "public_id": payload.public_id,
         "resource_type": payload.resource_type,
@@ -165,3 +153,4 @@ async def handle_cloudinary_media_processed(
         await ws_manager.broadcast_media_processed(chat_id, updated_message)
 
     return {"status": "success"}
+

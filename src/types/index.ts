@@ -1,4 +1,5 @@
 
+
 import type { UploadError as UploadErrorType } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
@@ -41,12 +42,9 @@ export interface MediaMetadata {
   resource_type: 'image' | 'video' | 'raw';
   format: string;
   bytes: number;
-  duration?: number;
   duration_seconds?: number;
   width?: number;
   height?: number;
-  title?: string;
-  artist?: string;
   urls: {
     original?: string;
     thumbnail_250?: string;
