@@ -1,6 +1,7 @@
 // ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
-import { memo, type RefObject, useEffect } from 'react';
-import type { Message, User, SupportedEmoji, DeleteType } from '@/types';
+import React, { memo, type RefObject, useEffect } from 'react';
+import { format } from 'date-fns';
+import type { Message, User } from '@/types';
 import MessageBubble, { type MessageBubbleProps } from './MessageBubble';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
@@ -9,7 +10,6 @@ import Spinner from '../common/Spinner';
 import { useInView } from 'react-intersection-observer';
 import { mediaCacheService } from '@/services/mediaCacheService';
 import { cn } from '@/lib/utils';
-import { Ban } from 'lucide-react';
 import ModeActivationLoader from './ModeActivationLoader';
 
 interface MessageAreaProps {
@@ -17,7 +17,7 @@ interface MessageAreaProps {
   messages: Message[];
   currentUser: User;
   allUsers: Record<string, User>;
-  onToggleReaction: (messageId: string, emoji: SupportedEmoji) => void;
+  onToggleReaction: (messageId: string, emoji: string) => void;
   onShowReactions: (message: Message, allUsers: Record<string, User>) => void;
   onShowMedia: (message: Message) => void;
   onShowDocumentPreview: (message: Message) => void;
@@ -51,7 +51,7 @@ interface MessageBubbleWithObserverProps extends MessageBubbleProps {
 }
 
 const MessageBubbleWithObserver = (props: MessageBubbleWithObserverProps) => {
-    const { message, currentUser, onMarkAsRead, isSelectionMode, selectedMessageIds, infoMessageId, allUsers } = props;
+    const { message, currentUser, onMarkAsRead, isSelectionMode, allUsers } = props;
     const { ref, inView } = useInView({
         threshold: 0.5,
         triggerOnce: true,
@@ -76,33 +76,22 @@ const MessageBubbleWithObserver = (props: MessageBubbleWithObserverProps) => {
             }
         }
     }, [inView, message]);
-    
-    if (message.message_subtype === 'deleted_placeholder') {
-        return (
-            <div className="flex justify-center items-center my-2">
-                <div className="px-3 py-1 bg-muted/50 rounded-full text-xs text-muted-foreground italic flex items-center gap-1.5">
-                    <Ban size={12}/>
-                    {message.text}
-                </div>
-            </div>
-        )
-    }
 
     const sender = allUsers[message.user_id] || (message.user_id === currentUser.id ? currentUser : null);
-    if (!sender) {
+    if (!sender && message.message_subtype !== 'deleted' && message.message_subtype !== 'system') {
         console.warn("Sender not found for message:", message.id, "senderId:", message.user_id);
         return null; // Don't render if sender can't be found
     }
 
     const isCurrentUser = message.user_id === currentUser.id;
-    const isSelected = isSelectionMode && selectedMessageIds.has(message.id);
-    const isInfoOpen = infoMessageId === message.id;
+    const isSelected = isSelectionMode && props.selectedMessageIds.has(message.id);
+    const isInfoOpen = props.infoMessageId === message.id;
 
     return (
-        <div ref={ref} data-selected={isSelected} data-info-open={isInfoOpen} className="group/bubble-wrapper message-bubble-wrapper has-[[data-selected=true]]:bg-primary/5 has-[[data-info-open=true]]:bg-primary/5 rounded-lg transition-colors">
+        <div ref={ref} data-selected={isSelected} data-info-open={isInfoOpen} className="group/bubble-wrapper has-[[data-selected=true]]:bg-primary/5 has-[[data-info-open=true]]:bg-primary/5 rounded-lg transition-colors">
             <MessageBubble
                 {...props}
-                sender={sender}
+                sender={sender!}
                 isCurrentUser={isCurrentUser}
                 currentUserId={currentUser.id}
                 isSelected={isSelected}
@@ -123,6 +112,13 @@ function MessageArea({
   const lastMessageId = messages[messages.length - 1]?.id;
   useAutoScroll(viewportRef, [lastMessageId]);
   const isActivated = pullY > activationThreshold;
+  
+  let lastMessageDate: string | null = null;
+  let firstUnreadIndex = -1;
+
+  if (!isSelectionMode) {
+      firstUnreadIndex = messages.findIndex(msg => msg.status !== 'read' && msg.user_id !== currentUser.id);
+  }
   
   return (
     <ScrollArea
@@ -148,34 +144,53 @@ function MessageArea({
                 </Button>
             </div>
         )}
-        {messages.map((msg) => (
-            <MessageBubbleWithObserver
-              key={msg.client_temp_id || msg.id}
-              message={msg}
-              messages={messages}
-              currentUser={currentUser}
-              allUsers={allUsers}
-              onToggleReaction={onToggleReaction}
-              onShowReactions={onShowReactions}
-              onShowMedia={onShowMedia}
-              onShowDocumentPreview={onShowDocumentPreview}
-              onShowInfo={onShowInfo}
-              onRetrySend={onRetrySend}
-              onDeleteMessage={() => onDeleteMessage(msg)}
-              onSetReplyingTo={onSetReplyingTo}
-              isSelectionMode={isSelectionMode}
-              selectedMessageIds={selectedMessageIds}
-              onEnterSelectionMode={onEnterSelectionMode}
-              onToggleMessageSelection={onToggleMessageSelection}
-              onMarkAsRead={onMarkAsRead}
-              infoMessageId={infoMessageId}
-              sender={allUsers[msg.user_id] || currentUser}
-              isCurrentUser={msg.user_id === currentUser.id}
-              currentUserId={currentUser.id}
-              isSelected={selectedMessageIds.has(msg.id)}
-              isInfoOpen={infoMessageId === msg.id}
-            />
-        ))}
+        {messages.map((msg, index) => {
+            const currentDate = new Date(msg.created_at).toDateString();
+            let dateDivider = null;
+            if (lastMessageDate !== currentDate) {
+                dateDivider = (
+                    <div className="text-center text-xs text-muted-foreground my-3">
+                        {format(new Date(msg.created_at), 'MMMM d, yyyy')}
+                    </div>
+                );
+                lastMessageDate = currentDate;
+            }
+
+            const isFirstUnread = index === firstUnreadIndex;
+            
+            return (
+                <React.Fragment key={msg.client_temp_id || msg.id}>
+                    {dateDivider}
+                    {isFirstUnread && (
+                        <div className="flex justify-center items-center my-2">
+                           <div className="px-4 py-1 bg-secondary rounded-full text-xs text-secondary-foreground font-semibold shadow">
+                                Unread Messages
+                            </div>
+                        </div>
+                    )}
+                    <MessageBubbleWithObserver
+                      message={msg}
+                      messages={messages}
+                      currentUser={currentUser}
+                      allUsers={allUsers}
+                      onToggleReaction={onToggleReaction}
+                      onShowReactions={onShowReactions}
+                      onShowMedia={onShowMedia}
+                      onShowDocumentPreview={onShowDocumentPreview}
+                      onShowInfo={onShowInfo}
+                      onRetrySend={onRetrySend}
+                      onDeleteMessage={() => onDeleteMessage(msg)}
+                      onSetReplyingTo={onSetReplyingTo}
+                      isSelectionMode={isSelectionMode}
+                      selectedMessageIds={selectedMessageIds}
+                      onEnterSelectionMode={onEnterSelectionMode}
+                      onToggleMessageSelection={onToggleMessageSelection}
+                      onMarkAsRead={onMarkAsRead}
+                      infoMessageId={infoMessageId}
+                    />
+                </React.Fragment>
+            );
+        })}
       </div>
     </ScrollArea>
   );

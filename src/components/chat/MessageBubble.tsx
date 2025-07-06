@@ -23,8 +23,8 @@ import { useSwipe } from '@/hooks/useSwipe';
 import { useLongPress } from '@/hooks/useLongPress';
 
 // Types and Icons
-import type { Message, User, SupportedEmoji } from '@/types';
-import { Reply, Trash2, Info, FileText } from 'lucide-react';
+import type { Message, User } from '@/types';
+import { Reply, Trash2, Info, FileText, Ban } from 'lucide-react';
 
 
 export interface MessageBubbleProps {
@@ -33,7 +33,7 @@ export interface MessageBubbleProps {
   sender: User;
   isCurrentUser: boolean;
   currentUserId: string;
-  onToggleReaction: (messageId: string, emoji: SupportedEmoji) => void;
+  onToggleReaction: (messageId: string, emoji: string) => void;
   onShowReactions: (message: Message, allUsers: Record<string, User>) => void;
   onShowMedia: (message: Message) => void;
   onShowDocumentPreview: (message: Message) => void;
@@ -69,6 +69,17 @@ function MessageBubble({
     onDeleteMessage: onDelete, onSetReplyingTo, isSelectionMode, 
     onEnterSelectionMode, onToggleMessageSelection, isSelected, isInfoOpen
 }: MessageBubbleProps) {
+  
+  if (message.message_subtype === 'deleted') {
+      return (
+          <div className="flex justify-center items-center my-2">
+              <div className="px-3 py-1 bg-muted/50 rounded-full text-xs text-muted-foreground italic flex items-center gap-1.5">
+                  <Ban size={12}/>
+                  {message.text}
+              </div>
+          </div>
+      )
+  }
   
   const [isShaking, setIsShaking] = useState(false);
 
@@ -203,7 +214,7 @@ function MessageBubble({
                         </div>
                     </div>
                 </div>
-                {(hasStandardBubble) && (
+                {(hasStandardBubble || (hasMediaBubble && !isCurrentUser)) && (
                     <div className={cn("flex items-center gap-2 pt-1 px-2", isCurrentUser ? "justify-end" : "justify-start")}>
                         <span className="text-xs text-muted-foreground">{formattedTime}</span>
                         {isCurrentUser && <StatusDots status={message.status} />}

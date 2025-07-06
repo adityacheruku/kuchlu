@@ -117,8 +117,19 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onUserProfileUpdate: (data) => { setOtherUser(prev => (prev && data.user_id === prev.id) ? { ...prev, ...data } : prev); if (otherUser && data.user_id === otherUser.id) storageService.upsertUser({ ...otherUser, ...data })},
         onMessageAck: handleMessageAck,
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
-        onMessageDeleted: (data) => { const placeholder: MessageType = { id: data.message_id, client_temp_id: data.message_id, chat_id: data.chat_id, user_id: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'sent', message_subtype: 'deleted_placeholder', text: "This message was deleted" }; storageService.addMessage(placeholder); },
-        onChatHistoryCleared: (data: ChatHistoryClearedEventData) => { if(activeChatId === data.chat_id) storageService.messages.where('chat_id').equals(data.chat_id).delete(); },
+        onMessageDeleted: (data) => {
+            storageService.updateMessageByServerId(data.message_id, {
+                message_subtype: 'deleted',
+                text: 'This message was deleted.',
+                reactions: {},
+                image_url: undefined,
+                clip_url: undefined,
+                document_url: undefined,
+                sticker_id: undefined,
+                caption: undefined,
+            });
+        },
+        onChatHistoryCleared: (data) => { if(activeChatId === data.chat_id) storageService.messages.where('chat_id').equals(data.chat_id).delete(); },
         onMediaProcessed: (data) => storageService.updateMessage(data.message.client_temp_id!, data.message),
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
@@ -249,13 +260,28 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const handleDeleteSelected = useCallback(async (deleteType: DeleteType) => {
         if (!activeChatId || !currentUser || !messages) return;
         const messagesToDelete = messages.filter(m => selectedMessageIds.has(m.id));
+        
         if (deleteType === 'everyone') {
-            for (const msg of messagesToDelete) await api.deleteMessageForEveryone(msg.id, activeChatId);
-        } else {
-            for (const msg of messagesToDelete) await storageService.deleteMessage(msg.client_temp_id!);
+            for (const msg of messagesToDelete) {
+                await api.deleteMessageForEveryone(msg.id, activeChatId);
+            }
+        } else { // 'me'
+            for (const msg of messagesToDelete) {
+                await storageService.updateMessage(msg.client_temp_id!, {
+                    text: 'You deleted this message.',
+                    message_subtype: 'deleted',
+                    reactions: {},
+                    image_url: undefined,
+                    clip_url: undefined,
+                    document_url: undefined,
+                    sticker_id: undefined,
+                    caption: undefined,
+                });
+            }
         }
-        setIsDeleteDialogOpen(false); handleExitSelectionMode();
-    }, [activeChatId, currentUser, selectedMessageIds, messages, handleExitSelectionMode]);
+        setIsDeleteDialogOpen(false);
+        handleExitSelectionMode();
+    }, [activeChatId, currentUser, messages, selectedMessageIds, handleExitSelectionMode]);
 
     const handleClearChat = useCallback(async () => {
         if (!activeChatId) return;
@@ -294,7 +320,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     useEffect(() => { const timeouts = pendingMessageTimeouts.current; return () => Object.values(timeouts).forEach(clearTimeout); }, []);
 
     return {
-        currentUser, otherUser, messages, activeChatId, chatMode, dynamicBgClass, protocol, isBrowserOnline, isChatLoading, chatSetupErrorMessage, isLoadingMore, hasMoreMessages, typingUsers, activeThoughtNotificationFor, isSelectionMode, selectedMessageIds, replyingTo, pullY, isPulling, activationThreshold: ACTIVATION_THRESHOLD,
+        currentUser, otherUser, messages: messages || [], activeChatId, chatMode, dynamicBgClass, protocol, isBrowserOnline, isChatLoading, chatSetupErrorMessage, isLoadingMore, hasMoreMessages, typingUsers, activeThoughtNotificationFor, isSelectionMode, selectedMessageIds, replyingTo, pullY, isPulling, activationThreshold: ACTIVATION_THRESHOLD,
         viewportRef,
         isMoodModalOpen, initialMoodOnLoad, reactionModalData, mediaModalData, documentPreview, messageInfo, isModeSelectorOpen, isDeleteDialogOpen, isClearChatDialogOpen, isFullScreenAvatarOpen, fullScreenUserData,
         setIsMoodModalOpen, setReactionModalData, setMediaModalData, setDocumentPreview, setMessageInfo, setIsModeSelectorOpen, setIsDeleteDialogOpen, setIsClearChatDialogOpen, setIsFullScreenAvatarOpen, setFullScreenUserData,

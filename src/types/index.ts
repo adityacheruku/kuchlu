@@ -32,7 +32,7 @@ export interface UserInToken extends User {}
 
 export type MessageClipType = 'audio' | 'video';
 export type MessageStatus = "uploading" | "sending" | "sent" | "delivered" | "read" | "failed" | "pending_processing";
-export type MessageSubtype = 'text' | 'sticker' | 'clip' | 'image' | 'document' | 'voice_message' | 'audio' | 'emoji_only' | 'history_cleared_marker' | 'deleted_placeholder';
+export type MessageSubtype = 'text' | 'sticker' | 'clip' | 'image' | 'document' | 'voice_message' | 'audio' | 'emoji_only' | 'history_cleared_marker' | 'deleted' | 'system';
 export type MessageMode = 'normal' | 'fight' | 'incognito';
 export type DeleteType = 'me' | 'everyone';
 
