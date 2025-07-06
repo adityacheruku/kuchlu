@@ -19,17 +19,11 @@ const SettingsItem = ({ children }: { children: React.ReactNode }) => {
 export default function NotificationSettingsPage() {
     const { currentUser, isLoading: isAuthLoading } = useAuth();
     const { isSubscribed, notificationSettings, updateNotificationSettings, isSubscribing, permissionStatus, subscribeToPush, unsubscribeFromPush } = usePushNotifications();
-    const [localNotificationSettings, setLocalNotificationSettings] = useState<Partial<NotificationSettings>>({});
-
-    useEffect(() => {
-        if (notificationSettings) {
-            setLocalNotificationSettings(notificationSettings);
-        }
-    }, [notificationSettings]);
+    
+    // The usePushNotifications hook now manages the settings state internally.
 
     const handleSettingChange = (key: keyof NotificationSettings, value: boolean) => {
-        const newSettings = { ...localNotificationSettings, [key]: value };
-        setLocalNotificationSettings(newSettings);
+        // Optimistically update UI if needed, but the hook handles the API call and final state
         updateNotificationSettings({ [key]: value });
     };
 
@@ -53,24 +47,24 @@ export default function NotificationSettingsPage() {
                             <Label htmlFor="dnd-toggle" className="font-semibold pr-4">Do Not Disturb</Label>
                             <Switch 
                                 id="dnd-toggle" 
-                                checked={localNotificationSettings.is_dnd_enabled ?? false}
+                                checked={notificationSettings?.is_dnd_enabled ?? false}
                                 onCheckedChange={(checked) => handleSettingChange('is_dnd_enabled', checked)}
-                                disabled={isSubscribing}
+                                disabled={isSubscribing || !masterNotificationsEnabled}
                             />
                         </SettingsItem>
                         <div className={`space-y-1 pt-4 transition-opacity ${!masterNotificationsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
                             <p className="text-sm text-muted-foreground pb-2">Notify me about...</p>
                             <SettingsItem>
                                 <Label htmlFor="messages-toggle">New Messages</Label>
-                                <Switch id="messages-toggle" checked={localNotificationSettings.messages ?? true} onCheckedChange={(c) => handleSettingChange('messages', c)} />
+                                <Switch id="messages-toggle" checked={notificationSettings?.messages ?? true} onCheckedChange={(c) => handleSettingChange('messages', c)} />
                             </SettingsItem>
                             <SettingsItem>
                                 <Label htmlFor="mood-updates-toggle">Mood Updates</Label>
-                                <Switch id="mood-updates-toggle" checked={localNotificationSettings.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
+                                <Switch id="mood-updates-toggle" checked={notificationSettings?.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
                             </SettingsItem>
                             <SettingsItem>
                                 <Label htmlFor="pings-toggle">"Thinking of You" Pings</Label>
-                                <Switch id="pings-toggle" checked={localNotificationSettings.thinking_of_you ?? true} onCheckedChange={(c) => handleSettingChange('thinking_of_you', c)} />
+                                <Switch id="pings-toggle" checked={notificationSettings?.thinking_of_you ?? true} onCheckedChange={(c) => handleSettingChange('thinking_of_you', c)} />
                             </SettingsItem>
                             <Separator />
                             <SettingsItem>
