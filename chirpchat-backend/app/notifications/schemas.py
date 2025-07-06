@@ -23,6 +23,7 @@ class NotificationSettingsUpdate(BaseModel):
     quiet_hours_end: Optional[datetime.time] = None
     quiet_hours_weekdays_only: Optional[bool] = None
     timezone: Optional[str] = Field(None, max_length=50)
+    is_dnd_enabled: Optional[bool] = None
 
 class NotificationSettingsResponse(BaseModel):
     user_id: UUID
@@ -36,6 +37,7 @@ class NotificationSettingsResponse(BaseModel):
     quiet_hours_end: Optional[datetime.time] = None
     quiet_hours_weekdays_only: bool
     timezone: str
+    is_dnd_enabled: bool
 
     class Config:
         from_attributes = True

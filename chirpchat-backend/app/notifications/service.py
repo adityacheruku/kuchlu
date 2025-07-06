@@ -70,10 +70,19 @@ class NotificationService:
 
     async def _send_notification_to_user(self, user_id: UUID, notification_type: str, payload_data: dict):
         if not self.is_configured(): return
+        
         settings = await self._get_user_notification_settings(user_id)
         if not settings or not settings.get(notification_type, False): return
-        if self._is_in_quiet_hours(settings): return
         
+        # Check DND status first
+        if settings.get("is_dnd_enabled", False):
+            logger.info(f"Notification to user {user_id} suppressed due to DND mode.")
+            return
+
+        if self._is_in_quiet_hours(settings):
+            logger.info(f"Notification to user {user_id} suppressed due to quiet hours.")
+            return
+
         subscriptions = await self._get_active_subscriptions(user_id)
         if not subscriptions: return
             

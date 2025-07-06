@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Existing overlay permission -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+  <!-- Needed for WebView network access -->
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <!-- Needed for boot receiver -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <uses-permission android:name="android.permission.INTERNET"/>
+
+  <application>
+    
+    <service
+      android:name="com.kuchlu.assistivetouch.AssistiveTouchService"
+      android:enabled="true"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection"/>
+
+      <receiver android:name="com.kuchlu.assistivetouch.BootReceiver" android:exported="false">
+        <intent-filter>
+            <action android:name="android.intent.action.BOOT_COMPLETED"/>
+        </intent-filter>
+    </receiver>
+  </application>
+
+</manifest>

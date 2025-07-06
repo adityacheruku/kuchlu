@@ -1,53 +1,75 @@
-
 apply plugin: 'com.android.library'
-
-ext {
-    junitVersion = '4.13.2'
-    androidxAppCompatVersion = '1.6.1'
-    androidxJunitVersion = '1.1.5'
-    androidxEspressoCoreVersion = '3.5.1'
-    androidxWebkitVersion = '1.10.0'
-    androidxMaterialVersion = '1.11.0'
-    capacitorVersion = '6.0.0' // Matching the project's @capacitor/core version
-}
+// apply plugin: 'kotlin-android' // If your plugin uses Kotlin
 
 android {
-    namespace "com.kuchlu.plugin.assistivetouch"
-    compileSdk 34
+    namespace "com.kuchlu.plugin.assistivetouch" // Make this unique for your plugin
+    compileSdk rootProject.ext.compileSdkVersion
+
     defaultConfig {
-        minSdkVersion 22
-        targetSdkVersion 34
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles 'consumer-rules.pro' // Good practice for libraries
     }
+
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled false // Libraries usually don't minify themselves
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    lintOptions {
-        abortOnError false
+    lint {
+        baseline = file("lint-baseline.xml")
     }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_11 // Or higher
+        targetCompatibility JavaVersion.VERSION_11 // Or higher
     }
+    // If using Kotlin:
+    // kotlinOptions {
+    //    jvmTarget = '1.8' // Or higher
+    // }
+
+    // If your plugin has its own local .jar files in assistive-touch-plugin/android/libs
+    // you might need this, but it's better if dependencies are from Maven.
+    // sourceSets {
+    //    main {
+    //        jniLibs.srcDirs = ['libs']
+    //    }
+    // }
+
+    // Prevent conflicts with the main app's resources if plugin has its own
+    resourcePrefix "assistivetouch_"
+    // kotlinOptions {
+    //     jvmTarget = '11'
+    // } // Choose a unique prefix
 }
 
 repositories {
-    google()
-    mavenCentral()
+    // If this plugin depends on libraries not on Google/MavenCentral, declare them here
+    // google()
+    // mavenCentral()
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
-    implementation "com.google.android.material:material:$androidxMaterialVersion"
-    implementation "com.getcapacitor:capacitor:$capacitorVersion"
-    testImplementation "junit:junit:$junitVersion"
-    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
-    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation "androidx.appcompat:appcompat:$rootProject.ext.androidxAppCompatVersion" // Or other specific AndroidX libs
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:3.12.4'
+    testImplementation 'androidx.test:core:1.4.0'
+    // --- CRUCIAL for a Capacitor plugin ---
+    // Make sure the version matches your project's Capacitor version
+    // You can use rootProject.ext.capacitorVersion if defined in the root build.gradle
+    implementation project(':capacitor-android')
+    // annotationProcessor "com.getcapacitor:capacitor-annotation:7.3.0"
+
+                 // Use 'api' so it's available to app
+    // If capacitorVersion is not in ext, use a specific version:
+    // api "com.capacitorjs:capacitor:5.6.0" // Example version
+
+    // Add any other specific dependencies your plugin needs
+    // e.g., implementation 'com.google.code.gson:gson:2.10.1'
+
+    // If your plugin has local JARs in its own 'libs' folder:
+    // implementation fileTree(dir: 'libs', include: ['*.jar'])
 }

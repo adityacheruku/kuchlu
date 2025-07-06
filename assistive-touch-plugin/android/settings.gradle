@@ -1,0 +1,8 @@
+// Remove all lines, as this plugin should not include capacitor-android as a subproject.
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('../../chipchat-master/node_modules/@capacitor/android/capacitor')
+
+
+
+include ':capacitor-haptics' // Add this line
+project(':capacitor-haptics').projectDir = new File('../node_modules/@capacitor/haptics/android') // Add this line, verify the path

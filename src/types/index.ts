@@ -192,6 +192,10 @@ export interface CloudinaryUploadParams {
     public_id: string;
     folder: string;
     upload_preset: string;
+    resource_type: 'image' | 'video' | 'raw' | 'auto';
+    type: 'upload' | 'private' | 'authenticated';
+    eager?: string;
+    notification_url?: string; // Optional, for Cloudinary webhooks
 }
 
 export interface MediaMessagePayload {
