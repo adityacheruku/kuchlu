@@ -13,10 +13,7 @@ const withPWA = withPWAImport({
 
 
 const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
   images: {
-    unoptimized: true, // Required for static export with next/image
     remotePatterns: [
       {
         protocol: 'https',
