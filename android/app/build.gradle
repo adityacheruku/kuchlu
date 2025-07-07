@@ -1,37 +1,73 @@
-
 apply plugin: 'com.android.application'
+// apply plugin: 'kotlin-android' // Add if you use Kotlin in this module
 
 android {
-    namespace "com.kuchlu.app"
-    compileSdkVersion 34
+    namespace "com.kuchlu.app" // Ensure this is unique
+    compileSdk rootProject.ext.compileSdkVersion
+
     defaultConfig {
-        applicationId "com.kuchlu.app"
-        minSdkVersion 22
-        targetSdkVersion 34
+        applicationId "com.kuchlu.app" // Ensure this is unique
+        minSdkVersion 23 // Updated for Firebase Auth compatibility
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
     }
+
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled false // Consider true for production
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
-      sourceCompatibility JavaVersion.VERSION_17
-      targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_17 // Or JavaVersion.VERSION_11 or higher
+        targetCompatibility JavaVersion.VERSION_17 // Or JavaVersion.VERSION_11 or higher
     }
+
+
+//    kotlinOptions {
+//       jvmTarget = '17' // Or '11' or higher
+//    }
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation project(':capacitor-android')
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    implementation fileTree(include: ['*.jar'], dir: 'libs') // For local JARs in app/libs
 
-    // Add a direct dependency on the custom plugin module.
-    implementation project(':assistivetouch')
+    implementation "androidx.appcompat:appcompat:$rootProject.ext.androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$rootProject.ext.androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$rootProject.ext.coreSplashScreenVersion"
+    implementation "androidx.activity:activity-ktx:$rootProject.ext.androidxActivityVersion" // Often needed for modern Android
+
+    // Capacitor dependencies (ensure these project paths are correct in settings.gradle)
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+    // implementation "com.capacitorjs:capacitor:7.4.0" // Or a variable
+                
+    // Your custom assistive touch plugin
+    implementation project(':assistivetouch') // <<--- ADDED THIS
+
+    // Firebase dependencies
+    implementation platform('com.google.firebase:firebase-bom:33.16.0')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-analytics'
+
+    testImplementation "junit:junit:$rootProject.ext.junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$rootProject.ext.androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$rootProject.ext.androidxEspressoCoreVersion"
+}
+
+apply from: "./capacitor.build.gradle" // Ensure this path is correct if capacitor.build.gradle is not in the app module dir
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.exists() && servicesJSON.text) { // Added servicesJSON.exists()
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch (Exception e) {
+    logger.warn("google-services.json not found or unreadable. Push Notifications won't work. Error: ${e.getMessage()}")
 }

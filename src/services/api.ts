@@ -1,4 +1,3 @@
-
 import type {
   AuthResponse, User, UserInToken, Chat, Message, ApiErrorResponse, SupportedEmoji,
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
@@ -8,7 +7,7 @@ import type {
 } from '@/types';
 import type { MoodOption } from '@/config/moods';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://9711-49-43-231-86.ngrok-free.app';
+const API_BASE_URL = 'https://9711-49-43-231-86.ngrok-free.app';
 let currentAuthToken: string | null = null;
 
 function getAuthToken(): string | null {
@@ -34,7 +33,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   const text = await response.text();
-  
+
   if (!response.ok) {
     let errorData: ApiErrorResponse = { detail: `HTTP error ${response.status}` };
     try {
@@ -42,13 +41,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch (e) {
       errorData.detail = text || `HTTP error ${response.status}`;
     }
-    
+
     const errorMessage = typeof errorData.detail === 'string'
       ? errorData.detail
       : Array.isArray(errorData.detail) && errorData.detail[0]?.msg
-      ? errorData.detail[0].msg
-      : `HTTP error ${response.status}`;
-      
+        ? errorData.detail[0].msg
+        : `HTTP error ${response.status}`;
+
     throw new Error(errorMessage);
   }
 
@@ -61,14 +60,35 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 export const api = {
   setAuthToken: (token: string | null) => { currentAuthToken = token; },
+
+  // Firebase Authentication
+  firebaseSignup: async (firebaseToken: string): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/auth/firebase/signup`, {
+      method: 'POST',
+      headers: getApiHeaders({ includeAuth: false }),
+      body: JSON.stringify({ firebase_token: firebaseToken })
+    });
+    return handleResponse<AuthResponse>(response);
+  },
+
+  firebaseLogin: async (firebaseToken: string): Promise<AuthResponse> => {
+    const response = await fetch(`${API_BASE_URL}/auth/firebase/login`, {
+      method: 'POST',
+      headers: getApiHeaders({ includeAuth: false }),
+      body: JSON.stringify({ firebase_token: firebaseToken })
+    });
+    return handleResponse<AuthResponse>(response);
+  },
+
+  // Legacy OTP methods (kept for backward compatibility)
   login: async (phone: string, password_plaintext: string): Promise<AuthResponse> => {
     const formData = new URLSearchParams({ username: phone, password: password_plaintext });
     const response = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', headers: getApiHeaders({ contentType: 'application/x-www-form-urlencoded', includeAuth: false }), body: formData.toString() });
     return handleResponse<AuthResponse>(response);
   },
-  sendOtp: async (phone: string): Promise<{message: string}> => {
+  sendOtp: async (phone: string): Promise<{ message: string }> => {
     const response = await fetch(`${API_BASE_URL}/auth/send-otp`, { method: 'POST', headers: getApiHeaders({ includeAuth: false }), body: JSON.stringify({ phone }) });
-    return handleResponse<{message: string}>(response);
+    return handleResponse<{ message: string }>(response);
   },
   verifyOtp: async (phone: string, otp: string): Promise<VerifyOtpResponse> => {
     const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, { method: 'POST', headers: getApiHeaders({ includeAuth: false }), body: JSON.stringify({ phone, otp }) });
@@ -86,7 +106,7 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/${userId}`, { headers: getApiHeaders() });
     return handleResponse<User>(response);
   },
-  updateUserProfile: async (data: Partial<User>): Promise<UserInToken> => {
+  updateUserProfile: async (data: Partial<User> & { preferences?: any }): Promise<UserInToken> => {
     const response = await fetch(`${API_BASE_URL}/users/me/profile`, { method: 'PUT', headers: getApiHeaders(), body: JSON.stringify(data) });
     return handleResponse<UserInToken>(response);
   },
@@ -97,27 +117,27 @@ export const api = {
     // For progress, you'd need to use XMLHttpRequest as shown in uploadManager.
     // This is a simplified version without progress.
     const response = await fetch(`${API_BASE_URL}/users/me/avatar`, {
-        method: 'POST',
-        headers: getApiHeaders({ contentType: null }), // Let browser set Content-Type for FormData
-        body: formData,
+      method: 'POST',
+      headers: getApiHeaders({ contentType: null }), // Let browser set Content-Type for FormData
+      body: formData,
     });
     return handleResponse<UserInToken>(response);
   },
   getCloudinaryUploadSignature: async (payload: { public_id: string; folder?: string; resource_type: 'image' | 'video' | 'raw' | 'auto' }): Promise<CloudinaryUploadParams> => {
     const response = await fetch(`${API_BASE_URL}/uploads/get-cloudinary-upload-signature`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(payload)
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify(payload)
     });
     return handleResponse<CloudinaryUploadParams>(response);
   },
   sendMessageHttp: async (chatId: string, messageData: any): Promise<Message> => {
-      const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(messageData) });
-      return handleResponse<Message>(response);
+    const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(messageData) });
+    return handleResponse<Message>(response);
   },
   toggleReactionHttp: async (messageId: string, emoji: SupportedEmoji): Promise<Message> => {
-      const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/reactions`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ emoji }) });
-      return handleResponse<Message>(response);
+    const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}/reactions`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ emoji }) });
+    return handleResponse<Message>(response);
   },
   changePassword: async (passwordData: PasswordChangeRequest): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/users/me/password`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(passwordData) });
@@ -127,23 +147,23 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/users/me`, { method: 'DELETE', headers: getApiHeaders(), body: JSON.stringify(data) });
     await handleResponse<void>(response);
   },
-  getPartnerSuggestions: async (): Promise<{users: User[]}> => {
+  getPartnerSuggestions: async (): Promise<{ users: User[] }> => {
     const response = await fetch(`${API_BASE_URL}/partners/suggestions`, { headers: getApiHeaders() });
-    return handleResponse<{users: User[]}>(response);
+    return handleResponse<{ users: User[] }>(response);
   },
-  getIncomingRequests: async (): Promise<{requests: PartnerRequest[]}> => {
+  getIncomingRequests: async (): Promise<{ requests: PartnerRequest[] }> => {
     const response = await fetch(`${API_BASE_URL}/partners/requests/incoming`, { headers: getApiHeaders() });
-    return handleResponse<{requests: PartnerRequest[]}>(response);
+    return handleResponse<{ requests: PartnerRequest[] }>(response);
   },
-  getOutgoingRequests: async (): Promise<{requests: PartnerRequest[]}> => {
+  getOutgoingRequests: async (): Promise<{ requests: PartnerRequest[] }> => {
     const response = await fetch(`${API_BASE_URL}/partners/requests/outgoing`, { headers: getApiHeaders() });
-    return handleResponse<{requests: PartnerRequest[]}>(response);
+    return handleResponse<{ requests: PartnerRequest[] }>(response);
   },
   sendPartnerRequest: async (recipientId: string): Promise<PartnerRequest> => {
     const response = await fetch(`${API_BASE_URL}/partners/request`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ recipient_id: recipientId }) });
     return handleResponse<PartnerRequest>(response);
   },
-  respondToPartnerRequest: async (requestId: string, action: 'accept'|'reject'): Promise<void> => {
+  respondToPartnerRequest: async (requestId: string, action: 'accept' | 'reject'): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/partners/requests/${requestId}/respond`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ action }) });
     return handleResponse<void>(response);
   },
@@ -155,13 +175,13 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/chats/`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ recipient_id: recipientId }) });
     return handleResponse<Chat>(response);
   },
-  listChats: async (): Promise<{chats: Chat[]}> => {
+  listChats: async (): Promise<{ chats: Chat[] }> => {
     const response = await fetch(`${API_BASE_URL}/chats/`, { headers: getApiHeaders() });
-    return handleResponse<{chats: Chat[]}>(response);
+    return handleResponse<{ chats: Chat[] }>(response);
   },
-  getMessages: async (chatId: string, limit = 50, before?: string): Promise<{messages: Message[]}> => {
+  getMessages: async (chatId: string, limit = 50, before?: string): Promise<{ messages: Message[] }> => {
     const response = await fetch(`${API_BASE_URL}/chats/${chatId}/messages?${new URLSearchParams({ limit: String(limit), ...(before && { before_timestamp: before }) })}`, { headers: getApiHeaders() });
-    return handleResponse<{messages: Message[]}>(response);
+    return handleResponse<{ messages: Message[] }>(response);
   },
   deleteMessageForEveryone: async (messageId: string, chatId: string): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/chats/messages/${messageId}?chat_id=${chatId}`, { method: 'DELETE', headers: getApiHeaders() });
@@ -195,9 +215,9 @@ export const api = {
     const response = await fetch(`${API_BASE_URL}/stickers/favorites/toggle`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify({ sticker_id: stickerId }) });
     return handleResponse<StickerListResponse>(response);
   },
-  sendThinkingOfYouPing: async (recipientUserId: string): Promise<{status: string}> => {
+  sendThinkingOfYouPing: async (recipientUserId: string): Promise<{ status: string }> => {
     const response = await fetch(`${API_BASE_URL}/users/${recipientUserId}/ping-thinking-of-you`, { method: 'POST', headers: getApiHeaders() });
-    return handleResponse<{status: string}>(response);
+    return handleResponse<{ status: string }>(response);
   },
   sendPushSubscriptionToServer: async (sub: PushSubscriptionJSON): Promise<any> => {
     const response = await fetch(`${API_BASE_URL}/notifications/subscribe`, { method: 'POST', headers: getApiHeaders(), body: JSON.stringify(sub) });

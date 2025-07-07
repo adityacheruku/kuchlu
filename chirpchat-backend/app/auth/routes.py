@@ -1,11 +1,10 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import random
 
-from app.auth.schemas import UserLogin, UserUpdate, UserPublic, Token, PhoneSchema, VerifyOtpRequest, VerifyOtpResponse, CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest
+from app.auth.schemas import UserLogin, UserUpdate, UserPublic, Token, PhoneSchema, VerifyOtpRequest, VerifyOtpResponse, CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FirebaseSignupRequest, FirebaseLoginRequest
 from app.auth.dependencies import get_current_user, get_current_active_user, get_user_from_refresh_token
 from app.utils.security import get_password_hash, verify_password, create_access_token, create_refresh_token, create_registration_token, verify_registration_token
 from app.database import db_manager
@@ -16,9 +15,118 @@ from postgrest.exceptions import APIError
 from app.websocket import manager as ws_manager
 from app.notifications.service import notification_service
 from app.redis_client import get_redis_client
+from app.auth.firebase_service import firebase_service
 
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 user_router = APIRouter(prefix="/users", tags=["Users"])
+
+@auth_router.post("/firebase/signup", response_model=Token, summary="Sign up with Firebase")
+async def firebase_signup(request_data: FirebaseSignupRequest):
+    """
+    Sign up user using Firebase authentication.
+    Verifies Firebase ID token and creates user in database.
+    """
+    try:
+        # Verify Firebase token
+        decoded_token = firebase_service.verify_id_token(request_data.firebase_token)
+        if not decoded_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
+        
+        phone_number = decoded_token.get("phone_number")
+        firebase_uid = decoded_token.get("uid")
+        
+        if not phone_number:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number not found in Firebase token")
+        
+        # Check if user already exists
+        existing_user_resp = db_manager.get_table("users").select("id").eq("phone", phone_number).maybe_single().execute()
+        if existing_user_resp.data:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number already registered")
+        
+        # Create new user
+        user_id = uuid4()
+        new_user_data = {
+            "id": str(user_id),
+            "phone": phone_number,
+            "firebase_uid": firebase_uid,
+            "display_name": f"User{phone_number[-4:]}",  # Default display name
+            "avatar_url": f"https://placehold.co/100x100.png?text={phone_number[-1].upper()}",
+            "mood": "Neutral",
+            "is_active": True,
+            "is_online": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        try:
+            insert_response_obj = db_manager.admin_client.table("users").insert(new_user_data).execute()
+            if not insert_response_obj.data:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create user")
+        except APIError as e:
+            logger.error(f"PostgREST APIError during user insert: {e}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database error: {e.message}")
+        
+        created_user_raw = insert_response_obj.data[0]
+        user_public_info = UserPublic.model_validate(created_user_raw)
+        
+        access_token = create_access_token(data={"sub": phone_number, "user_id": str(user_id)})
+        refresh_token = create_refresh_token(data={"sub": phone_number, "user_id": str(user_id)})
+        
+        logger.info(f"User {phone_number} successfully signed up via Firebase")
+        return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_public_info)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Firebase signup error: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+@auth_router.post("/firebase/login", response_model=Token, summary="Login with Firebase")
+async def firebase_login(request_data: FirebaseLoginRequest):
+    """
+    Login user using Firebase authentication.
+    Verifies Firebase ID token and returns user data.
+    """
+    try:
+        # Verify Firebase token
+        decoded_token = firebase_service.verify_id_token(request_data.firebase_token)
+        if not decoded_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
+        
+        phone_number = decoded_token.get("phone_number")
+        firebase_uid = decoded_token.get("uid")
+        
+        if not phone_number:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number not found in Firebase token")
+        
+        # Find user in database
+        try:
+            user_response_obj = db_manager.get_table("users").select("*").eq("phone", phone_number).maybe_single().execute()
+        except APIError as e:
+            logger.error(f"Supabase APIError during login for phone {phone_number}: {e}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Error communicating with the authentication service")
+        
+        user_dict_from_db = user_response_obj.data if user_response_obj else None
+        
+        if not user_dict_from_db:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found. Please sign up first.")
+        
+        # Update firebase_uid if not set
+        if not user_dict_from_db.get("firebase_uid"):
+            db_manager.get_table("users").update({"firebase_uid": firebase_uid}).eq("id", str(user_dict_from_db["id"])).execute()
+        
+        user_public_info = UserPublic.model_validate(user_dict_from_db)
+        access_token = create_access_token(data={"sub": phone_number, "user_id": str(user_dict_from_db["id"])})
+        refresh_token = create_refresh_token(data={"sub": phone_number, "user_id": str(user_dict_from_db["id"])})
+        
+        logger.info(f"User {phone_number} successfully logged in via Firebase")
+        return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_public_info)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Firebase login error: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
 @auth_router.post("/send-otp", status_code=status.HTTP_200_OK)
 async def send_otp(phone_data: PhoneSchema):
@@ -29,7 +137,7 @@ async def send_otp(phone_data: PhoneSchema):
     phone = phone_data.phone
     logger.info(f"OTP requested for phone: {phone}")
     
-    existing_user_resp = await db_manager.get_table("users").select("id").eq("phone", phone).maybe_single().execute()
+    existing_user_resp = db_manager.get_table("users").select("id").eq("phone", phone).maybe_single().execute()
     if existing_user_resp.data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number already registered.")
 
@@ -73,7 +181,7 @@ async def complete_registration(reg_data: CompleteRegistrationRequest):
     if not phone:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired registration token.")
 
-    existing_user_resp = await db_manager.get_table("users").select("id").eq("phone", phone).maybe_single().execute()
+    existing_user_resp = db_manager.get_table("users").select("id").eq("phone", phone).maybe_single().execute()
     if existing_user_resp.data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number was registered by another user. Please start over.")
 
@@ -90,7 +198,7 @@ async def complete_registration(reg_data: CompleteRegistrationRequest):
     
     logger.info(f"Attempting to complete registration for user with phone {phone}")
     try:
-        insert_response_obj = await db_manager.admin_client.table("users").insert(new_user_data).execute()
+        insert_response_obj = db_manager.admin_client.table("users").insert(new_user_data).execute()
         if not insert_response_obj.data:
              raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create user after database operation.")
     except APIError as e:
@@ -110,7 +218,7 @@ async def login(request: Request, background_tasks: BackgroundTasks, form_data: 
     logger.info(f"Login attempt for phone: {form_data.username}")
 
     try:
-        user_response_obj = await db_manager.get_table("users").select("*").eq("phone", form_data.username).maybe_single().execute()
+        user_response_obj = db_manager.get_table("users").select("*").eq("phone", form_data.username).maybe_single().execute()
     except APIError as e:
         logger.error(f"Supabase APIError during login for phone {form_data.username}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Error communicating with the authentication service.")
@@ -152,7 +260,7 @@ async def read_users_me(current_user: UserPublic = Depends(get_current_active_us
 
 @user_router.get("/{user_id}", response_model=UserPublic)
 async def get_user(user_id: UUID, current_user_dep: UserPublic = Depends(get_current_user)):
-    user_response_obj = await db_manager.get_table("users").select("id, display_name, avatar_url, mood, phone, email, is_online, last_seen, partner_id").eq("id", str(user_id)).maybe_single().execute()
+    user_response_obj = db_manager.get_table("users").select("id, display_name, avatar_url, mood, phone, email, is_online, last_seen, partner_id").eq("id", str(user_id)).maybe_single().execute()
     if not user_response_obj.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return UserPublic(**user_response_obj.data)
@@ -167,8 +275,8 @@ async def update_profile(profile_update: UserUpdate, current_user: UserPublic = 
     if "password" in update_data: del update_data["password"]
 
     logger.info(f"User {current_user.id} updating profile with data: {update_data}")
-    await db_manager.get_table("users").update(update_data).eq("id", str(current_user.id)).execute()
-    updated_user_response_obj = await db_manager.get_table("users").select("*").eq("id", str(current_user.id)).maybe_single().execute()
+    db_manager.get_table("users").update(update_data).eq("id", str(current_user.id)).execute()
+    updated_user_response_obj = db_manager.get_table("users").select("*").eq("id", str(current_user.id)).maybe_single().execute()
     
     if not updated_user_response_obj.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or update failed")
@@ -183,13 +291,13 @@ async def update_profile(profile_update: UserUpdate, current_user: UserPublic = 
 
 @user_router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(password_data: PasswordChangeRequest, current_user: UserPublic = Depends(get_current_active_user)):
-    user_response_obj = await db_manager.get_table("users").select("hashed_password").eq("id", str(current_user.id)).single().execute()
+    user_response_obj = db_manager.get_table("users").select("hashed_password").eq("id", str(current_user.id)).single().execute()
     
     if not verify_password(password_data.current_password, user_response_obj.data["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password.")
 
     new_hashed_password = get_password_hash(password_data.new_password)
-    await db_manager.get_table("users").update({"hashed_password": new_hashed_password, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", str(current_user.id)).execute()
+    db_manager.get_table("users").update({"hashed_password": new_hashed_password, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", str(current_user.id)).execute()
     logger.info(f"User {current_user.id} successfully changed their password.")
     return None
 
@@ -198,7 +306,7 @@ async def delete_account(
     delete_request: DeleteAccountRequest,
     current_user: UserPublic = Depends(get_current_active_user)
 ):
-    user_resp = await db_manager.get_table("users").select("hashed_password").eq("id", str(current_user.id)).single().execute()
+    user_resp = db_manager.get_table("users").select("hashed_password").eq("id", str(current_user.id)).single().execute()
     
     if not verify_password(delete_request.password, user_resp.data["hashed_password"]):
         raise HTTPException(
@@ -209,7 +317,7 @@ async def delete_account(
     try:
         # Use admin client to perform deletion. Assumes RLS is set up to allow this
         # or that cascading deletes are configured in the database schema.
-        await db_manager.admin_client.table("users").delete().eq("id", str(current_user.id)).execute()
+        db_manager.admin_client.table("users").delete().eq("id", str(current_user.id)).execute()
         logger.info(f"User {current_user.id} successfully deleted their account.")
     except Exception as e:
         logger.error(f"Error during account deletion for user {current_user.id}: {e}", exc_info=True)
@@ -225,8 +333,8 @@ async def upload_avatar_route(file: UploadFile = File(...), current_user: UserPu
     from app.routers.uploads import upload_avatar_to_cloudinary 
     file_url = await upload_avatar_to_cloudinary(file)
     update_data = {"avatar_url": file_url, "updated_at": datetime.now(timezone.utc).isoformat()}
-    await db_manager.get_table("users").update(update_data).eq("id", str(current_user.id)).execute()
-    updated_user_response_obj = await db_manager.get_table("users").select("*").eq("id", str(current_user.id)).maybe_single().execute()
+    db_manager.get_table("users").update(update_data).eq("id", str(current_user.id)).execute()
+    updated_user_response_obj = db_manager.get_table("users").select("*").eq("id", str(current_user.id)).maybe_single().execute()
     
     if not updated_user_response_obj.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found or avatar update failed")
@@ -238,7 +346,7 @@ async def upload_avatar_route(file: UploadFile = File(...), current_user: UserPu
 @user_router.post("/{recipient_user_id}/ping-thinking-of-you", status_code=status.HTTP_200_OK)
 async def http_ping_thinking_of_you(recipient_user_id: UUID, current_user: UserPublic = Depends(get_current_active_user)):
     logger.info(f"User {current_user.id} sending 'Thinking of You' ping to user {recipient_user_id} via HTTP.")
-    recipient_check_resp_obj = await db_manager.get_table("users").select("id").eq("id", str(recipient_user_id)).maybe_single().execute()
+    recipient_check_resp_obj = db_manager.get_table("users").select("id").eq("id", str(recipient_user_id)).maybe_single().execute()
     if not recipient_check_resp_obj.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient user not found.")
 

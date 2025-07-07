@@ -1,38 +1,52 @@
-
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
     ext {
         // Versions for all sub-projects
-        compileSdkVersion = 34
-        targetSdkVersion = 34
-        minSdkVersion = 22
-        coreSplashScreenVersion = '1.0.0'
+        compileSdkVersion = 35
+        targetSdkVersion = 35
+        minSdkVersion = 23 // Updated for Firebase Auth compatibility
+        coreSplashScreenVersion = '1.0.0' // Check for latest stable
         androidxActivityVersion = '1.8.2'
         androidxAppCompatVersion = '1.6.1'
         androidxCoordinatorLayoutVersion = '1.2.0'
-        androidxCoreVersion = '1.12.0'
+        androidxCoreVersion = '1.12.0' // Consider updating these androidx libraries
         androidxFragmentVersion = '1.6.2'
         junitVersion = '4.13.2'
         androidxJunitVersion = '1.1.5'
         androidxEspressoCoreVersion = '3.5.1'
-        cordovaAndroidVersion = '10.1.1'
-        agpVersion = '8.1.2'
-        kotlinVersion = '1.9.20'
+        // cordovaAndroidVersion = '10.1.1' // Usually not needed here if handled by Capacitor
+        agpVersion = '8.2.0' // Or latest stable Android Gradle Plugin version like 8.2.0
+        kotlinVersion = '1.9.22' // Or latest stable Kotlin version
+        // Add Capacitor versions if you want to centralize them, e.g.
+        capacitorVersion = '7.3.0' // Check your project's package.json
     }
+
     repositories {
         google()
-        mavenCentral()
+        mavenCentral() // Ensure Maven Central is here
+        // If you use any other repositories, add them here
+        // maven { url 'https://jitpack.io' } // Example for JitPack
     }
+    allprojects {
+        repositories {
+            google()
+            mavenCentral() // <-- Ensure it's here
+        }
+    }
+
     dependencies {
-        classpath "com.android.tools.build:gradle:$agpVersion"
+        classpath 'com.android.tools.build:gradle:8.9.0' // Note: You have 8.9.0 here, but agpVersion is 8.2.0. Ensure these are consistent or intended.
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+        classpath "com.google.gms:google-services:4.4.3" // Google Services plugin for Firebase
     }
 }
 
+// It's generally better to manage repositories in settings.gradle for newer projects,
+// but for compatibility or to ensure modules pick it up, you can add it here too.
 allprojects {
     repositories {
         google()
-        mavenCentral()
+        mavenCentral() // Ensure Maven Central is here
     }
 }
 

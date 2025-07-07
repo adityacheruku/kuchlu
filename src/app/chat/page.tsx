@@ -1,35 +1,28 @@
-
 "use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import ErrorBoundary from '@/components/ErrorBoundary';
-import FullPageLoader from '@/components/common/FullPageLoader';
 import ChatView from '@/components/chat/ChatView';
+import FullPageLoader from '@/components/common/FullPageLoader';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
-export default function ChatPageContainer() {
-  const { currentUser, isLoading: isAuthLoading, isAuthenticated } = useAuth();
-  const router = useRouter();
+export default function ChatPage() {
+    const { currentUser, isLoading, isAuthenticated } = useAuth();
+    const router = useRouter();
+    
+    // The useAuth hook already handles redirection logic.
+    // This page primarily acts as a secure entry point to the ChatView.
+    
+    // Add an extra layer of check, although useAuth should handle it.
+    useEffect(() => {
+        if (!isLoading && !isAuthenticated) {
+            router.replace('/');
+        }
+    }, [isLoading, isAuthenticated, router]);
+    
+    if (isLoading || !currentUser) {
+        return <FullPageLoader />;
+    }
 
-  if (isAuthLoading) {
-    return <FullPageLoader />;
-  }
-
-  if (!isAuthenticated) {
-    router.replace('/');
-    return <FullPageLoader />;
-  }
-
-  if (!currentUser) {
-     return <FullPageLoader />;
-  }
-
-  return (
-    <div className="flex h-[100svh] flex-col overflow-hidden">
-       <ErrorBoundary fallbackMessage="The chat couldn't be displayed.">
-            <ChatView initialCurrentUser={currentUser} />
-       </ErrorBoundary>
-    </div>
-  );
+    return <ChatView initialCurrentUser={currentUser} />;
 }

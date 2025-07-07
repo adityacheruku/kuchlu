@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, type FormEvent, useCallback, useEffect } from 'react';
@@ -16,6 +15,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/ca
 import FullPageLoader from '@/components/common/FullPageLoader';
 import SplashScreen from '@/components/common/SplashScreen';
 import Spinner from '@/components/common/Spinner';
+import { PasswordStrengthIndicator } from '@/components/chat/PasswordStrengthIndicator';
 
 const BrandSection = () => (
     <div className="max-w-md">
@@ -24,19 +24,6 @@ const BrandSection = () => (
       <p className="text-muted-foreground mt-2">speak your heart in a single tap.</p>
     </div>
 );
-
-const PasswordStrengthIndicator = ({ strength }: { strength: number }) => {
-    const levels = [{ color: 'bg-red-500' }, { color: 'bg-red-500' }, { color: 'bg-yellow-500' }, { color: 'bg-green-500' }, { color: 'bg-green-500' }];
-    return (
-        <div className="flex gap-2 mt-1">
-            {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-1 flex-1 rounded-full bg-muted">
-                    {strength > index && <div className={`h-1 rounded-full ${levels[index].color}`} />}
-                </div>
-            ))}
-        </div>
-    );
-};
 
 const RegisterPhoneStep = ({ handleSendOtp, regPhone, setRegPhone, loading }: any) => (
     <form onSubmit={handleSendOtp} className="space-y-4 w-full">

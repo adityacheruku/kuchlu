@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
 from uuid import UUID
@@ -21,6 +20,13 @@ class VerifyOtpRequest(PhoneSchema):
 
 class VerifyOtpResponse(BaseModel):
     registration_token: str
+
+# Firebase Authentication Schemas
+class FirebaseSignupRequest(BaseModel):
+    firebase_token: str = Field(..., description="Firebase ID token from client")
+
+class FirebaseLoginRequest(BaseModel):
+    firebase_token: str = Field(..., description="Firebase ID token from client")
 
 class CompleteRegistrationRequest(BaseModel):
     registration_token: str
@@ -45,6 +51,7 @@ class UserBase(BaseModel):
     is_online: Optional[bool] = False
     last_seen: Optional[datetime] = None
     partner_id: Optional[UUID] = None
+    firebase_uid: Optional[str] = None
 
 class UserLogin(BaseModel):
     phone: str
@@ -66,6 +73,7 @@ class UserPublic(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     partner_id: Optional[UUID] = None
+    firebase_uid: Optional[str] = None
 
     class Config:
         from_attributes = True
