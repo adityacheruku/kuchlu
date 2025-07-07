@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatHistoryClearedEventData, MediaProcessedEventData, MessageAckEventData, MessageDeletedEventData, MessageReactionUpdateEventData, MessageStatusUpdateEventData, NewMessageEventData, ThinkingOfYouReceivedEventData, TypingIndicatorEventData, UserProfileUpdateEventData, MoodAnalyticsPayload, MoodAnalyticsContext, SupportedEmoji, UserPresenceUpdateEventData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { THINKING_OF_YOU_DURATION, ENABLE_AI_MOOD_SUGGESTION } from '@/config/app-config';
@@ -31,7 +32,8 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const router = useRouter();
     const { toast } = useToast();
     const { isSubscribed, permissionStatus } = usePushNotifications();
-
+    const { fetchAndUpdateUser } = useAuth();
+    
     const [currentUser, setCurrentUser] = useState<User>(initialCurrentUser);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [otherUser, setOtherUser] = useState<User | null>(null);
@@ -70,6 +72,8 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const startY = useRef(0);
     const viewportRef = useRef<HTMLDivElement>(null);
+
+    const { activeTargetId: activeThoughtNotificationFor, initiateThoughtNotification } = useThoughtNotification({ duration: THINKING_OF_YOU_DURATION, toast });
     
     const handleExitSelectionMode = useCallback(() => {
         setIsSelectionMode(false);
@@ -113,7 +117,27 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onReactionUpdate: async (data) => await storageService.updateMessageByServerId(data.message_id, { reactions: data.reactions }),
         onPresenceUpdate: handlePresenceUpdate,
         onTypingUpdate: (data) => { if (activeChatId === data.chat_id) setTypingUsers(prev => ({ ...prev, [data.user_id]: { userId: data.user_id, isTyping: data.is_typing } })) },
-        onThinkingOfYouReceived: (data) => { if (otherUser?.id === data.sender_id) toast({ title: "❤️ Thinking of You!", description: `${otherUser.display_name} is thinking of you.` }) },
+        onThinkingOfYouReceived: (data) => {
+            if (otherUser?.id === data.sender_id) {
+                toast({
+                    title: "❤️ Thinking of You!",
+                    description: `You just passed through ${data.sender_name}'s mind.`,
+                    action: (
+                        <ToastAction altText="Reciprocate" onClick={() => {
+                            if (currentUser) {
+                                sendMessage({
+                                    event_type: "ping_thinking_of_you",
+                                    recipient_user_id: data.sender_id,
+                                });
+                                initiateThoughtNotification(data.sender_id, data.sender_name, currentUser.display_name);
+                            }
+                        }}>
+                            Reciprocate
+                        </ToastAction>
+                    ),
+                });
+            }
+        },
         onUserProfileUpdate: (data) => { setOtherUser(prev => (prev && data.user_id === prev.id) ? { ...prev, ...data } : prev); if (otherUser && data.user_id === otherUser.id) storageService.upsertUser({ ...otherUser, ...data })},
         onMessageAck: handleMessageAck,
         onChatModeChanged: (data) => { if (activeChatId === data.chat_id) setChatMode(data.mode); },
@@ -166,6 +190,17 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     }, [currentUser, router, toast]);
     
     useEffect(() => { performLoadChatData(); }, [performLoadChatData]);
+    
+    useEffect(() => {
+        if (!isChatLoading && currentUser) {
+            const lastPromptTimestamp = localStorage.getItem('kuchlu_lastMoodPromptTimestamp');
+            const now = Date.now();
+            if (!lastPromptTimestamp || now - parseInt(lastPromptTimestamp, 10) > MOOD_PROMPT_INTERVAL_MS) {
+                setInitialMoodOnLoad(currentUser.mood);
+                setIsMoodModalOpen(true);
+            }
+        }
+    }, [isChatLoading, currentUser]);
 
     const loadMoreMessages = useCallback(async () => {
         if (isLoadingMore || !hasMoreMessages || !activeChatId || !messages || messages.length === 0) return;
@@ -306,7 +341,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const handlePointerUp = () => { if (!isPulling) return; if (pullY > ACTIVATION_THRESHOLD) { Haptics.impact({ style: ImpactStyle.Medium }); setIsModeSelectorOpen(true); } setIsPulling(false); setPullY(0); };
 
     // Other handlers
-    const { activeTargetId: activeThoughtNotificationFor, initiateThoughtNotification } = useThoughtNotification({ duration: THINKING_OF_YOU_DURATION, toast });
     const handleSendThoughtRef = useRef(() => { if (!currentUser || !otherUser) return; sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: otherUser.id }); initiateThoughtNotification(otherUser.id, otherUser.display_name, currentUser.display_name); });
     const handleProfileClick = useCallback(() => router.push('/settings'), [router]);
 

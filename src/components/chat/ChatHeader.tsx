@@ -18,7 +18,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { differenceInDays, formatDistanceToNowStrict, parseISO } from 'date-fns';
@@ -91,11 +90,28 @@ const HeaderContent = memo(({
           </div>
         </div>
         <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 justify-end">
-          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/10 active:bg-primary/20 rounded-full"><MoreHorizontal size={22} /></Button></DropdownMenuTrigger>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={onSendThinkingOfYou} className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10 active:bg-red-500/20 rounded-full" aria-label="Send 'Thinking of You'">
+                  <Heart size={22} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Send "Thinking of You"</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/10 active:bg-primary/20 rounded-full">
+                <MoreHorizontal size={22} />
+              </Button>
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={onProfileClick}><UserCircle2 className="mr-2 h-4 w-4" /><span>Your Account</span></DropdownMenuItem>
               {otherUser?.phone && <DropdownMenuItem onSelect={() => window.location.href = `tel:${otherUser.phone?.replace(/\s|-/g, "")}`}><Phone className="mr-2 h-4 w-4"/><span>Call {otherUser.display_name}</span></DropdownMenuItem>}
-              <DropdownMenuItem onSelect={onSendThinkingOfYou}><Heart className="mr-2 h-4 w-4" /><span>Send "Thinking of You"</span></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
