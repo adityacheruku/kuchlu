@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -83,6 +84,11 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         delete pendingMessageTimeouts.current[clientTempId];
     }, []);
 
+    const sendMessageWithTimeout = useCallback((messagePayload: any) => {
+        sendMessage(messagePayload);
+        pendingMessageTimeouts.current[messagePayload.client_temp_id] = setTimeout(() => setMessageAsFailed(messagePayload.client_temp_id), MESSAGE_SEND_TIMEOUT_MS);
+    }, [setMessageAsFailed]);
+
     const handleMessageAck = useCallback(async (data: MessageAckEventData) => {
         if (pendingMessageTimeouts.current[data.client_temp_id]) {
             clearTimeout(pendingMessageTimeouts.current[data.client_temp_id]);
@@ -110,6 +116,12 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         });
     }, []);
 
+    const handleReciprocate = useCallback((senderId: string, senderName: string) => {
+        if (!currentUser) return;
+        sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: senderId });
+        toast({ title: "Reciprocated!", description: `You reciprocated the thought to ${senderName}.` });
+    }, [currentUser, toast]);
+
     const { protocol, sendMessage, isBrowserOnline } = useRealtime({
         onMessageReceived: handleNewMessage,
         onReactionUpdate: async (data) => await storageService.updateMessageByServerId(data.message_id, { reactions: data.reactions }),
@@ -123,13 +135,9 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
                     ToastAction,
                     {
                         altText: "Reciprocate the same",
-                        onClick: () => {
-                            if (!currentUser) return;
-                            sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: data.sender_id });
-                            toast({ title: "Reciprocated!", description: `You reciprocated the thought to ${data.sender_name}.` });
-                        }
+                        onClick: () => handleReciprocate(data.sender_id, data.sender_name)
                     },
-                    "Reciprocate the same"
+                    "Reciprocate"
                 ) as React.ReactElement,
             });
         },
@@ -153,11 +161,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
 
-    const sendMessageWithTimeout = useCallback((messagePayload: any) => {
-        sendMessage(messagePayload);
-        pendingMessageTimeouts.current[messagePayload.client_temp_id] = setTimeout(() => setMessageAsFailed(messagePayload.client_temp_id), MESSAGE_SEND_TIMEOUT_MS);
-    }, [sendMessage, setMessageAsFailed]);
-
     const performLoadChatData = useCallback(async () => {
         if (!currentUser) return;
         if (!currentUser.partner_id) { router.push('/onboarding/find-partner'); return; }
@@ -177,6 +180,12 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
             const messagesData = await api.getMessages(chat.id, 50);
             await storageService.bulkAddMessages(messagesData.messages);
             setHasMoreMessages(messagesData.messages.length >= 50);
+            
+            const lastPromptTime = parseInt(localStorage.getItem('kuchlu_lastMoodPromptTimestamp') || '0', 10);
+            if (Date.now() - lastPromptTime > MOOD_PROMPT_INTERVAL_MS) {
+                setInitialMoodOnLoad(currentUser.mood);
+                setIsMoodModalOpen(true);
+            }
 
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'API Error', description: `Failed to load chat data: ${error.message}` });
@@ -331,12 +340,13 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
 
     // Other handlers
     const { activeTargetId: activeThoughtNotificationFor, initiateThoughtNotification } = useThoughtNotification({ duration: THINKING_OF_YOU_DURATION, toast });
-    const handleSendThoughtRef = useRef(() => {
+    const handleSendThinkingOfYou = useCallback(() => {
         if (!currentUser || !otherUser) return;
         sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: otherUser.id });
         toast({ title: "Sent!", description: `You let ${otherUser.display_name} know you're thinking of them.` });
         initiateThoughtNotification(otherUser.id, otherUser.display_name, currentUser.display_name);
-    });
+    }, [currentUser, otherUser, sendMessage, toast, initiateThoughtNotification]);
+    
     const handleProfileClick = useCallback(() => router.push('/settings'), [router]);
 
     // Dynamic Background
@@ -357,6 +367,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         handleSetReplyingTo: setReplyingTo,
         handleEnterSelectionMode, handleToggleMessageSelection, handleExitSelectionMode, handleCopySelected, handleShareSelected, handleMarkAsRead,
         handlePointerDown, handlePointerMove, handlePointerUp,
-        handleSelectMode, handleSendThoughtRef, handleProfileClick
+        handleSelectMode, handleSendThinkingOfYou, handleProfileClick
     };
 }

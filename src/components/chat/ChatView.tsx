@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User, Message as MessageType, Mood, SupportedEmoji, MessageMode, DeleteType } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -121,7 +121,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
       handlePointerMove,
       handlePointerUp,
       handleSelectMode,
-      handleSendThoughtRef,
+      handleSendThinkingOfYou,
       handleProfileClick
   } = useChat({ initialCurrentUser });
 
@@ -176,7 +176,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
                 currentUser={currentUser}
                 otherUser={otherUser}
                 onProfileClick={handleProfileClick}
-                onSendThinkingOfYou={handleSendThoughtRef.current}
+                onSendThinkingOfYou={handleSendThinkingOfYou}
                 isTargetUserBeingThoughtOf={!!activeThoughtNotificationFor && activeThoughtNotificationFor === otherUser.id}
                 onOtherUserAvatarClick={handleOtherUserAvatarClick}
                 isOtherUserTyping={!!typingUsers[otherUser.id]?.isTyping}
