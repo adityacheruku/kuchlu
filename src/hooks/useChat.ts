@@ -127,7 +127,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
                         toast({
                             title: "❤️ Thinking of You!",
                             description: `You just passed through ${payload.sender_name}'s mind.`,
-                            action: (<ToastAction altText="Reciprocate" onClick={() => handleSendThoughtRef.current()}>Reciprocate</ToastAction>),
+                            action: React.createElement(ToastAction, { altText: "Reciprocate", onClick: handleSendThoughtRef.current }, "Reciprocate"),
                         });
                     }
                     break;
