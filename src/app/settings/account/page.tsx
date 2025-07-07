@@ -99,65 +99,67 @@ export default function AccountSettingsPage() {
     if (isAuthLoading || !currentUser) return <FullPageLoader />;
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-16">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Account & Security" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                 <Card>
-                    <CardHeader><CardTitle>Edit Profile</CardTitle><CardDescription>Update your avatar, display name, and email.</CardDescription></CardHeader>
-                    <CardContent>
-                        <Form {...profileForm}>
-                            <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-6">
-                                <div className="flex items-center gap-4">
-                                     <input type="file" ref={avatarInputRef} accept="image/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => handleFileChange(e, currentUser?.avatar_url || undefined)} />
-                                     <button type="button" onClick={() => avatarInputRef.current?.click()} className="relative group flex-shrink-0">
-                                         <Avatar className="w-20 h-20"><AvatarImage src={avatarPreview || undefined} alt={currentUser.display_name} /><AvatarFallback className="text-3xl">{currentUser.display_name?.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
-                                         <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={24} /></div>
-                                     </button>
-                                     <FormField control={profileForm.control} name="display_name" render={({ field }) => (<FormItem className="flex-grow"><FormLabel>Display Name</FormLabel><FormControl><Input placeholder="Your display name" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4">
+                    <Card>
+                        <CardHeader><CardTitle>Edit Profile</CardTitle><CardDescription>Update your avatar, display name, and email.</CardDescription></CardHeader>
+                        <CardContent>
+                            <Form {...profileForm}>
+                                <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-6">
+                                    <div className="flex items-center gap-4">
+                                        <input type="file" ref={avatarInputRef} accept="image/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => handleFileChange(e, currentUser?.avatar_url || undefined)} />
+                                        <button type="button" onClick={() => avatarInputRef.current?.click()} className="relative group flex-shrink-0">
+                                            <Avatar className="w-20 h-20"><AvatarImage src={avatarPreview || undefined} alt={currentUser.display_name} /><AvatarFallback className="text-3xl">{currentUser.display_name?.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
+                                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={24} /></div>
+                                        </button>
+                                        <FormField control={profileForm.control} name="display_name" render={({ field }) => (<FormItem className="flex-grow"><FormLabel>Display Name</FormLabel><FormControl><Input placeholder="Your display name" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    </div>
+                                    <FormField control={profileForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="your@email.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <Button type="submit" disabled={isSubmittingProfile}>{isSubmittingProfile && <Spinner className="mr-2 h-4 w-4" />} Save Changes</Button>
+                                </form>
+                            </Form>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle>Security</CardTitle></CardHeader>
+                        <CardContent>
+                            <Dialog>
+                                <DialogTrigger asChild><Button variant="outline">Change Password</Button></DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>Change Your Password</DialogTitle></DialogHeader>
+                                    <Form {...passwordForm}>
+                                        <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
+                                            <FormField control={passwordForm.control} name="current_password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <FormField control={passwordForm.control} name="new_password" render={({ field }) => (<FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <DialogFooter>
+                                                <DialogClose asChild><Button id="close-password-dialog" type="button" variant="ghost">Cancel</Button></DialogClose>
+                                                <Button type="submit" disabled={isSubmittingPassword}>{isSubmittingPassword && <Spinner className="mr-2 h-4 w-4" />} Update Password</Button>
+                                            </DialogFooter>
+                                        </form>
+                                    </Form>
+                                </DialogContent>
+                            </Dialog>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle>Manage Partner</CardTitle></CardHeader>
+                        <CardContent>
+                            {partner ? (
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3"><Avatar><AvatarImage src={partner.avatar_url || undefined} /><AvatarFallback>{partner.display_name.charAt(0)}</AvatarFallback></Avatar><span className="font-medium">{partner.display_name}</span></div>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild><Button variant="destructive" disabled={isDisconnecting}>Disconnect</Button></AlertDialogTrigger>
+                                        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will end your partnership. You will both be able to find new partners.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDisconnectPartner}>Disconnect</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
-                                <FormField control={profileForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="your@email.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <Button type="submit" disabled={isSubmittingProfile}>{isSubmittingProfile && <Spinner className="mr-2 h-4 w-4" />} Save Changes</Button>
-                            </form>
-                        </Form>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle>Security</CardTitle></CardHeader>
-                    <CardContent>
-                        <Dialog>
-                            <DialogTrigger asChild><Button variant="outline">Change Password</Button></DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader><DialogTitle>Change Your Password</DialogTitle></DialogHeader>
-                                <Form {...passwordForm}>
-                                    <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
-                                         <FormField control={passwordForm.control} name="current_password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                         <FormField control={passwordForm.control} name="new_password" render={({ field }) => (<FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                         <DialogFooter>
-                                            <DialogClose asChild><Button id="close-password-dialog" type="button" variant="ghost">Cancel</Button></DialogClose>
-                                            <Button type="submit" disabled={isSubmittingPassword}>{isSubmittingPassword && <Spinner className="mr-2 h-4 w-4" />} Update Password</Button>
-                                         </DialogFooter>
-                                    </form>
-                                </Form>
-                            </DialogContent>
-                        </Dialog>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle>Manage Partner</CardTitle></CardHeader>
-                    <CardContent>
-                        {partner ? (
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3"><Avatar><AvatarImage src={partner.avatar_url || undefined} /><AvatarFallback>{partner.display_name.charAt(0)}</AvatarFallback></Avatar><span className="font-medium">{partner.display_name}</span></div>
-                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={isDisconnecting}>Disconnect</Button></AlertDialogTrigger>
-                                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will end your partnership. You will both be able to find new partners.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDisconnectPartner}>Disconnect</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                                </AlertDialog>
-                            </div>
-                        ) : (
-                            <div className="text-center text-muted-foreground py-4"><p>You are not currently partnered.</p><Button variant="link" onClick={() => router.push('/onboarding/find-partner')}>Find a Partner</Button></div>
-                        )}
-                    </CardContent>
-                </Card>
+                            ) : (
+                                <div className="text-center text-muted-foreground py-4"><p>You are not currently partnered.</p><Button variant="link" onClick={() => router.push('/onboarding/find-partner')}>Find a Partner</Button></div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
             </main>
         </div>
     );

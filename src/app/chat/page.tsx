@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,5 +23,9 @@ export default function ChatPage() {
   }
 
   // If authenticated and user data is available, render the chat view
-  return <ChatView initialCurrentUser={currentUser} />;
+  return (
+    <div className="h-screen w-screen flex flex-col">
+      <ChatView initialCurrentUser={currentUser} />
+    </div>
+  );
 }

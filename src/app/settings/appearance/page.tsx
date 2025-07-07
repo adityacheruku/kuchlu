@@ -61,34 +61,36 @@ export default function AppearanceSettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-16">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Appearance" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                 <Card>
-                    <CardContent className="divide-y p-0">
-                         <div className="p-4">
-                            <SettingsItem>
-                                <Label className="font-semibold">Theme</Label>
-                                <RadioGroup value={theme} onValueChange={(v) => handleThemeChange(v as any)} className="flex items-center gap-2">
-                                    <RadioGroupItem value="light" id="theme-light" className="peer sr-only" /><Label htmlFor="theme-light" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Sun className="w-4 h-4" /></Label>
-                                    <RadioGroupItem value="dark" id="theme-dark" className="peer sr-only" /><Label htmlFor="theme-dark" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Moon className="w-4 h-4" /></Label>
-                                    <RadioGroupItem value="system" id="theme-system" className="peer sr-only" /><Label htmlFor="theme-system" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Monitor className="w-4 h-4" /></Label>
-                                </RadioGroup>
-                            </SettingsItem>
-                         </div>
-                         <div className="p-4 space-y-4">
-                            <Label className="font-semibold flex items-center gap-2"><Type/> Text Size</Label>
-                            <p style={{ fontSize: `${textSize[0]}px` }} className="p-3 bg-muted rounded-md text-center transition-all">The quick brown fox jumps over the lazy dog.</p>
-                            <Slider value={textSize} onValueChange={setTextSize} max={24} min={12} step={1} />
-                        </div>
-                        <div className="p-4">
-                            <SettingsItem>
-                                <Label className="font-semibold">Dynamic Backgrounds</Label>
-                                <Switch checked={dynamicBackgrounds} onCheckedChange={setDynamicBackgrounds} />
-                            </SettingsItem>
-                        </div>
-                    </CardContent>
-                </Card>
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4">
+                    <Card>
+                        <CardContent className="divide-y p-0">
+                            <div className="p-4">
+                                <SettingsItem>
+                                    <Label className="font-semibold">Theme</Label>
+                                    <RadioGroup value={theme} onValueChange={(v) => handleThemeChange(v as any)} className="flex items-center gap-2">
+                                        <RadioGroupItem value="light" id="theme-light" className="peer sr-only" /><Label htmlFor="theme-light" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Sun className="w-4 h-4" /></Label>
+                                        <RadioGroupItem value="dark" id="theme-dark" className="peer sr-only" /><Label htmlFor="theme-dark" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Moon className="w-4 h-4" /></Label>
+                                        <RadioGroupItem value="system" id="theme-system" className="peer sr-only" /><Label htmlFor="theme-system" className="px-3 py-1.5 border rounded-md cursor-pointer peer-data-[state=checked]:bg-primary peer-data-[state=checked]:text-primary-foreground"><Monitor className="w-4 h-4" /></Label>
+                                    </RadioGroup>
+                                </SettingsItem>
+                            </div>
+                            <div className="p-4 space-y-4">
+                                <Label className="font-semibold flex items-center gap-2"><Type/> Text Size</Label>
+                                <p style={{ fontSize: `${textSize[0]}px` }} className="p-3 bg-muted rounded-md text-center transition-all">The quick brown fox jumps over the lazy dog.</p>
+                                <Slider value={textSize} onValueChange={setTextSize} max={24} min={12} step={1} />
+                            </div>
+                            <div className="p-4">
+                                <SettingsItem>
+                                    <Label className="font-semibold">Dynamic Backgrounds</Label>
+                                    <Switch checked={dynamicBackgrounds} onCheckedChange={setDynamicBackgrounds} />
+                                </SettingsItem>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </main>
         </div>
     );

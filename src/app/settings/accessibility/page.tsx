@@ -125,43 +125,45 @@ export default function AccessibilitySettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-16">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Accessibility" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Touch</CardTitle>
-                        <CardDescription>Customize how you interact with the screen.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0 divide-y">
-                       <div className="px-4">
-                            <SettingsRow>
-                                <Label htmlFor="assistive-touch-toggle" className="font-medium pr-4 cursor-pointer">
-                                    AssistiveTouch
-                                    <p className="text-sm text-muted-foreground font-normal">Use a floating button to quickly access app features from anywhere on your device.</p>
-                                </Label>
-                                <div className="flex items-center gap-2">
-                                     {isLoadingStatus ? <Spinner /> : <Switch id="assistive-touch-toggle" checked={assistiveTouchEnabled} onCheckedChange={handleToggleChange} />}
-                                </div>
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Touch</CardTitle>
+                            <CardDescription>Customize how you interact with the screen.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0 divide-y">
+                        <div className="px-4">
+                                <SettingsRow>
+                                    <Label htmlFor="assistive-touch-toggle" className="font-medium pr-4 cursor-pointer">
+                                        AssistiveTouch
+                                        <p className="text-sm text-muted-foreground font-normal">Use a floating button to quickly access app features from anywhere on your device.</p>
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        {isLoadingStatus ? <Spinner /> : <Switch id="assistive-touch-toggle" checked={assistiveTouchEnabled} onCheckedChange={handleToggleChange} />}
+                                    </div>
+                                </SettingsRow>
+                        </div>
+                        <div className="px-4">
+                            <SettingsRow href="/settings/appearance/moods" disabled={!assistiveTouchEnabled}>
+                                    <div className="flex flex-col">
+                                        <Label className="font-medium">Customize Menu</Label>
+                                        <p className="text-sm text-muted-foreground font-normal">Choose the moods and actions that appear in the AssistiveTouch menu.</p>
+                                    </div>
+                                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
                             </SettingsRow>
-                       </div>
-                       <div className="px-4">
-                           <SettingsRow href="/settings/appearance/moods" disabled={!assistiveTouchEnabled}>
-                                <div className="flex flex-col">
-                                    <Label className="font-medium">Customize Menu</Label>
-                                    <p className="text-sm text-muted-foreground font-normal">Choose the moods and actions that appear in the AssistiveTouch menu.</p>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                           </SettingsRow>
-                       </div>
-                       <div className="px-4 pt-4 pb-2">
-                          <Label htmlFor="idle-opacity-slider" className="font-medium">Idle Opacity</Label>
-                          <p className="text-sm text-muted-foreground font-normal pb-4">Adjust the visibility of the AssistiveTouch button when not in use.</p>
-                          <Slider id="idle-opacity-slider" value={idleOpacity} onValueChange={handleOpacityChange} onValueCommit={handleOpacityCommit} max={100} min={20} step={5} disabled={!assistiveTouchEnabled} />
-                          <div className="text-center text-xs text-muted-foreground pt-2">{idleOpacity[0]}%</div>
-                       </div>
-                    </CardContent>
-                </Card>
+                        </div>
+                        <div className="px-4 pt-4 pb-2">
+                            <Label htmlFor="idle-opacity-slider" className="font-medium">Idle Opacity</Label>
+                            <p className="text-sm text-muted-foreground font-normal pb-4">Adjust the visibility of the AssistiveTouch button when not in use.</p>
+                            <Slider id="idle-opacity-slider" value={idleOpacity} onValueChange={handleOpacityChange} onValueCommit={handleOpacityCommit} max={100} min={20} step={5} disabled={!assistiveTouchEnabled} />
+                            <div className="text-center text-xs text-muted-foreground pt-2">{idleOpacity[0]}%</div>
+                        </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </main>
             
             <AlertDialog open={isExplanationDialogOpen} onOpenChange={setIsExplanationDialogOpen}>

@@ -61,42 +61,44 @@ export default function PrivacySettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-16">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Privacy & Data" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                 <Card>
-                    <CardContent className="divide-y p-4">
-                         <SettingsItem>
-                            <Label htmlFor="read-receipts-toggle">Read Receipts</Label>
-                            <Switch id="read-receipts-toggle" checked={readReceipts} onCheckedChange={setReadReceipts}/>
-                        </SettingsItem>
-                        <SettingsItem>
-                            <Label htmlFor="ai-suggestions-toggle">AI Mood Suggestions</Label>
-                            <Switch id="ai-suggestions-toggle" checked={aiSuggestions} onCheckedChange={setAiSuggestions} />
-                        </SettingsItem>
-                         <SettingsItemButton onClick={() => toast({title: "Coming Soon!", description: "Conversation export will be available in a future update."})}>
-                            <div className="font-medium flex items-center gap-2"><FileText/> Export Conversation</div>
-                            <ChevronRight className="text-muted-foreground" />
-                        </SettingsItemButton>
-                         
-                         <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-                            <AlertDialogTrigger asChild>
-                               <SettingsItemButton destructive>
-                                    <div className="font-medium flex items-center gap-2"><Trash2/> Delete Account</div>
-                                    <ChevronRight/>
-                                </SettingsItemButton>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete your account, messages, and all data. To confirm, type "DELETE" below.</AlertDialogDescription></AlertDialogHeader>
-                                <Input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="DELETE" />
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => { setIsDeleteConfirmOpen(false); setIsReAuthModalOpen(true); }} disabled={deleteConfirmText !== 'DELETE'}>Continue</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </CardContent>
-                </Card>
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4">
+                    <Card>
+                        <CardContent className="divide-y p-4">
+                            <SettingsItem>
+                                <Label htmlFor="read-receipts-toggle">Read Receipts</Label>
+                                <Switch id="read-receipts-toggle" checked={readReceipts} onCheckedChange={setReadReceipts}/>
+                            </SettingsItem>
+                            <SettingsItem>
+                                <Label htmlFor="ai-suggestions-toggle">AI Mood Suggestions</Label>
+                                <Switch id="ai-suggestions-toggle" checked={aiSuggestions} onCheckedChange={setAiSuggestions} />
+                            </SettingsItem>
+                            <SettingsItemButton onClick={() => toast({title: "Coming Soon!", description: "Conversation export will be available in a future update."})}>
+                                <div className="font-medium flex items-center gap-2"><FileText/> Export Conversation</div>
+                                <ChevronRight className="text-muted-foreground" />
+                            </SettingsItemButton>
+                            
+                            <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                                <AlertDialogTrigger asChild>
+                                <SettingsItemButton destructive>
+                                        <div className="font-medium flex items-center gap-2"><Trash2/> Delete Account</div>
+                                        <ChevronRight/>
+                                    </SettingsItemButton>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete your account, messages, and all data. To confirm, type "DELETE" below.</AlertDialogDescription></AlertDialogHeader>
+                                    <Input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="DELETE" />
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel onClick={() => setDeleteConfirmText('')}>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => { setIsDeleteConfirmOpen(false); setIsReAuthModalOpen(true); }} disabled={deleteConfirmText !== 'DELETE'}>Continue</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </CardContent>
+                    </Card>
+                </div>
             </main>
             
             <AlertDialog open={isReAuthModalOpen} onOpenChange={setIsReAuthModalOpen}>

@@ -241,129 +241,132 @@ export default function MoodCustomizationPage() {
       .filter((m): m is MoodOption => !!m);
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-24">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Customize AssistiveTouch Menu" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Your Quick Actions</CardTitle>
-                        <CardDescription>
-                            These {quickMoods.size} / {MAX_QUICK_MOODS} moods appear in your AssistiveTouch menu. Tap a mood below to remove it.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {quickMoods.size > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {quickMoodsAsOptions.map(mood => (
-                                    <Button key={`quick-${mood.id}`} variant="default" className="flex items-center gap-2 pr-2" onClick={() => handleQuickMoodToggle(mood.id)}>
-                                        <span className="text-lg">{mood.emoji}</span>
-                                        {mood.label}
-                                        <X className="w-3 h-3 ml-1 text-primary-foreground/70" />
-                                    </Button>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-center text-muted-foreground p-4 bg-muted/50 rounded-md">No quick actions selected. Tap moods from the lists below to add them.</p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Heart className="text-pink-500 h-5 w-5"/> Inspired by Your Partner</CardTitle>
-                        <CardDescription>Based on moods your partner sends.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isLoadingPartnerSuggestions ? (
-                            <div className="flex justify-center items-center h-20">
-                                <Spinner />
-                            </div>
-                        ) : partnerSuggestions.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {partnerSuggestions.map(mood => (
-                                    <Button key={`partner-sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
-                                        {quickMoods.has(mood.id) ? <CheckCircle2 className="mr-2 text-lg h-4 w-4"/> : <span className="mr-2 text-lg">{mood.emoji}</span>}
-                                        {mood.label}
-                                    </Button>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
-                                <p>No recent moods from your partner to suggest.</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {isLoadingSuggestions ? <Spinner/> : suggestedMoods.length > 0 && (
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4 pb-24">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Sparkles className="text-yellow-400 h-5 w-5"/> Suggested For You</CardTitle>
-                            <CardDescription>Based on your recent activity.</CardDescription>
+                            <CardTitle>Your Quick Actions</CardTitle>
+                            <CardDescription>
+                                These {quickMoods.size} / {MAX_QUICK_MOODS} moods appear in your AssistiveTouch menu. Tap a mood below to remove it.
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex flex-wrap gap-2">
-                                {suggestedMoods.map(mood => (
-                                    <Button key={`sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
-                                        {quickMoods.has(mood.id) ? <CheckCircle2 className="mr-2 text-lg h-4 w-4"/> : <span className="mr-2 text-lg">{mood.emoji}</span>}
-                                        {mood.label}
+                            {quickMoods.size > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {quickMoodsAsOptions.map(mood => (
+                                        <Button key={`quick-${mood.id}`} variant="default" className="flex items-center gap-2 pr-2" onClick={() => handleQuickMoodToggle(mood.id)}>
+                                            <span className="text-lg">{mood.emoji}</span>
+                                            {mood.label}
+                                            <X className="w-3 h-3 ml-1 text-primary-foreground/70" />
+                                        </Button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-center text-muted-foreground p-4 bg-muted/50 rounded-md">No quick actions selected. Tap moods from the lists below to add them.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2"><Heart className="text-pink-500 h-5 w-5"/> Inspired by Your Partner</CardTitle>
+                            <CardDescription>Based on moods your partner sends.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isLoadingPartnerSuggestions ? (
+                                <div className="flex justify-center items-center h-20">
+                                    <Spinner />
+                                </div>
+                            ) : partnerSuggestions.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {partnerSuggestions.map(mood => (
+                                        <Button key={`partner-sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
+                                            {quickMoods.has(mood.id) ? <CheckCircle2 className="mr-2 text-lg h-4 w-4"/> : <span className="mr-2 text-lg">{mood.emoji}</span>}
+                                            {mood.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
+                                    <p>No recent moods from your partner to suggest.</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {isLoadingSuggestions ? <Spinner/> : suggestedMoods.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2"><Sparkles className="text-yellow-400 h-5 w-5"/> Suggested For You</CardTitle>
+                                <CardDescription>Based on your recent activity.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex flex-wrap gap-2">
+                                    {suggestedMoods.map(mood => (
+                                        <Button key={`sugg-${mood.id}`} variant="secondary" size="sm" onClick={() => handleQuickMoodToggle(mood.id)} disabled={quickMoods.has(mood.id)}>
+                                            {quickMoods.has(mood.id) ? <CheckCircle2 className="mr-2 text-lg h-4 w-4"/> : <span className="mr-2 text-lg">{mood.emoji}</span>}
+                                            {mood.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Mood Library</CardTitle>
+                            <CardDescription>Tap any mood to add it to your Quick Actions list.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div>
+                                <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-muted-foreground">Your Custom Moods</h4>
+                                <div className="space-y-2">
+                                    {customMoods.map(mood => (
+                                        <div key={mood.id} className={cn("p-2 rounded-lg flex items-center justify-between", quickMoods.has(mood.id) ? 'bg-primary/10' : 'bg-muted/50')}>
+                                            <button className="flex items-center gap-3 flex-grow" onClick={() => handleQuickMoodToggle(mood.id)}>
+                                                <span className="text-2xl">{mood.emoji}</span>
+                                                <span className="font-medium">{mood.label}</span>
+                                            </button>
+                                            <div className="flex items-center">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingMood(mood); setIsEditorOpen(true); }}><Edit className="h-4 w-4"/></Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteCustomMood(mood.id)}><Trash2 className="h-4 w-4"/></Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <Button variant="outline" className="w-full border-dashed" onClick={() => { setEditingMood(null); setIsEditorOpen(true); }}>
+                                        <PlusCircle className="mr-2 h-4 w-4"/> Add Custom Mood
                                     </Button>
-                                ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-muted-foreground">Predefined Moods</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    {MOOD_OPTIONS.map((mood) => {
+                                        const isSelected = quickMoods.has(mood.id);
+                                        return (
+                                            <button key={mood.id} onClick={() => handleQuickMoodToggle(mood.id)} className={cn("p-4 rounded-lg border-2 text-center transition-all flex flex-col items-center justify-center gap-2 h-24", isSelected ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted/50')} aria-pressed={isSelected}>
+                                                <span className="text-3xl">{mood.emoji}</span>
+                                                <span className="font-medium text-sm text-foreground">{mood.label}</span>
+                                                {isSelected && <CheckCircle2 className="absolute top-2 right-2 w-5 h-5 text-primary" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
-                )}
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Mood Library</CardTitle>
-                        <CardDescription>Tap any mood to add it to your Quick Actions list.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div>
-                             <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-muted-foreground">Your Custom Moods</h4>
-                             <div className="space-y-2">
-                                {customMoods.map(mood => (
-                                    <div key={mood.id} className={cn("p-2 rounded-lg flex items-center justify-between", quickMoods.has(mood.id) ? 'bg-primary/10' : 'bg-muted/50')}>
-                                        <button className="flex items-center gap-3 flex-grow" onClick={() => handleQuickMoodToggle(mood.id)}>
-                                            <span className="text-2xl">{mood.emoji}</span>
-                                            <span className="font-medium">{mood.label}</span>
-                                        </button>
-                                        <div className="flex items-center">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingMood(mood); setIsEditorOpen(true); }}><Edit className="h-4 w-4"/></Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteCustomMood(mood.id)}><Trash2 className="h-4 w-4"/></Button>
-                                        </div>
-                                    </div>
-                                ))}
-                                <Button variant="outline" className="w-full border-dashed" onClick={() => { setEditingMood(null); setIsEditorOpen(true); }}>
-                                    <PlusCircle className="mr-2 h-4 w-4"/> Add Custom Mood
-                                </Button>
-                             </div>
-                        </div>
-                        <div>
-                             <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-muted-foreground">Predefined Moods</h4>
-                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {MOOD_OPTIONS.map((mood) => {
-                                    const isSelected = quickMoods.has(mood.id);
-                                    return (
-                                        <button key={mood.id} onClick={() => handleQuickMoodToggle(mood.id)} className={cn("p-4 rounded-lg border-2 text-center transition-all flex flex-col items-center justify-center gap-2 h-24", isSelected ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted/50')} aria-pressed={isSelected}>
-                                            <span className="text-3xl">{mood.emoji}</span>
-                                            <span className="font-medium text-sm text-foreground">{mood.label}</span>
-                                            {isSelected && <CheckCircle2 className="absolute top-2 right-2 w-5 h-5 text-primary" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                 <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-sm border-t md:static md:bg-transparent md:border-none md:p-0">
+                </div>
+            </main>
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-sm border-t md:static md:bg-transparent md:border-none md:p-0 z-10">
+                <div className="max-w-3xl mx-auto">
                     <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full md:w-auto">
                         {isSaving ? <Spinner className="mr-2 h-4 w-4" /> : 'Save Changes'}
                     </Button>
                 </div>
-            </main>
+            </div>
             
             <MoodEditDialog isOpen={isEditorOpen} onOpenChange={setIsEditorOpen} onSave={handleSaveCustomMood} moodToEdit={editingMood} />
         </div>

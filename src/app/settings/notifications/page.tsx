@@ -34,46 +34,48 @@ export default function NotificationSettingsPage() {
     const masterNotificationsEnabled = isSubscribed && permissionStatus === 'granted';
 
     return (
-        <div className="min-h-screen bg-muted/40 pb-16">
+        <div className="h-screen bg-muted/40 flex flex-col">
             <SettingsHeader title="Notifications" />
-            <main className="max-w-3xl mx-auto space-y-6 p-4">
-                <Card>
-                    <CardContent className="divide-y p-4">
-                        <SettingsItem>
-                            <Label htmlFor="master-toggle" className="font-semibold pr-4">Enable Push Notifications</Label>
-                            <Switch id="master-toggle" checked={masterNotificationsEnabled} onCheckedChange={masterNotificationsEnabled ? unsubscribeFromPush : subscribeToPush} disabled={isSubscribing || (permissionStatus === 'denied' && !masterNotificationsEnabled)} />
-                        </SettingsItem>
-                        <SettingsItem>
-                            <Label htmlFor="dnd-toggle" className="font-semibold pr-4">Do Not Disturb</Label>
-                            <Switch 
-                                id="dnd-toggle" 
-                                checked={notificationSettings?.is_dnd_enabled ?? false}
-                                onCheckedChange={(checked) => handleSettingChange('is_dnd_enabled', checked)}
-                                disabled={isSubscribing || !masterNotificationsEnabled}
-                            />
-                        </SettingsItem>
-                        <div className={`space-y-1 pt-4 transition-opacity ${!masterNotificationsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <p className="text-sm text-muted-foreground pb-2">Notify me about...</p>
+            <main className="flex-grow overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6 p-4">
+                    <Card>
+                        <CardContent className="divide-y p-4">
                             <SettingsItem>
-                                <Label htmlFor="messages-toggle">New Messages</Label>
-                                <Switch id="messages-toggle" checked={notificationSettings?.messages ?? true} onCheckedChange={(c) => handleSettingChange('messages', c)} />
+                                <Label htmlFor="master-toggle" className="font-semibold pr-4">Enable Push Notifications</Label>
+                                <Switch id="master-toggle" checked={masterNotificationsEnabled} onCheckedChange={masterNotificationsEnabled ? unsubscribeFromPush : subscribeToPush} disabled={isSubscribing || (permissionStatus === 'denied' && !masterNotificationsEnabled)} />
                             </SettingsItem>
                             <SettingsItem>
-                                <Label htmlFor="mood-updates-toggle">Mood Updates</Label>
-                                <Switch id="mood-updates-toggle" checked={notificationSettings?.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
+                                <Label htmlFor="dnd-toggle" className="font-semibold pr-4">Do Not Disturb</Label>
+                                <Switch 
+                                    id="dnd-toggle" 
+                                    checked={notificationSettings?.is_dnd_enabled ?? false}
+                                    onCheckedChange={(checked) => handleSettingChange('is_dnd_enabled', checked)}
+                                    disabled={isSubscribing || !masterNotificationsEnabled}
+                                />
                             </SettingsItem>
-                            <SettingsItem>
-                                <Label htmlFor="pings-toggle">"Thinking of You" Pings</Label>
-                                <Switch id="pings-toggle" checked={notificationSettings?.thinking_of_you ?? true} onCheckedChange={(c) => handleSettingChange('thinking_of_you', c)} />
-                            </SettingsItem>
-                            <Separator />
-                            <SettingsItem>
-                                <Label htmlFor="quiet-hours-toggle" className="font-semibold">Quiet Hours</Label>
-                                <Switch id="quiet-hours-toggle" disabled />
-                            </SettingsItem>
-                        </div>
-                    </CardContent>
-                </Card>
+                            <div className={`space-y-1 pt-4 transition-opacity ${!masterNotificationsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <p className="text-sm text-muted-foreground pb-2">Notify me about...</p>
+                                <SettingsItem>
+                                    <Label htmlFor="messages-toggle">New Messages</Label>
+                                    <Switch id="messages-toggle" checked={notificationSettings?.messages ?? true} onCheckedChange={(c) => handleSettingChange('messages', c)} />
+                                </SettingsItem>
+                                <SettingsItem>
+                                    <Label htmlFor="mood-updates-toggle">Mood Updates</Label>
+                                    <Switch id="mood-updates-toggle" checked={notificationSettings?.mood_updates ?? true} onCheckedChange={(c) => handleSettingChange('mood_updates', c)} />
+                                </SettingsItem>
+                                <SettingsItem>
+                                    <Label htmlFor="pings-toggle">"Thinking of You" Pings</Label>
+                                    <Switch id="pings-toggle" checked={notificationSettings?.thinking_of_you ?? true} onCheckedChange={(c) => handleSettingChange('thinking_of_you', c)} />
+                                </SettingsItem>
+                                <Separator />
+                                <SettingsItem>
+                                    <Label htmlFor="quiet-hours-toggle" className="font-semibold">Quiet Hours</Label>
+                                    <Switch id="quiet-hours-toggle" disabled />
+                                </SettingsItem>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </main>
         </div>
     );
