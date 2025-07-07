@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
@@ -8,16 +7,22 @@ import type { UserInToken, AuthResponse, CompleteRegistrationRequest } from '@/t
 import { useToast } from '@/hooks/use-toast';
 import { storageService } from '@/services/storageService';
 import { capacitorService } from '@/services/capacitorService';
+import { auth, createRecaptchaVerifier, sendOTP, verifyOTP, getFirebaseToken } from '@/lib/firebase';
+import type { RecaptchaVerifier } from 'firebase/auth';
 
 interface AuthContextType {
   currentUser: UserInToken | null;
   token: string | null;
   isLoading: boolean;
   login: (phone: string, password_plaintext: string) => Promise<void>;
+  firebaseLogin: (phone: string) => Promise<void>;
+  firebaseSignup: (phone: string, displayName: string) => Promise<void>;
   completeRegistration: (userData: CompleteRegistrationRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   fetchAndUpdateUser: () => Promise<void>;
   isAuthenticated: boolean;
+  sendFirebaseOTP: (phoneNumber: string) => Promise<any>;
+  verifyFirebaseOTP: (confirmationResult: any, otp: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,11 +57,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await storageService.delete();
     await storageService.open(); // Re-open DB for next user
     if (pathname !== '/') {
-        router.push('/');
+      router.push('/');
     }
     toast({ title: 'Logged Out', description: "You've been successfully logged out." });
+    await auth.signOut();
   }, [router, toast, pathname]);
-  
+
   useEffect(() => {
     const storedToken = localStorage.getItem('kuchluToken');
     if (storedToken) {
@@ -71,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await capacitorService.setAuthToken(tokenToLoad);
         } catch (error) {
           console.error("Failed to load user from token", error);
-          logout(); 
+          logout();
         } finally {
           setIsLoading(false);
         }
@@ -81,11 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     }
   }, [logout]);
-  
-  const login = useCallback(async (phone: string, password_plaintext: string) => { 
+
+  const login = useCallback(async (phone: string, password_plaintext: string) => {
     setIsLoading(true);
     try {
-      const data: AuthResponse = await api.login(phone, password_plaintext); 
+      const data: AuthResponse = await api.login(phone, password_plaintext);
       await handleAuthSuccess(data);
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Login Failed', description: error.message || 'Please check your credentials.' });
@@ -100,9 +106,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const data: AuthResponse = await api.completeRegistration(userData);
       await handleAuthSuccess(data);
-       toast({ title: 'Registration Successful!', description: 'Welcome to Kuchlu.' });
-    } catch (error: any)
-    {
+      toast({ title: 'Registration Successful!', description: 'Welcome to Kuchlu.' });
+    } catch (error: any) {
       toast({ variant: 'destructive', title: 'Registration Failed', description: error.message || 'Please try again.' });
       throw error;
     } finally {
@@ -122,8 +127,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token, logout]);
 
+  // Firebase OTP methods
+  const sendFirebaseOTP = useCallback(async (phoneNumber: string) => {
+    try {
+      // Create reCAPTCHA verifier
+      const recaptchaVerifier = createRecaptchaVerifier('recaptcha-container');
+      const confirmationResult = await sendOTP(phoneNumber, recaptchaVerifier);
+      return confirmationResult;
+    } catch (error: any) {
+      console.error('Error sending Firebase OTP:', error);
+      throw error;
+    }
+  }, []);
+
+  const verifyFirebaseOTP = useCallback(async (confirmationResult: any, otp: string) => {
+    try {
+      const result = await verifyOTP(confirmationResult, otp);
+      return result;
+    } catch (error: any) {
+      console.error('Error verifying Firebase OTP:', error);
+      throw error;
+    }
+  }, []);
+
+  // Firebase authentication methods
+  const firebaseLogin = useCallback(async (phone: string) => {
+    setIsLoading(true);
+    try {
+      const firebaseToken = await getFirebaseToken();
+      const data: AuthResponse = await api.firebaseLogin(firebaseToken);
+      await handleAuthSuccess(data);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Login Failed', description: error.message || 'Please check your credentials.' });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleAuthSuccess, toast]);
+
+  const firebaseSignup = useCallback(async (phone: string, displayName: string) => {
+    setIsLoading(true);
+    try {
+      const firebaseToken = await getFirebaseToken();
+      const data: AuthResponse = await api.firebaseSignup(firebaseToken);
+      await handleAuthSuccess(data);
+      toast({ title: 'Registration Successful!', description: 'Welcome to Kuchlu.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Registration Failed', description: error.message || 'Please try again.' });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleAuthSuccess, toast]);
+
   useEffect(() => {
-    if (isLoading) return; 
+    if (isLoading) return;
 
     const isAuthPage = pathname === '/';
     const isOnboardingPage = pathname.startsWith('/onboarding');
@@ -155,7 +213,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   return (
-    <AuthContext.Provider value={{ currentUser, token, isLoading, login, completeRegistration, logout, fetchAndUpdateUser, isAuthenticated }}>
+    <AuthContext.Provider value={{ currentUser, token, isLoading, login, completeRegistration, logout, fetchAndUpdateUser, isAuthenticated, sendFirebaseOTP, verifyFirebaseOTP, firebaseLogin, firebaseSignup }}>
       {children}
     </AuthContext.Provider>
   );

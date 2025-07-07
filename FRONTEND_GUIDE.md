@@ -1,6 +1,6 @@
-# ChirpChat Frontend: Implementation & Flow Deep Dive
+# Kuchlu Frontend: Implementation & Flow Deep Dive
 
-This document provides a comprehensive technical guide to the ChirpChat frontend, detailing its implementation of core flows, real-time data handling, and performance strategies.
+This document provides a comprehensive technical guide to the Kuchlu frontend, detailing its implementation of core flows, real-time data handling, and performance strategies.
 
 ---
 
@@ -96,7 +96,7 @@ Yes, it has robust offline capabilities.
 
 ### 4.2. Local Data Storage
 
-*   **Database:** The app uses **Dexie.js** to manage an IndexedDB database (`ChirpChatDB`). This database stores all chats, messages, users, and the upload queue. This ensures the entire chat history is available offline.
+*   **Database:** The app uses **Dexie.js** to manage an IndexedDB database (`KuchluDB`). This database stores all chats, messages, users, and the upload queue. This ensures the entire chat history is available offline.
 *   **Synchronization:** The primary sync mechanism is the `syncEvents` call on startup and reconnection. This is a "last write wins" model where the server is the source of truth, and the client "catches up" to it. There is no complex conflict resolution, as a user can only write from one active client at a time.
 
 ---

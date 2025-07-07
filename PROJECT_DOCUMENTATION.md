@@ -1,7 +1,7 @@
 
-# ChirpChat: Project Status & Comprehensive Overview
+# Kuchlu: Project Status & Comprehensive Overview
 
-This document provides a detailed snapshot of the ChirpChat application, covering its design, features, technical architecture, and roadmap.
+This document provides a detailed snapshot of the Kuchlu application, covering its design, features, technical architecture, and roadmap.
 
 ---
 

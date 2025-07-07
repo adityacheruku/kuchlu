@@ -1,7 +1,7 @@
 
-# ChirpChat: Media Handling Implementation Guide
+# Kuchlu: Media Handling Implementation Guide
 
-This document provides a detailed technical overview of how image and audio/voice messages are handled in the ChirpChat application. It is intended for developers to understand the end-to-end flow from user interaction to final delivery.
+This document provides a detailed technical overview of how image and audio/voice messages are handled in the Kuchlu application. It is intended for developers to understand the end-to-end flow from user interaction to final delivery.
 
 ## 1. High-Level Architecture: The "Instant Send" Illusion
 
@@ -26,8 +26,8 @@ The core flow is as follows:
 -   **`src/services/videoCompressor.ts`**: Uses **FFmpeg.wasm** to compress videos/audio and extract video thumbnails directly in the browser.
 -   **`src/services/api.ts`**: Handles HTTP communication, primarily to get the signed URL signature from the backend.
 -   **`src/services/storageService.ts`**: A Dexie (IndexedDB) wrapper for client-side persistence of messages, chats, and the upload queue.
--   **`chirpchat-backend/app/routers/uploads.py`**: The FastAPI endpoint that provides a secure signature for the direct-to-Cloudinary upload.
--   **`chirpchat-backend/app/routers/webhooks.py`**: The FastAPI endpoint that listens for "processing complete" notifications from Cloudinary.
+-   **`kuchlu-backend/app/routers/uploads.py`**: The FastAPI endpoint that provides a secure signature for the direct-to-Cloudinary upload.
+-   **`kuchlu-backend/app/routers/webhooks.py`**: The FastAPI endpoint that listens for "processing complete" notifications from Cloudinary.
 
 ---
 

@@ -1,21 +1,18 @@
-// This file is generated from realtimeService.ts for use in the WebView
-"use strict";
-// ... existing code ... 
 
-// Transpiled JavaScript from realtimeService.ts
-const API_BASE_URL = 'https://9fc3-49-43-228-136.ngrok-free.app';
-const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
-const EVENTS_BASE_URL = API_BASE_URL;
+"use strict";
+
 const HEARTBEAT_INTERVAL = 30000;
 const SERVER_ACTIVITY_TIMEOUT = 45000;
 const LAST_SEQUENCE_KEY = 'kuchlu_lastSequence';
 const RECONNECT_DELAY_MS = 5000;
+
 class RealtimeService {
     constructor() {
         this.ws = null;
         this.sse = null;
         this.protocol = 'disconnected';
         this.token = null;
+        this.apiBaseUrl = ''; // Configured by native
         this.lastSequence = 0;
         this.isSyncing = false;
         this.heartbeatInterval = null;
@@ -29,7 +26,16 @@ class RealtimeService {
             window.addEventListener('offline', this.handleOffline.bind(this));
         }
     }
+
+    setBaseUrl(url) { this.apiBaseUrl = url; }
+    getWsBaseUrl() { return this.apiBaseUrl ? this.apiBaseUrl.replace(/^http/, 'ws') : ''; }
+    getEventsBaseUrl() { return this.apiBaseUrl || ''; }
+
     connect(authToken) {
+        if (!this.apiBaseUrl) {
+            console.error("RealtimeService: API base URL not set. Cannot connect.");
+            return;
+        }
         if (this.protocol !== 'disconnected' && this.token === authToken) return;
         this.token = authToken;
         this.startConnectionSequence();
@@ -59,14 +65,16 @@ class RealtimeService {
     async syncEvents() { /* Not implemented for WebView */ }
     startConnectionSequence() { if (!this.token || (typeof navigator !== 'undefined' && !navigator.onLine)) { this.setProtocol('disconnected'); return; } this.cleanup(); this.setProtocol('connecting'); this.connectWebSocket(); }
     connectWebSocket() {
-        if (!this.token) return; this.ws = new WebSocket(`${WS_BASE_URL}/ws/connect?token=${encodeURIComponent(this.token)}`);
+        const wsUrl = this.getWsBaseUrl();
+        if (!this.token || !wsUrl) return; this.ws = new WebSocket(`${wsUrl}/ws/connect?token=${encodeURIComponent(this.token)}`);
         this.ws.onopen = () => { this.setProtocol('websocket'); this.resetActivityTimeout(); this.startHeartbeat(); if (this.pendingMessages.size > 0) this.pendingMessages.forEach(p => this.ws && this.ws.send(JSON.stringify(p))); };
         this.ws.onmessage = (event) => { this.resetActivityTimeout(); const data = JSON.parse(event.data); if (data.event_type !== 'heartbeat_ack') this.handleEvent(data); };
         this.ws.onerror = () => { };
         this.ws.onclose = (event) => { this.stopHeartbeat(); this.ws = null; if (event.code === 1008) { this.emit('auth-error', { detail: 'Authentication failed' }); this.disconnect(); return; } if (this.token) this.connectSSE(); };
     }
     connectSSE() {
-        if (!this.token) return; this.setProtocol('fallback'); this.sse = new EventSource(`${EVENTS_BASE_URL}/events/subscribe?token=${encodeURIComponent(this.token)}`);
+        const sseUrl = this.getEventsBaseUrl();
+        if (!this.token || !sseUrl) return; this.setProtocol('fallback'); this.sse = new EventSource(`${sseUrl}/events/subscribe?token=${encodeURIComponent(this.token)}`);
         this.sse.onopen = () => { this.setProtocol('sse'); };
         this.sse.onerror = () => { if (this.protocol !== 'disconnected') { this.sse && this.sse.close(); this.sse = null; this.scheduleReconnect(); } };
         this.sse.addEventListener("auth_error", () => { this.emit('auth-error', { detail: 'Authentication failed' }); this.disconnect(); });

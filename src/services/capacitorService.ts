@@ -8,22 +8,25 @@ type CapacitorEvent = 'singleTap' | 'doubleTap' | 'longPress' | 'moodSelected';
 type CapacitorEventListener = (data?: any) => void;
 
 interface AssistiveTouchPlugin {
-  requestOverlayPermission(): Promise<void>;
-  show(options: { opacity: number; authToken?: string }): Promise<void>;
-  hide(): Promise<void>;
-  getStatus(): Promise<{ isEnabled: boolean }>;
-  updateMenu(options: { moods: MoodOption[] }): Promise<void>;
-  setAuthToken(options: { token: string }): Promise<void>;
-  setOpacity(options: { opacity: number }): Promise<void>;
+    requestOverlayPermission(): Promise<void>;
+    show(options: { opacity: number; authToken?: string; apiUrl?: string; }): Promise<void>;
+    hide(): Promise<void>;
+    getStatus(): Promise<{ isEnabled: boolean }>;
+    updateMenu(options: { moods: MoodOption[] }): Promise<void>;
+    setAuthToken(options: { token: string }): Promise<void>;
+    setOpacity(options: { opacity: number }): Promise<void>;
+    setUserPreferences(options: { hide_bubble_in_app: boolean }): Promise<void>;
+    onAppForeground(): Promise<void>;
+    onAppBackground(): Promise<void>;
 
-  addListener(eventName: 'singleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
-  addListener(eventName: 'doubleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
-  addListener(eventName: 'longPress', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
-  addListener(eventName: 'moodSelected', listenerFunc: (event: { moodId: string }) => void): Promise<PluginListenerHandle> & PluginListenerHandle;
+    addListener(eventName: 'singleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
+    addListener(eventName: 'doubleTap', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
+    addListener(eventName: 'longPress', listenerFunc: () => void): Promise<PluginListenerHandle> & PluginListenerHandle;
+    addListener(eventName: 'moodSelected', listenerFunc: (event: { moodId: string }) => void): Promise<PluginListenerHandle> & PluginListenerHandle;
 }
 
 interface SharePlugin {
-  share(options: { title?: string; text?: string; url?: string; dialogTitle?: string; }): Promise<any>;
+    share(options: { title?: string; text?: string; url?: string; dialogTitle?: string; }): Promise<any>;
 }
 
 
@@ -41,8 +44,9 @@ class CapacitorService {
             console.log("CapacitorService: Running in a web environment. Native features will be simulated.");
         }
     }
-    
+
     private isPluginAvailable = (): boolean => {
+        console.log("CapacitorService: isPluginAvailable", this.isNative, !!this.assistiveTouch, typeof this.assistiveTouch?.addListener === 'function');
         return this.isNative && !!this.assistiveTouch && typeof this.assistiveTouch.addListener === 'function';
     }
 
@@ -60,30 +64,30 @@ class CapacitorService {
                 navigator.clipboard.writeText(options.url);
                 alert("Link copied to clipboard. Sharing not available on this device.");
             } else if (options.text) {
-                 navigator.clipboard.writeText(options.text);
-                 alert("Text copied to clipboard. Sharing not available on this device.");
+                navigator.clipboard.writeText(options.text);
+                alert("Text copied to clipboard. Sharing not available on this device.");
             } else {
                 throw new Error("Sharing not supported on this device.");
             }
         }
     }
-    
+
     public on(event: CapacitorEvent, callback: CapacitorEventListener): (() => void) {
         if (!this.isPluginAvailable()) {
             console.log(`[Web Simulator] Skipping listener for '${event}' event because plugin is not available.`);
-            return () => {};
+            return () => { };
         }
 
-        const handlePromise = this.assistiveTouch!.addListener(event as any, callback);
-        
+        const handlePromise = this.assistiveTouch!.addListener(event as any, callback) as PluginListenerHandle | Promise<PluginListenerHandle>;
+
         if (handlePromise instanceof Promise) {
-            let handle: PluginListenerHandle;
+            let handle: PluginListenerHandle | undefined;
             handlePromise.then(h => handle = h);
-            return () => { handle?.remove(); };
+            return () => { if (handle && typeof handle.remove === 'function') handle.remove(); };
         }
-        
-        const handle = handlePromise;
-        return () => { handle.remove(); };
+
+        const handle = handlePromise as PluginListenerHandle;
+        return () => { if (handle && typeof handle.remove === 'function') handle.remove(); };
     }
 
     public requestOverlayPermission = async (showDialog: (callbacks: { onConfirm: () => void, onCancel: () => void }) => void): Promise<boolean> => {
@@ -93,23 +97,23 @@ class CapacitorService {
                 showDialog({ onConfirm: () => resolve(true), onCancel: () => resolve(false) });
             });
         }
-        
+
         return new Promise((resolve) => {
             const handleConfirm = async () => {
                 try {
                     await this.assistiveTouch!.requestOverlayPermission();
-                    resolve(true); 
+                    resolve(true);
                 } catch (error) {
                     console.error("CapacitorService: Error calling native requestOverlayPermission plugin:", error);
                     resolve(false);
                 }
             };
-            
+
             showDialog({ onConfirm: handleConfirm, onCancel: () => resolve(false) });
         });
     };
 
-    public showFloatingButton = async (options: { opacity: number; authToken?: string }): Promise<void> => {
+    public showFloatingButton = async (options: { opacity: number; authToken?: string; apiUrl?: string; }): Promise<void> => {
         if (!this.isPluginAvailable()) {
             console.log("[Web Simulator] Show floating button with options:", options);
             return;
@@ -120,7 +124,7 @@ class CapacitorService {
             console.error('CapacitorService: Error executing native show():', error);
         }
     };
-    
+
     public hideFloatingButton = async (): Promise<void> => {
         if (!this.isPluginAvailable()) {
             console.log("[Web Simulator] Hide floating button.");
@@ -141,8 +145,8 @@ class CapacitorService {
         try {
             return await this.assistiveTouch!.getStatus();
         } catch (error) {
-             console.error('CapacitorService: Error executing native getStatus():', error);
-             return { isEnabled: false };
+            console.error('CapacitorService: Error executing native getStatus():', error);
+            return { isEnabled: false };
         }
     }
 
@@ -179,6 +183,73 @@ class CapacitorService {
             await this.assistiveTouch!.setOpacity({ opacity });
         } catch (error) {
             console.error('CapacitorService: Error executing native setOpacity():', error);
+        }
+    };
+
+    public setUserPreferences = async (prefs: { hide_bubble_in_app: boolean }): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log('[Web Simulator] Setting user preferences:', prefs);
+            return;
+        }
+        try {
+            await this.assistiveTouch!.setUserPreferences(prefs);
+        } catch (error) {
+            console.error('CapacitorService: Error executing native setUserPreferences():', error);
+        }
+    };
+
+    public notifyAppForeground = async (): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log('[Web Simulator] App foregrounded.');
+            return;
+        }
+        try {
+            await this.assistiveTouch!.onAppForeground();
+        } catch (error) {
+            console.error('CapacitorService: Error executing native onAppForeground():', error);
+        }
+    };
+
+    public notifyAppBackground = async (): Promise<void> => {
+        if (!this.isPluginAvailable()) {
+            console.log('[Web Simulator] App backgrounded.');
+            return;
+        }
+        try {
+            await this.assistiveTouch!.onAppBackground();
+        } catch (error) {
+            console.error('CapacitorService: Error executing native onAppBackground():', error);
+        }
+    };
+
+    // Debug methods for service state and bubble refresh
+    public debugService = {
+        checkServiceStatus: async () => {
+            if (!this.isPluginAvailable()) {
+                console.log('[Web Simulator] Debug: Service status (simulated)');
+                return { simulated: true };
+            }
+            if (typeof (this.assistiveTouch as any).getServiceDebugInfo !== 'function') {
+                console.warn('getServiceDebugInfo is not implemented on the native plugin.');
+                return { error: 'Not implemented' };
+            }
+            try {
+                const status = await (this.assistiveTouch as any).getServiceDebugInfo();
+                console.log('Service Debug:', status);
+                return status;
+            } catch (err) {
+                console.error('Error calling getServiceDebugInfo:', err);
+                return { error: err };
+            }
+        },
+        forceRefreshBubble: async () => {
+            if (!this.isPluginAvailable()) {
+                console.log('[Web Simulator] Debug: forceRefreshBubble (simulated)');
+                return;
+            }
+            await (this.hideFloatingButton as any)();
+            await new Promise(res => setTimeout(res, 1000));
+            await (this.showFloatingButton as any)({ opacity: 1.0, apiUrl: process.env.NEXT_PUBLIC_API_BASE_URL });
         }
     };
 }

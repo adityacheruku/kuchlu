@@ -7,8 +7,9 @@ const config: CapacitorConfig = {
   webDir: 'out', // Point to the Next.js static export directory
   server: {
     // This is for live-reloading on a physical device.
-    // You may need to replace '192.168.1.100' with your computer's local IP address.
-    url: 'http://192.168.1.100:9002',
+    // Replace 'localhost' with your computer's local IP address (e.g., 192.168.1.100).
+    // This allows the mobile app to connect to the Next.js development server.
+    url: 'http://localhost:9002',
     cleartext: true
   },
   plugins: {

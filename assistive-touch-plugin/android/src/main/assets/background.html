@@ -8,16 +8,29 @@
   <script>
     // Called by native to supply auth token
     function setAuthToken(token) {
-      realtimeService.init(token);
+      if (window.realtimeService) {
+        window.realtimeService.connect(token);
+      }
+    }
+    
+    // Called by native to supply API URL
+    function setApiUrl(url) {
+      if(window.realtimeService) {
+        window.realtimeService.setBaseUrl(url);
+      }
     }
 
     // When realtimeService emits an event:
-    realtimeService.on('moodUpdate', data => {
-      Android.onMoodUpdate(JSON.stringify(data));
-    });
-    realtimeService.on('presenceUpdate', data => {
-      Android.onPresenceUpdate(JSON.stringify(data));
-    });
+    if (window.realtimeService) {
+        window.realtimeService.subscribe((event, data) => {
+            if(event === 'moodUpdate' && window.Android) {
+                 Android.onMoodUpdate(JSON.stringify(data));
+            } else if (event === 'presenceUpdate' && window.Android) {
+                 Android.onPresenceUpdate(JSON.stringify(data));
+            }
+        });
+    }
+
   </script>
 </head>
 

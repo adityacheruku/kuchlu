@@ -10,7 +10,7 @@ const APP_DESCRIPTION = "One soulmate, infinite moods.";
 export const metadata: Metadata = {
   // It's recommended to set a metadataBase for resolving absolute paths for social media cards.
   // TODO: Replace with your deployed frontend URL
-  metadataBase: new URL('https://kuchlu.vercel.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'),
   title: APP_NAME,
   description: APP_DESCRIPTION,
   manifest: "/manifest.json",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://kuchlu.vercel.app", // TODO: Replace with your deployed frontend URL
+    url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002', // TODO: Replace with your deployed frontend URL
     title: APP_NAME,
     description: APP_DESCRIPTION,
     siteName: APP_NAME,
@@ -51,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning={true}>
+    <html lang="en" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

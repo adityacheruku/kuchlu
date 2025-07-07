@@ -1,4 +1,4 @@
-package com.kuchlu.assistivetouch;
+package com.kuchlu.plugin; // Corrected package name
 
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +13,9 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.PluginMethod;
+
+import org.json.JSONArray;
+import org.json.JSONException;
 
 @CapacitorPlugin(name = "AssistiveTouch")
 public class AssistiveTouchPlugin extends Plugin {
@@ -81,12 +84,12 @@ public class AssistiveTouchPlugin extends Plugin {
     public void show(PluginCall call) {
         Context ctx = getContext();
         String authToken = call.getString("authToken", null);
+        String apiUrl = call.getString("apiUrl", null); // NEW
 
         Intent svc = new Intent(ctx, AssistiveTouchService.class);
-        if (authToken != null) {
-            AssistiveTouchService.setStaticAuthToken(authToken);
-        }
-
+        svc.putExtra("authToken", authToken);
+        svc.putExtra("apiUrl", apiUrl);
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ctx.startForegroundService(svc);
         } else {
@@ -113,6 +116,19 @@ public class AssistiveTouchPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("isEnabled", isEnabled);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void updateMenu(PluginCall call) {
+        try {
+            JSONArray moods = call.getArray("moods");
+            // This is a placeholder for passing data to the service.
+            // An event bus or bound service would be a better approach for complex data.
+            // For now, we'll assume the service can handle this via a static method or intent.
+        } catch (JSONException e) {
+            call.reject("Invalid moods array provided.");
+        }
+        call.resolve();
     }
 
     public void sendEvent(String event, JSObject data) {

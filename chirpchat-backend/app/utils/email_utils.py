@@ -54,7 +54,7 @@ async def send_login_notification_email(
         logger.info("NOTIFICATION_EMAIL_TO not set. Skipping login notification email.")
         return
 
-    subject = f"ChirpChat User Login: {logged_in_user_name}"
+    subject = f"Kuchlu User Login: {logged_in_user_name}"
     
     phone_info = logged_in_user_phone if logged_in_user_phone else "N/A"
     
@@ -63,8 +63,8 @@ async def send_login_notification_email(
     html_body = f"""
     <html>
         <body>
-            <h2>ChirpChat User Login Notification</h2>
-            <p>A user has logged into ChirpChat:</p>
+            <h2>Kuchlu User Login Notification</h2>
+            <p>A user has logged into Kuchlu:</p>
             <ul>
                 <li><strong>Name:</strong> {logged_in_user_name}</li>
                 <li><strong>Phone:</strong> {phone_info}</li>

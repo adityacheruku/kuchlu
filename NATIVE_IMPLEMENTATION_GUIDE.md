@@ -1,9 +1,9 @@
 
-# Native Plugin Implementation Guide for ChirpChat
+# Native Plugin Implementation Guide for Kuchlu
 
 **To the Native Plugin Developer:**
 
-This document provides the complete technical specification for building the native Capacitor plugin required for the ChirpChat application. The web-side of the application is **finished**. Your task is to build the native Android and iOS components that the web app will call.
+This document provides the complete technical specification for building the native Capacitor plugin required for the Kuchlu application. The web-side of the application is **finished**. Your task is to build the native Android and iOS components that the web app will call.
 
 ## 1. High-Level Architecture
 
@@ -111,7 +111,7 @@ The goal on Android is a true floating button that persists via a Foreground Ser
     -   Set the `WindowManager.LayoutParams`. Use `TYPE_APPLICATION_OVERLAY` for the window type.
     -   Add the button view to the `WindowManager`.
 -   **On `onStartCommand()`**:
-    -   Create the required persistent notification for the foreground service. The notification text should be subtle (e.g., "ChirpChat is running to stay connected").
+    -   Create the required persistent notification for the foreground service. The notification text should be subtle (e.g., "Kuchlu is running to stay connected").
     -   Start the service in the foreground using `startForeground()`.
 -   **On `onDestroy()`**:
     -   Clean up resources by removing the button view from the `WindowManager`.

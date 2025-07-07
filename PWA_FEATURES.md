@@ -1,6 +1,6 @@
-# ChirpChat PWA Features: Functionality When The App is Closed
+# Kuchlu PWA Features: Functionality When The App is Closed
 
-This document provides a detailed overview of ChirpChat's Progressive Web App (PWA) features, which allow the application to provide value even when it is not actively open. This is achieved through background functionalities like push notifications and home screen quick actions.
+This document provides a detailed overview of Kuchlu's Progressive Web App (PWA) features, which allow the application to provide value even when it is not actively open. This is achieved through background functionalities like push notifications and home screen quick actions.
 
 ## 1. Push Notifications
 

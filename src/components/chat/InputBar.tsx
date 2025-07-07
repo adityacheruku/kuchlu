@@ -1,7 +1,6 @@
-
 "use client";
 
-// ⚡️ Wrapped with React.memo to avoid re-renders when props don’t change
+// ⚡️ Wrapped with React.memo to avoid re-renders when props don't change
 import React, { useState, type FormEvent, useRef, type ChangeEvent, useEffect, useMemo, useCallback, memo } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -18,6 +17,8 @@ import { ScrollArea } from '../ui/scroll-area';
 import Spinner from '../common/Spinner';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { validateFile } from '@/utils/fileValidation';
+
+const EMOJI_ONLY_REGEX = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff])+$/;
 
 interface InputBarProps {
   onSendMessage: (text: string, mode: MessageMode, replyToId?: string) => void;
@@ -36,7 +37,7 @@ interface InputBarProps {
   onCancelReply: () => void;
   allUsers: Record<string, User>;
 }
-
+import { isEmojiOnly } from '@/utils/isEmojiOnly';
 const MAX_RECORDING_SECONDS = 120;
 
 const AttachmentPreview = ({ file, onRemove }: { file: File; onRemove: () => void }) => {
@@ -47,7 +48,7 @@ const AttachmentPreview = ({ file, onRemove }: { file: File; onRemove: () => voi
       {file.type.startsWith('image/') ? (
         <Image src={fileUrl} alt={file.name} fill sizes="64px" className="object-cover" />
       ) : file.type.startsWith('audio/') ? (
-         <div className="flex flex-col items-center justify-center h-full p-1 text-center bg-primary/20">
+        <div className="flex flex-col items-center justify-center h-full p-1 text-center bg-primary/20">
           <Music className="w-6 h-6 text-primary" />
           <span className="text-xs truncate text-primary/80">Audio</span>
         </div>
@@ -66,33 +67,33 @@ const AttachmentPreview = ({ file, onRemove }: { file: File; onRemove: () => voi
 };
 
 const ReplyPreview = ({ message, onCancel, allUsers }: { message: Message, onCancel: () => void, allUsers: Record<string, User> }) => {
-    const sender = allUsers[message.user_id];
-    return (
-        <div className="relative flex items-center gap-3 p-2 pr-8 mb-2 border-l-2 border-primary bg-primary/10 rounded-r-md">
-            <div className="flex-grow min-w-0">
-                <p className="font-semibold text-primary text-sm">{sender?.display_name || "Unknown User"}</p>
-                <p className="text-sm text-foreground/80 truncate">{message.text || 'Attachment...'}</p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={onCancel} className="absolute top-1/2 right-1 -translate-y-1/2 h-7 w-7 rounded-full text-muted-foreground hover:bg-black/10">
-                <X className="h-4 w-4" />
-                <span className="sr-only">Cancel reply</span>
-            </Button>
-        </div>
-    );
+  const sender = allUsers[message.user_id];
+  return (
+    <div className="relative flex items-center gap-3 p-2 pr-8 mb-2 border-l-2 border-primary bg-primary/10 rounded-r-md">
+      <div className="flex-grow min-w-0">
+        <p className="font-semibold text-primary text-sm">{sender?.display_name || "Unknown User"}</p>
+        <p className="text-sm text-foreground/80 truncate">{message.text || 'Attachment...'}</p>
+      </div>
+      <Button variant="ghost" size="icon" onClick={onCancel} className="absolute top-1/2 right-1 -translate-y-1/2 h-7 w-7 rounded-full text-muted-foreground hover:bg-black/10">
+        <X className="h-4 w-4" />
+        <span className="sr-only">Cancel reply</span>
+      </Button>
+    </div>
+  );
 };
 
 const SoundWave = () => (
-    <div className="flex items-center justify-center gap-0.5 h-full w-full">
-        <div className="w-1 h-2 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.8s]"></div>
-        <div className="w-1 h-4 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.2s]"></div>
-        <div className="w-1 h-5 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.4s]"></div>
-        <div className="w-1 h-3 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.0s]"></div>
-        <div className="w-1 h-6 rounded-full bg-primary animate-[wave_1.2s_linear_infinite]"></div>
-        <div className="w-1 h-4 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.2s]"></div>
-        <div className="w-1 h-2 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.6s]"></div>
-        <div className="w-1 h-5 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.4s]"></div>
-        <div className="w-1 h-3 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.9s]"></div>
-    </div>
+  <div className="flex items-center justify-center gap-0.5 h-full w-full">
+    <div className="w-1 h-2 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.8s]"></div>
+    <div className="w-1 h-4 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.2s]"></div>
+    <div className="w-1 h-5 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.4s]"></div>
+    <div className="w-1 h-3 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.0s]"></div>
+    <div className="w-1 h-6 rounded-full bg-primary animate-[wave_1.2s_linear_infinite]"></div>
+    <div className="w-1 h-4 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.2s]"></div>
+    <div className="w-1 h-2 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.6s]"></div>
+    <div className="w-1 h-5 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-1.4s]"></div>
+    <div className="w-1 h-3 rounded-full bg-primary animate-[wave_1.2s_linear_infinite] [animation-delay:-0.9s]"></div>
+  </div>
 )
 
 function InputBar({
@@ -127,13 +128,13 @@ function InputBar({
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-        textarea.style.height = 'auto';
-        const scrollHeight = textarea.scrollHeight;
-        if (scrollHeight > 120) {
-            textarea.style.height = `120px`;
-        } else {
-            textarea.style.height = `${scrollHeight}px`;
-        }
+      textarea.style.height = 'auto';
+      const scrollHeight = textarea.scrollHeight;
+      if (scrollHeight > 120) {
+        textarea.style.height = `120px`;
+      } else {
+        textarea.style.height = `${scrollHeight}px`;
+      }
     }
   }, [messageText, replyingTo]);
 
@@ -152,7 +153,7 @@ function InputBar({
     `;
     document.head.appendChild(styleSheet);
     return () => {
-        document.head.removeChild(styleSheet);
+      document.head.removeChild(styleSheet);
     };
 
   }, []);
@@ -188,27 +189,27 @@ function InputBar({
     onSendSticker(stickerId, chatMode);
     setIsToolsOpen(false);
   }, [disabled, onSendSticker, chatMode]);
-  
+
   const handleFilesSelected = useCallback((files: FileList | null) => {
     if (!files) return;
     const newAttachments = Array.from(files).map(file => {
-        const validation = validateFile(file);
-        if (validation.fileType === 'unknown' || !validation.isValid) {
-            toast({ variant: 'destructive', title: 'Invalid File', description: validation.errors.join(', ') || 'This file type is not supported.' });
-            return null;
-        }
-        const subtype: MessageSubtype = validation.fileType === 'video' ? 'clip' : validation.fileType;
-        return { file, subtype };
+      const validation = validateFile(file);
+      if (validation.fileType === 'unknown' || !validation.isValid) {
+        toast({ variant: 'destructive', title: 'Invalid File', description: validation.errors.join(', ') || 'This file type is not supported.' });
+        return null;
+      }
+      const subtype: MessageSubtype = validation.fileType === 'video' ? 'clip' : validation.fileType;
+      return { file, subtype };
     }).filter(Boolean) as { file: File; subtype: MessageSubtype }[];
 
     setStagedAttachments(prev => [...prev, ...newAttachments]);
     setIsAttachmentOpen(false);
   }, [toast]);
-  
+
   const handleRemoveAttachment = useCallback((indexToRemove: number) => {
     setStagedAttachments(prev => prev.filter((_, index) => index !== indexToRemove));
   }, []);
-  
+
   const handleDragEvents = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
   const handleDragEnter = (e: React.DragEvent) => { handleDragEvents(e); if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setIsDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { handleDragEvents(e); const relatedTarget = e.relatedTarget as Node | null; if (!e.currentTarget.contains(relatedTarget)) setIsDragging(false); };
@@ -221,14 +222,14 @@ function InputBar({
   }, [handleFilesSelected]);
 
   const cleanupRecording = useCallback(() => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.onstop = null;
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      }
-      mediaRecorderRef.current = null; audioChunksRef.current = [];
-      setIsRecording(false); setRecordingSeconds(0);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+    mediaRecorderRef.current = null; audioChunksRef.current = [];
+    setIsRecording(false); setRecordingSeconds(0);
   }, []);
 
   const handleStopAndSendRecording = useCallback(() => {
@@ -244,35 +245,35 @@ function InputBar({
       toast({ variant: 'destructive', title: 'Unsupported Device', description: 'Your browser does not support voice recording.' }); return;
     }
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        Haptics.impact({ style: ImpactStyle.Light });
-        mediaRecorderRef.current = new MediaRecorder(stream);
-        audioChunksRef.current = [];
-        mediaRecorderRef.current.ondataavailable = (event) => audioChunksRef.current.push(event.data);
-        mediaRecorderRef.current.onstop = () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            if (audioBlob.size > 0) {
-              const audioFile = new File([audioBlob], `voice-message-${Date.now()}.webm`, { type: 'audio/webm' });
-              onSendVoiceMessage(audioFile, chatMode);
-            }
-            stream.getTracks().forEach(track => track.stop());
-            setIsRecording(false);
-            setRecordingSeconds(0);
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-        };
-        mediaRecorderRef.current.start();
-        setIsRecording(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      Haptics.impact({ style: ImpactStyle.Light });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.ondataavailable = (event) => audioChunksRef.current.push(event.data);
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size > 0) {
+          const audioFile = new File([audioBlob], `voice-message-${Date.now()}.webm`, { type: 'audio/webm' });
+          onSendVoiceMessage(audioFile, chatMode);
+        }
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
         setRecordingSeconds(0);
-        timerIntervalRef.current = setInterval(() => setRecordingSeconds(prev => prev + 1), 1000);
-        setTimeout(() => {
-            if (mediaRecorderRef.current?.state === "recording") {
-              toast({ title: "Recording Limit Reached", description: `Maximum duration is ${MAX_RECORDING_SECONDS} seconds.`});
-              handleStopAndSendRecording();
-            }
-        }, MAX_RECORDING_SECONDS * 1000);
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      };
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      timerIntervalRef.current = setInterval(() => setRecordingSeconds(prev => prev + 1), 1000);
+      setTimeout(() => {
+        if (mediaRecorderRef.current?.state === "recording") {
+          toast({ title: "Recording Limit Reached", description: `Maximum duration is ${MAX_RECORDING_SECONDS} seconds.` });
+          handleStopAndSendRecording();
+        }
+      }, MAX_RECORDING_SECONDS * 1000);
     } catch (err) {
-        toast({ variant: 'destructive', title: 'Microphone Access Denied', description: 'Please enable microphone permissions in your browser settings.' });
-        cleanupRecording();
+      toast({ variant: 'destructive', title: 'Microphone Access Denied', description: 'Please enable microphone permissions in your browser settings.' });
+      cleanupRecording();
     }
   }, [isRecording, toast, cleanupRecording, onSendVoiceMessage, chatMode, handleStopAndSendRecording]);
 
@@ -280,26 +281,28 @@ function InputBar({
     e?.preventDefault();
     if (disabled || isSending) return;
     Haptics.impact({ style: ImpactStyle.Light });
-    
+
     if (messageText.trim()) {
-        onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
+      const isEmojiOnly = isEmojiOnly(messageText.trim());
+      const subtype: MessageSubtype = isEmojiOnly ? 'emoji_only' : 'text';
+      onSendMessage(messageText.trim(), chatMode, replyingTo?.id);
     }
-    
+
     stagedAttachments.forEach(({ file, subtype }) => {
-        switch(subtype) {
-            case 'image': onSendImage(file, chatMode); break;
-            case 'clip': onSendVideo(file, chatMode); break;
-            case 'document': onSendDocument(file, chatMode); break;
-            case 'audio': onSendAudio(file, chatMode); break;
-        }
+      switch (subtype) {
+        case 'image': onSendImage(file, chatMode); break;
+        case 'clip': onSendVideo(file, chatMode); break;
+        case 'document': onSendDocument(file, chatMode); break;
+        case 'audio': onSendAudio(file, chatMode); break;
+      }
     });
 
     setMessageText(''); setStagedAttachments([]); setEmojiSearch(''); onTyping(false);
-    if(replyingTo) onCancelReply();
+    if (replyingTo) onCancelReply();
   }, [disabled, isSending, messageText, stagedAttachments, onSendMessage, onSendImage, onSendVideo, onSendDocument, onSendAudio, onTyping, chatMode, replyingTo, onCancelReply]);
-  
+
   const showSendButton = useMemo(() => messageText.trim() !== '' || stagedAttachments.length > 0 || isRecording, [messageText, stagedAttachments, isRecording]);
-  
+
   const handleMicOrSendClick = useCallback(() => {
     if (isRecording) {
       handleStopAndSendRecording();
@@ -315,11 +318,11 @@ function InputBar({
     const lowerCaseSearch = emojiSearch.toLowerCase();
     const filtered: typeof PICKER_EMOJIS = {};
     for (const category in PICKER_EMOJIS) {
-        const cat = category as keyof typeof PICKER_EMOJIS;
-        const matchingEmojis = PICKER_EMOJIS[cat].emojis.filter(emoji => 
-            PICKER_EMOJIS[cat].keywords.some(kw => kw.includes(lowerCaseSearch) || emoji.includes(lowerCaseSearch))
-        );
-        if (matchingEmojis.length > 0) filtered[cat] = { ...PICKER_EMOJIS[cat], emojis: matchingEmojis };
+      const cat = category as keyof typeof PICKER_EMOJIS;
+      const matchingEmojis = PICKER_EMOJIS[cat].emojis.filter(emoji =>
+        PICKER_EMOJIS[cat].keywords.some(kw => kw.includes(lowerCaseSearch) || emoji.includes(lowerCaseSearch))
+      );
+      if (matchingEmojis.length > 0) filtered[cat] = { ...PICKER_EMOJIS[cat], emojis: matchingEmojis };
     }
     return filtered;
   }, [emojiSearch]);
@@ -337,7 +340,7 @@ function InputBar({
 
   const getPlaceholderText = () => {
     if (replyingTo) return "Type your reply...";
-    switch(chatMode) {
+    switch (chatMode) {
       case 'fight': return "Type a message in Fight Mode...";
       case 'incognito': return "Type an incognito message...";
       default: return "Type a message...";
@@ -352,21 +355,21 @@ function InputBar({
       </TabsList>
       <TabsContent value="media" className="p-4">
         <div className="grid grid-cols-3 gap-3">
-            <Button variant="outline" size="lg" onClick={() => photoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '50ms' }}>
-                <Camera size={24} className="text-red-500"/><span className="text-sm font-normal">Camera</span>
-            </Button>
-             <Button variant="outline" size="lg" onClick={() => videoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '100ms' }}>
-                <Video size={24} className="text-blue-500"/><span className="text-sm font-normal">Record</span>
-            </Button>
-            <Button variant="outline" size="lg" onClick={() => galleryInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '150ms' }}>
-                <ImageIcon size={24} className="text-purple-500"/><span className="text-sm font-normal">Gallery</span>
-            </Button>
-            <Button variant="outline" size="lg" onClick={() => documentInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '200ms' }}>
-                <FileText size={24} className="text-green-500"/><span className="text-sm font-normal">Document</span>
-            </Button>
-            <Button variant="outline" size="lg" onClick={() => audioInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '250ms' }}>
-                <Music size={24} className="text-orange-500"/><span className="text-sm font-normal">Audio</span>
-            </Button>
+          <Button variant="outline" size="lg" onClick={() => photoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '50ms' }}>
+            <Camera size={24} className="text-red-500" /><span className="text-sm font-normal">Camera</span>
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => videoInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '100ms' }}>
+            <Video size={24} className="text-blue-500" /><span className="text-sm font-normal">Record</span>
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => galleryInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '150ms' }}>
+            <ImageIcon size={24} className="text-purple-500" /><span className="text-sm font-normal">Gallery</span>
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => documentInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '200ms' }}>
+            <FileText size={24} className="text-green-500" /><span className="text-sm font-normal">Document</span>
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => audioInputRef.current?.click()} className="flex animate-pop-in flex-col h-auto aspect-square items-center justify-center gap-2" style={{ animationDelay: '250ms' }}>
+            <Music size={24} className="text-orange-500" /><span className="text-sm font-normal">Audio</span>
+          </Button>
         </div>
       </TabsContent>
       <TabsContent value="mode" className="p-4">
@@ -391,16 +394,16 @@ function InputBar({
   const ToolsPicker = useCallback(() => (
     <Tabs defaultValue="emoji" className="w-full flex flex-col h-full">
       <SheetHeader className="p-2 border-b">
-          <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="emoji"><Smile size={18}/></TabsTrigger><TabsTrigger value="sticker"><StickyNote size={18}/></TabsTrigger><TabsTrigger value="gif" disabled><Gift size={18}/></TabsTrigger></TabsList>
+        <TabsList className="grid w-full grid-cols-3"><TabsTrigger value="emoji"><Smile size={18} /></TabsTrigger><TabsTrigger value="sticker"><StickyNote size={18} /></TabsTrigger><TabsTrigger value="gif" disabled><Gift size={18} /></TabsTrigger></TabsList>
       </SheetHeader>
       <TabsContent value="emoji" className="flex-grow overflow-hidden mt-0">
         <div className="p-2">
-            <Input id="emoji-search" placeholder="Search emojis..." value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)} className="w-full bg-muted border-none focus-visible:ring-ring" aria-label="Search emojis"/>
+          <Input id="emoji-search" placeholder="Search emojis..." value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)} className="w-full bg-muted border-none focus-visible:ring-ring" aria-label="Search emojis" />
         </div>
         {!emojiSearch && recentEmojis.length > 0 && (
           <div className="px-2 pb-2 border-b">
-              <h3 className="text-xs font-semibold text-muted-foreground mb-1">Recent</h3>
-              <div className="flex gap-1">{recentEmojis.map(emoji => (<Button key={emoji} variant="ghost" className="text-xl p-0 h-9 w-9 rounded-md" onClick={() => handleEmojiSelect(emoji)} aria-label={`Select emoji ${emoji}`}>{emoji}</Button>))}</div>
+            <h3 className="text-xs font-semibold text-muted-foreground mb-1">Recent</h3>
+            <div className="flex gap-1">{recentEmojis.map(emoji => (<Button key={emoji} variant="ghost" className="text-xl p-0 h-9 w-9 rounded-md" onClick={() => handleEmojiSelect(emoji)} aria-label={`Select emoji ${emoji}`}>{emoji}</Button>))}</div>
           </div>
         )}
         <ScrollArea className="h-[calc(100%-110px)]">
@@ -414,104 +417,107 @@ function InputBar({
 
   return (
     <div className={cn("p-3 border-t border-border bg-card transition-colors duration-300", isDragging && "bg-primary/20 border-primary")}
-        onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragEvents} onDrop={handleDrop}>
-      
+      onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragEvents} onDrop={handleDrop}>
+
       {replyingTo && <ReplyPreview message={replyingTo} onCancel={onCancelReply} allUsers={allUsers} />}
 
       {stagedAttachments.length > 0 && (
-          <div className="mb-2 p-2 border rounded-lg bg-muted/50">
-              <ScrollArea className="h-24 whitespace-nowrap"><div className="flex items-center gap-2">{stagedAttachments.map((item, index) => (<AttachmentPreview key={index} file={item.file} onRemove={() => handleRemoveAttachment(index)} />))}</div></ScrollArea>
-          </div>
+        <div className="mb-2 p-2 border rounded-lg bg-muted/50">
+          <ScrollArea className="h-24 whitespace-nowrap"><div className="flex items-center gap-2">{stagedAttachments.map((item, index) => (<AttachmentPreview key={index} file={item.file} onRemove={() => handleRemoveAttachment(index)} />))}</div></ScrollArea>
+        </div>
       )}
 
       <div className="flex items-end space-x-2">
         {!isRecording && (
-            <Sheet open={isAttachmentOpen} onOpenChange={setIsAttachmentOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" type="button" className="text-muted-foreground hover:text-accent hover:bg-accent/10 rounded-full focus-visible:ring-ring flex-shrink-0" aria-label="Attach file or change mode" disabled={isSending || disabled}><Paperclip size={22} /></Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="p-0 border-t bg-card h-auto rounded-t-lg">
-                  <SheetHeader className="sr-only">
-                    <SheetTitle>Attachments and Modes</SheetTitle>
-                    <SheetDescription>Select a file to attach or change the chat mode.</SheetDescription>
-                  </SheetHeader>
-                  <AttachmentPicker />
-              </SheetContent>
-            </Sheet>
+          <Sheet open={isAttachmentOpen} onOpenChange={setIsAttachmentOpen}>
+            <SheetTrigger asChild>
+              {/* <Button variant="ghost" size="icon" onClick={...} ...>
+                  <Paperclip size={20} />
+                </Button> */}
+              {/* [Paperclip button hidden as per request] */}
+            </SheetTrigger>
+            <SheetContent side="bottom" className="p-0 border-t bg-card h-auto rounded-t-lg">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Attachments and Modes</SheetTitle>
+                <SheetDescription>Select a file to attach or change the chat mode.</SheetDescription>
+              </SheetHeader>
+              <AttachmentPicker />
+            </SheetContent>
+          </Sheet>
         )}
-        
+
         <div className={cn(
           "flex-grow flex items-end min-h-[44px] bg-input rounded-2xl transition-all duration-300 ring-2 ring-transparent focus-within:ring-ring",
           chatMode === 'fight' && 'ring-destructive',
           chatMode === 'incognito' && 'ring-muted-foreground ring-offset-2 ring-offset-card',
           isRecording && 'p-1'
         )}>
-            {isRecording ? (
-                 <div className="flex items-center w-full px-2 h-full">
-                     <Button type="button" variant="ghost" size="icon" onClick={cleanupRecording} className="text-destructive h-8 w-8"><Trash2 size={20} /></Button>
-                     <div className="flex-grow flex items-center justify-center h-full"><SoundWave /></div>
-                     <span className="font-mono text-sm text-muted-foreground w-12 text-center">{new Date(recordingSeconds * 1000).toISOString().substr(14, 5)}</span>
-                 </div>
-            ) : (
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={getPlaceholderText()}
-                  value={messageText}
-                  onChange={handleTypingChange}
-                  onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => {
-                    setIsInputFocused(false);
-                    handleBlur();
-                  }}
-                  className="w-full bg-transparent border-none focus-visible:ring-0 resize-none min-h-[44px] max-h-[120px] py-2.5 px-3.5"
-                  autoComplete="off"
-                  disabled={isSending || disabled}
-                  rows={1}
-                  aria-label="Message input"
-                />
-            )}
+          {isRecording ? (
+            <div className="flex items-center w-full px-2 h-full">
+              <Button type="button" variant="ghost" size="icon" onClick={cleanupRecording} className="text-destructive h-8 w-8"><Trash2 size={20} /></Button>
+              <div className="flex-grow flex items-center justify-center h-full"><SoundWave /></div>
+              <span className="font-mono text-sm text-muted-foreground w-12 text-center">{new Date(recordingSeconds * 1000).toISOString().substr(14, 5)}</span>
+            </div>
+          ) : (
+            <Textarea
+              ref={textareaRef}
+              placeholder={getPlaceholderText()}
+              value={messageText}
+              onChange={handleTypingChange}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => {
+                setIsInputFocused(false);
+                handleBlur();
+              }}
+              className="w-full bg-transparent border-none focus-visible:ring-0 resize-none min-h-[44px] max-h-[120px] py-2.5 px-3.5"
+              autoComplete="off"
+              disabled={isSending || disabled}
+              rows={1}
+              aria-label="Message input"
+            />
+          )}
         </div>
-        
+
         {!isRecording && (
-            <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
-                <SheetTrigger asChild>
-                    <Button
-                        variant="ghost" size="icon" type="button"
-                        className={cn(
-                            'rounded-full h-11 w-11 flex-shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-accent transition-all duration-300 ease-in-out',
-                            (isInputFocused || showSendButton) && 'scale-100 opacity-100',
-                            !isInputFocused && !showSendButton && 'scale-0 opacity-0 w-0'
-                        )}
-                        disabled={disabled} aria-label="Open emoji and sticker panel"
-                    >
-                        <Smile size={22} />
-                    </Button>
-                </SheetTrigger>
-                <SheetContent side="bottom" className="p-0 border-t bg-card h-[60%] rounded-t-lg flex flex-col">
-                    <SheetHeader className="sr-only"><SheetTitle>Emoji and Sticker Picker</SheetTitle><SheetDescription>Select an emoji, sticker, or GIF to send.</SheetDescription></SheetHeader>
-                    <ToolsPicker />
-                </SheetContent>
-            </Sheet>
+          <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost" size="icon" type="button"
+                className={cn(
+                  'rounded-full h-11 w-11 flex-shrink-0 text-muted-foreground hover:bg-accent/10 hover:text-accent transition-all duration-300 ease-in-out',
+                  (isInputFocused || showSendButton) && 'scale-100 opacity-100',
+                  !isInputFocused && !showSendButton && 'scale-0 opacity-0 w-0'
+                )}
+                disabled={disabled} aria-label="Open emoji and sticker panel"
+              >
+                <Smile size={22} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="p-0 border-t bg-card h-[60%] rounded-t-lg flex flex-col">
+              <SheetHeader className="sr-only"><SheetTitle>Emoji and Sticker Picker</SheetTitle><SheetDescription>Select an emoji, sticker, or GIF to send.</SheetDescription></SheetHeader>
+              <ToolsPicker />
+            </SheetContent>
+          </Sheet>
         )}
 
-        <Button 
-          type="button" 
+        <Button
+          type="button"
           onClick={handleMicOrSendClick}
-          size="icon" 
-          className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0" 
-          disabled={isSending || disabled} 
+          size="icon"
+          className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-full w-11 h-11 flex-shrink-0"
+          disabled={isSending || disabled}
           aria-label={isRecording ? "Stop and send voice message" : showSendButton ? "Send message" : "Press and hold to record voice message"}
         >
           {isSending ? (
             <Spinner />
           ) : showSendButton ? (
-            <Send size={22} className="animate-pop" key="send"/>
+            <Send size={22} className="animate-pop" key="send" />
           ) : (
-            <Mic size={22} className="animate-pop" key="mic"/>
+            <Mic size={22} className="animate-pop" key="mic" />
           )}
         </Button>
       </div>
-      
+
       <input type="file" ref={photoInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
       <input type="file" ref={videoInputRef} accept="video/*" capture="environment" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
       <input type="file" ref={galleryInputRef} accept="image/*,video/*" className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} multiple />

@@ -7,7 +7,7 @@ import type {
 } from '@/types';
 import type { MoodOption } from '@/config/moods';
 
-const API_BASE_URL = 'https://9711-49-43-231-86.ngrok-free.app';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 let currentAuthToken: string | null = null;
 
 function getAuthToken(): string | null {
@@ -37,7 +37,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorData: ApiErrorResponse = { detail: `HTTP error ${response.status}` };
     try {
-      if (text) errorData = JSON.parse(text);
+      if (text && text !== "undefined") errorData = JSON.parse(text);
     } catch (e) {
       errorData.detail = text || `HTTP error ${response.status}`;
     }
@@ -52,7 +52,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
   }
 
   try {
-    return text ? (JSON.parse(text) as T) : ({} as T);
+    if (!text || text === "undefined") return {} as T;
+    return JSON.parse(text) as T;
   } catch (e) {
     throw new Error("Failed to parse JSON response");
   }

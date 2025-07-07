@@ -10,7 +10,7 @@ export class AssistiveTouchPluginWeb extends WebPlugin implements AssistiveTouch
     return { granted: true };
   }
 
-  async show(options: { label: string; authToken?: string; opacity?: number }): Promise<void> {
+  async show(options: { label: string; authToken?: string; opacity?: number; apiUrl?: string }): Promise<void> {
     if (this.button) return;
     this.button = document.createElement('div');
     this.button.style.cssText = `
@@ -24,7 +24,7 @@ export class AssistiveTouchPluginWeb extends WebPlugin implements AssistiveTouch
     this.button.setAttribute('aria-label', options.label || 'Assistive Touch');
     document.body.appendChild(this.button);
     this.isEnabled = true;
-    console.log('[AssistiveTouch Web] Show called. Token:', options.authToken);
+    console.log('[AssistiveTouch Web] Show called. Token:', options.authToken, 'API URL:', options.apiUrl);
   }
 
   async hide(): Promise<void> {
