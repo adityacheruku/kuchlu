@@ -7,7 +7,7 @@ import type {
 } from '@/types';
 import type { MoodOption } from '@/config/moods';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://938c-49-43-231-86.ngrok-free.app';
 let currentAuthToken: string | null = null;
 
 function getAuthToken(): string | null {

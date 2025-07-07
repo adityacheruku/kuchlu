@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
     // This is for live-reloading on a physical device.
     // Replace 'localhost' with your computer's local IP address (e.g., 192.168.1.100).
     // This allows the mobile app to connect to the Next.js development server.
-    url: 'http://localhost:9002',
+    url: 'https://kuchlu.vercel.app',
     cleartext: true
   },
   plugins: {

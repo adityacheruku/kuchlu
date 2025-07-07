@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
     CLOUDINARY_WEBHOOK_URL: Optional[str] = None
-    API_BASE_URL: str = "http://localhost:8000"
+    API_BASE_URL: str = "https://938c-49-43-231-86.ngrok-free.app"
     HUGGINGFACE_API_KEY: Optional[str] = None
     HUGGINGFACE_MOOD_MODEL_URL: Optional[str] = None
     NOTIFICATION_EMAIL_TO: Optional[str] = None
