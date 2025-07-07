@@ -7,22 +7,20 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function ChatPage() {
-    const { currentUser, isLoading, isAuthenticated } = useAuth();
-    const router = useRouter();
-    
-    // The useAuth hook already handles redirection logic.
-    // This page primarily acts as a secure entry point to the ChatView.
-    
-    // Add an extra layer of check, although useAuth should handle it.
-    useEffect(() => {
-        if (!isLoading && !isAuthenticated) {
-            router.replace('/');
-        }
-    }, [isLoading, isAuthenticated, router]);
-    
-    if (isLoading || !currentUser) {
-        return <FullPageLoader />;
-    }
+  const { currentUser, isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
-    return <ChatView initialCurrentUser={currentUser} />;
+  useEffect(() => {
+    // This effect handles redirection based on auth state
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || !currentUser) {
+    return <FullPageLoader />;
+  }
+
+  // If authenticated and user data is available, render the chat view
+  return <ChatView initialCurrentUser={currentUser} />;
 }
