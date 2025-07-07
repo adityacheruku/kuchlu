@@ -81,84 +81,90 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         delete pendingMessageTimeouts.current[clientTempId];
     }, []);
 
-    const handleRealtimeEvent = useCallback((eventType: string, data: any) => {
-        if (eventType === 'auth-error') {
-            toast({ variant: 'destructive', title: 'Authentication Failed', description: 'Please re-login.' });
-            router.push('/'); // Using router from next/navigation
-        } else if (eventType === 'error') {
-            toast({ variant: 'destructive', title: data.title, description: data.description });
-        } else if (eventType === 'event') {
-            const payload = data as EventPayload;
-            switch (payload.event_type) {
-                case 'new_message':
-                    storageService.addMessage({ ...payload.message, status: 'delivered' });
-                    break;
-                case 'media_processed':
-                    storageService.updateMessage(payload.message.client_temp_id!, payload.message);
-                    break;
-                case 'message_deleted':
-                    storageService.updateMessageByServerId(payload.message_id, {
-                        message_subtype: 'deleted',
-                        text: 'This message was deleted.',
-                        reactions: {},
-                        image_url: undefined, clip_url: undefined, document_url: undefined, sticker_id: undefined, caption: undefined,
-                    });
-                    break;
-                case 'message_reaction_update':
-                    storageService.updateMessageByServerId(payload.message_id, { reactions: payload.reactions });
-                    break;
-                case 'user_presence_update':
-                    setOtherUser(prev => {
-                        if (prev && payload.user_id === prev.id) {
-                            const updatedUser = { ...prev, is_online: payload.is_online, last_seen: payload.last_seen, mood: payload.mood };
-                            storageService.upsertUser(updatedUser);
-                            return updatedUser;
-                        }
-                        return prev;
-                    });
-                    break;
-                case 'typing_indicator':
-                    if (activeChatId === payload.chat_id) {
-                        setTypingUsers(prev => ({ ...prev, [payload.user_id]: { userId: payload.user_id, isTyping: payload.is_typing } }));
-                    }
-                    break;
-                case 'thinking_of_you_received':
-                    if (otherUser?.id === payload.sender_id) {
-                        toast({
-                            title: "❤️ Thinking of You!",
-                            description: `You just passed through ${payload.sender_name}'s mind.`,
-                            action: React.createElement(ToastAction, { altText: "Reciprocate", onClick: handleSendThoughtRef.current }, "Reciprocate"),
-                        });
-                    }
-                    break;
-                case 'user_profile_update':
-                    setOtherUser(prev => (prev && payload.user_id === prev.id) ? { ...prev, ...payload } : prev);
-                    if (otherUser && payload.user_id === otherUser.id) storageService.upsertUser({ ...otherUser, ...payload });
-                    break;
-                case 'message_ack':
-                    if (pendingMessageTimeouts.current[payload.client_temp_id]) {
-                        clearTimeout(pendingMessageTimeouts.current[payload.client_temp_id]);
-                        delete pendingMessageTimeouts.current[payload.client_temp_id];
-                    }
-                    storageService.updateMessage(payload.client_temp_id, { id: payload.server_assigned_id, status: 'sent' });
-                    break;
-                case 'chat_mode_changed':
-                    if (activeChatId === payload.chat_id) setChatMode(payload.mode);
-                    break;
-                case 'chat_history_cleared':
-                    if(activeChatId === payload.chat_id) storageService.messages.where('chat_id').equals(payload.chat_id).delete();
-                    break;
-                case 'message_status_update':
-                    storageService.updateMessageByServerId(payload.message_id, { status: payload.status, read_at: payload.read_at });
-                    break;
-                case 'error':
-                    toast({ variant: 'destructive', title: 'Server Error', description: payload.detail });
-                    break;
-            }
-        }
-    }, [activeChatId, otherUser, toast, router]);
+    const handleSendThinkingOfYou = useCallback(() => {
+        if (!currentUser || !otherUser) return;
+        sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: otherUser.id });
+        initiateThoughtNotification(otherUser.id, otherUser.display_name, currentUser.display_name);
+    }, [currentUser, otherUser, initiateThoughtNotification]);
+    
+    const onMessageReceived = useCallback((message: MessageType) => {
+        storageService.addMessage({ ...message, status: 'delivered' });
+    }, []);
+    
+    const onMediaProcessed = useCallback((data: any) => {
+        storageService.updateMessage(data.message.client_temp_id!, data.message);
+    }, []);
 
-    const { protocol, sendMessage, isBrowserOnline } = useRealtime({ onEvent: handleRealtimeEvent });
+    const onMessageDeleted = useCallback((data: any) => {
+        storageService.updateMessageByServerId(data.message_id, {
+            message_subtype: 'deleted',
+            text: 'This message was deleted.',
+            reactions: {},
+            image_url: undefined, clip_url: undefined, document_url: undefined, sticker_id: undefined, caption: undefined,
+        });
+    }, []);
+
+    const onReactionUpdate = useCallback((data: MessageReactionUpdateEventData) => {
+        storageService.updateMessageByServerId(data.message_id, { reactions: data.reactions });
+    }, []);
+
+    const onPresenceUpdate = useCallback((data: any) => {
+        setOtherUser(prev => {
+            if (prev && data.user_id === prev.id) {
+                const updatedUser = { ...prev, is_online: data.is_online, last_seen: data.last_seen, mood: data.mood };
+                storageService.upsertUser(updatedUser);
+                return updatedUser;
+            }
+            return prev;
+        });
+    }, []);
+    
+    const onTypingUpdate = useCallback((data: any) => {
+        if (activeChatId === data.chat_id) {
+            setTypingUsers(prev => ({ ...prev, [data.user_id]: { userId: data.user_id, isTyping: data.is_typing } }));
+        }
+    }, [activeChatId]);
+    
+    const onThinkingOfYouReceived = useCallback((data: any) => {
+        if (otherUser && data.sender_id === otherUser.id) {
+            toast({
+                title: "❤️ Thinking of You!",
+                description: `You just passed through ${data.sender_name}'s mind.`,
+                action: React.createElement(ToastAction, { altText: "Reciprocate", onClick: handleSendThinkingOfYou }, "Reciprocate"),
+            });
+        }
+    }, [otherUser, toast, handleSendThinkingOfYou]);
+
+    const onUserProfileUpdate = useCallback((data: any) => {
+        setOtherUser(prev => (prev && data.user_id === prev.id) ? { ...prev, ...data } : prev);
+        if (otherUser && data.user_id === otherUser.id) storageService.upsertUser({ ...otherUser, ...data });
+    }, [otherUser]);
+
+    const onMessageAck = useCallback((data: any) => {
+        if (pendingMessageTimeouts.current[data.client_temp_id]) {
+            clearTimeout(pendingMessageTimeouts.current[data.client_temp_id]);
+            delete pendingMessageTimeouts.current[data.client_temp_id];
+        }
+        storageService.updateMessage(data.client_temp_id, { id: data.server_assigned_id, status: 'sent' });
+    }, []);
+
+    const onChatModeChanged = useCallback((data: any) => {
+        if (activeChatId === data.chat_id) setChatMode(data.mode);
+    }, [activeChatId]);
+    
+    const onChatHistoryCleared = useCallback((chatId: string) => {
+        if(activeChatId === chatId) storageService.messages.where('chat_id').equals(chatId).delete();
+    }, [activeChatId]);
+
+    const onMessageStatusUpdate = useCallback((data: any) => {
+        storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at });
+    }, []);
+
+    const { protocol, sendMessage, isBrowserOnline } = useRealtime({
+        onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived,
+        onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted,
+        onChatHistoryCleared, onMediaProcessed, onMessageStatusUpdate
+    });
 
     const sendMessageWithTimeout = useCallback((messagePayload: any) => {
         sendMessage(messagePayload);
@@ -251,7 +257,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
     const handlePointerMove = (e: React.PointerEvent) => { if (!isPulling) return; const diffY = e.clientY - startY.current; if (diffY > 0) { e.preventDefault(); setPullY(Math.min(diffY, 150)); }};
     const handlePointerUp = () => { if (!isPulling) return; if (pullY > ACTIVATION_THRESHOLD) { Haptics.impact({ style: ImpactStyle.Medium }); setIsModeSelectorOpen(true); } setIsPulling(false); setPullY(0); };
 
-    const handleSendThoughtRef = useRef(() => { if (!currentUser || !otherUser) return; sendMessage({ event_type: "ping_thinking_of_you", recipient_user_id: otherUser.id }); initiateThoughtNotification(otherUser.id, otherUser.display_name, currentUser.display_name); });
     const handleProfileClick = useCallback(() => router.push('/settings'), [router]);
 
     // --- Effects ---
@@ -310,6 +315,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         handleSetReplyingTo: setReplyingTo,
         handleEnterSelectionMode, handleToggleMessageSelection, handleExitSelectionMode, handleCopySelected, handleShareSelected, handleMarkAsRead,
         handlePointerDown, handlePointerMove, handlePointerUp,
-        handleSelectMode, handleSendThoughtRef, handleProfileClick
+        handleSelectMode, handleSendThinkingOfYou, handleProfileClick
     };
 }

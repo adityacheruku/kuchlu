@@ -8,7 +8,7 @@ import { useToast } from './use-toast';
 import { realtimeService, type RealtimeProtocol } from '@/services/realtimeService';
 import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingIndicatorEventData, ThinkingOfYouReceivedEventData, NewMessageEventData, MessageReactionUpdateEventData, UserProfileUpdateEventData, EventPayload, ChatModeChangedEventData, MessageDeletedEventData, ChatHistoryClearedEventData, MediaProcessedEventData, MessageStatusUpdateEventData } from '@/types';
 
-interface UseRealtimeOptions {
+interface RealtimeHandlers {
   onMessageReceived: (message: Message) => void;
   onReactionUpdate: (data: MessageReactionUpdateEventData) => void;
   onPresenceUpdate: (data: UserPresenceUpdateEventData) => void;
@@ -23,9 +23,7 @@ interface UseRealtimeOptions {
   onMessageStatusUpdate: (data: MessageStatusUpdateEventData) => void;
 }
 
-export function useRealtime({
-  onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared, onMediaProcessed, onMessageStatusUpdate
-}: UseRealtimeOptions) {
+export function useRealtime(handlers: RealtimeHandlers) {
   const { token, logout } = useAuth();
   const { toast } = useToast();
   const [protocol, setProtocol] = useState<RealtimeProtocol>(realtimeService.getProtocol());
@@ -42,18 +40,18 @@ export function useRealtime({
       } else if (eventType === 'event') {
         const payload = data as EventPayload;
         switch (payload.event_type) {
-          case 'new_message': onMessageReceived((payload as NewMessageEventData).message); break;
-          case 'media_processed': onMediaProcessed(payload as MediaProcessedEventData); break;
-          case 'message_deleted': onMessageDeleted(payload as MessageDeletedEventData); break;
-          case 'message_reaction_update': onReactionUpdate(payload as MessageReactionUpdateEventData); break;
-          case 'user_presence_update': onPresenceUpdate(payload as UserPresenceUpdateEventData); break;
-          case 'typing_indicator': onTypingUpdate(payload as TypingIndicatorEventData); break;
-          case 'thinking_of_you_received': onThinkingOfYouReceived(payload as ThinkingOfYouReceivedEventData); break;
-          case 'user_profile_update': onUserProfileUpdate(payload as UserProfileUpdateEventData); break;
-          case 'message_ack': onMessageAck(payload as MessageAckEventData); break;
-          case 'chat_mode_changed': onChatModeChanged(payload as ChatModeChangedEventData); break;
-          case 'chat_history_cleared': onChatHistoryCleared((payload as ChatHistoryClearedEventData).chat_id); break;
-          case 'message_status_update': onMessageStatusUpdate(payload as MessageStatusUpdateEventData); break;
+          case 'new_message': handlers.onMessageReceived((payload as NewMessageEventData).message); break;
+          case 'media_processed': handlers.onMediaProcessed(payload as MediaProcessedEventData); break;
+          case 'message_deleted': handlers.onMessageDeleted(payload as MessageDeletedEventData); break;
+          case 'message_reaction_update': handlers.onReactionUpdate(payload as MessageReactionUpdateEventData); break;
+          case 'user_presence_update': handlers.onPresenceUpdate(payload as UserPresenceUpdateEventData); break;
+          case 'typing_indicator': handlers.onTypingUpdate(payload as TypingIndicatorEventData); break;
+          case 'thinking_of_you_received': handlers.onThinkingOfYouReceived(payload as ThinkingOfYouReceivedEventData); break;
+          case 'user_profile_update': handlers.onUserProfileUpdate(payload as UserProfileUpdateEventData); break;
+          case 'message_ack': handlers.onMessageAck(payload as MessageAckEventData); break;
+          case 'chat_mode_changed': handlers.onChatModeChanged(payload as ChatModeChangedEventData); break;
+          case 'chat_history_cleared': handlers.onChatHistoryCleared((payload as ChatHistoryClearedEventData).chat_id); break;
+          case 'message_status_update': handlers.onMessageStatusUpdate(payload as MessageStatusUpdateEventData); break;
           case 'error': toast({ variant: 'destructive', title: 'Server Error', description: payload.detail }); break;
         }
       }
@@ -70,7 +68,7 @@ export function useRealtime({
     return () => {
       realtimeService.unsubscribe(handleEvent);
     };
-  }, [token, logout, toast, onMessageReceived, onReactionUpdate, onPresenceUpdate, onTypingUpdate, onThinkingOfYouReceived, onUserProfileUpdate, onMessageAck, onChatModeChanged, onMessageDeleted, onChatHistoryCleared, onMediaProcessed, onMessageStatusUpdate]);
+  }, [token, logout, toast, handlers]);
 
 
   return { 
