@@ -1,139 +1,83 @@
-# ChirpChat: UI/UX & Interaction Design Guide
 
-This document provides a comprehensive guide to the ChirpChat user interface (UI), user experience (UX) flows, and visual design principles. It serves as the single source of truth for the app's look, feel, and behavior.
+# ChirpChat: Media Handling Implementation Guide
 
----
+This document provides a detailed technical overview of how image and audio/voice messages are handled in the ChirpChat application. It is intended for developers to understand the end-to-end flow from user interaction to final delivery.
 
-## 1. Core Design Philosophy
+## 1. High-Level Architecture: The "Instant Send" Illusion
 
-ChirpChat is designed to be an intimate, emotionally resonant space for two people. The UI/UX choices reflect this goal:
+The media handling pipeline is designed to be robust, efficient, and user-friendly. It prioritizes a good user experience through optimistic UI updates and background processing, creating the illusion of an instant send.
 
--   **Calm & Inviting**: The color palette uses soft, muted tones to create a tranquil atmosphere, avoiding harsh or overly stimulating colors.
--   **Fluid & Responsive**: Interactions are designed to be smooth and jank-free, with subtle animations providing feedback without being distracting. The app should feel alive and responsive to touch.
--   **Intuitive & Accessible**: The interface is kept simple and predictable, ensuring that all features are easy to discover and use, including for users with disabilities (WCAG AA compliance).
--   **Dynamic & Expressive**: The chat's appearance dynamically changes based on the combined mood of the partners, making the interface a living reflection of their emotional state.
+The core flow is as follows:
+1.  **User Action**: The user selects a file or records media via the `InputBar`.
+2.  **Client-Side Pre-processing**: The file is immediately processed **on the user's device**.
+    *   **Images**: Resized and compressed using `browser-image-compression`. A small thumbnail is generated.
+    *   **Videos/Audio**: Compressed using `ffmpeg.wasm`. A static thumbnail is extracted from videos.
+3.  **Optimistic UI Update**: An immediate message bubble appears in the `MessageArea`. It displays the locally generated thumbnail with a "Compressing..." or "Uploading..." status overlay.
+4.  **Direct Upload to Cloudinary**: The `uploadManager` takes the **compressed file** and uploads it directly to a secure, signed Cloudinary URL, bypassing our backend.
+5.  **Webhook Notification**: Cloudinary processes the file (e.g., generates different formats, HLS manifests) and sends a webhook notification to our backend when complete.
+6.  **Real-time Finalization**: The backend receives the webhook, updates the message in the database with the final media URLs, and broadcasts a `media_processed` WebSocket event to all chat participants. The UI then seamlessly replaces the local thumbnail with the final, high-quality media.
 
----
+## 2. Key Services and Components
 
-## 2. Visual Style Guide
-
-The visual style is well-defined and consistently applied throughout the application.
-
-*   **Color Palette**: A custom, calming palette is defined in `src/app/globals.css` using HSL CSS variables.
-    *   Primary: `#90AFC5` (Soft Blue)
-    *   Background: `#F0F4F7` (Light Gray)
-    *   Accent: `#A991B5` (Pale Violet)
-*   **Typography**: The primary font is **'PT Sans'** from Google Fonts, providing a warm and modern feel.
-*   **Iconography**: **Lucide React** is used for a consistent, lightweight, and modern icon set.
-
----
-
-## 3. Application Flow Wireframes
-
-This section outlines the primary user flows from initial launch to the core chat experience.
-
-### 3.1. Onboarding & Authentication
-
-The onboarding flow is designed to be quick and secure, getting the user into the app with minimal friction.
-
-![Onboarding Flow](https://placehold.co/800x250.png?text=1.%20Welcome/Phone%20->%202.%20OTP%20Verify%20->%203.%20User%20Details)
-<br/>*Data AI Hint: user flow diagram*
-
-1.  **Welcome / Phone Entry**: The user is greeted and prompted to enter their phone number. The UI is clean, with a single input field and a "Continue" button.
-2.  **OTP Verification**: A 6-digit code is sent to the user's phone. They enter it on a dedicated screen. Error states for incorrect or expired OTPs are handled gracefully.
-3.  **User Details**: The user provides their display name and a password. A password strength indicator provides real-time feedback.
-
-### 3.2. Partner Pairing
-
-After onboarding, the user is guided to find their partner. This is a one-time setup step.
-
-![Partner Pairing Flow](https://placehold.co/800x250.png?text=1.%20Search/Suggest%20->%202.%20Send%20Request%20->%203.%20Wait/Accept)
-<br/>*Data AI Hint: user flow diagram*
-
-1.  **Suggestions & Search**: The user sees a list of suggested contacts already on the app. A search bar allows them to find a specific person.
-2.  **Requests**: The user can send a single partner request. Sent requests are shown in a "Pending" state. Incoming requests are highlighted at the top, with clear "Accept" and "Reject" buttons.
-3.  **Connection**: Once a request is accepted, both users are permanently linked, and the app transitions to the main chat interface.
+-   **`src/app/chat/page.tsx`**: The main page component that orchestrates all chat functionality and state management. It initiates the media upload process.
+-   **`src/components/chat/InputBar.tsx`**: The UI component for user input, including the attachment picker and voice recorder.
+-   **`src/services/uploadManager.ts`**: A robust queue system that orchestrates the entire client-side flow: pre-processing, direct-to-Cloudinary upload, and status updates.
+-   **`src/services/imageProcessor.ts`**: Uses `browser-image-compression` to resize and compress images efficiently.
+-   **`src/services/videoCompressor.ts`**: Uses **FFmpeg.wasm** to compress videos/audio and extract video thumbnails directly in the browser.
+-   **`src/services/api.ts`**: Handles HTTP communication, primarily to get the signed URL signature from the backend.
+-   **`src/services/storageService.ts`**: A Dexie (IndexedDB) wrapper for client-side persistence of messages, chats, and the upload queue.
+-   **`chirpchat-backend/app/routers/uploads.py`**: The FastAPI endpoint that provides a secure signature for the direct-to-Cloudinary upload.
+-   **`chirpchat-backend/app/routers/webhooks.py`**: The FastAPI endpoint that listens for "processing complete" notifications from Cloudinary.
 
 ---
 
-## 4. The Chat Interface: A Deep Dive
+## 3. Image Sending Flow (Step-by-Step)
 
-The chat interface is the heart of the app. It's composed of three main areas: the Header, the Message Area, and the Input Bar.
+1.  **Initiation (`InputBar.tsx`)**:
+    *   A user clicks the "Gallery" button or drags an image file.
+    *   This triggers `handleFileUpload` in `chat/page.tsx`.
 
-![Chat Interface Layout](https://placehold.co/400x600.png?text=Header%0A%0AMessage%20Area%0A%0AInput%20Bar)
-<br/>*Data AI Hint: app interface layout*
+2.  **Optimistic Message Creation (`chat/page.tsx`)**:
+    *   `handleFileUpload` creates a temporary `client_temp_id` (UUID) for the message.
+    *   It creates an "optimistic" `Message` object with `status: 'uploading'` and `uploadStatus: 'pending'`. **Crucially, it does not yet have a local preview URL.**
+    *   This message is immediately saved to the local database via `storageService.addMessage()`, making a placeholder bubble appear instantly.
+    *   It then calls `uploadManager.addToQueue()` with the raw `File` object and message details.
 
-### 4.1. Header
+3.  **Processing & Upload (`uploadManager.ts`)**:
+    *   The `uploadManager` picks the item from the queue and marks its status as `'processing'`.
+    *   It calls `imageProcessor.createThumbnail()` to generate a fast, low-res preview. It emits a progress event with this `thumbnailDataUrl`. The UI updates to show this preview inside the `UploadProgressIndicator`.
+    *   It then calls `imageProcessor.processImageForUpload()` to create the main compressed image. This happens in the background.
+    *   Once the image is compressed, the `uploadManager` gets a signed signature from your backend via `api.getCloudinaryUploadSignature`.
+    *   It updates the status to `'uploading'` and sends the **compressed** image `Blob` directly to Cloudinary via XHR, emitting progress events along the way.
+    *   Upon successful upload, it updates the status to `'pending_processing'`. The manager's job for this item is now done.
 
--   **Left**: Displays the partner's avatar with a real-time presence indicator (green for online, gray for offline). Tapping the avatar opens a full-screen profile view with more details.
--   **Center**: Shows the partner's name and their current mood via a small icon and text (e.g., "😊 Happy"). This area also displays a "typing..." indicator when the partner is active.
--   **Right**: A "More" icon (three dots) opens a menu with actions like "Call," "Send 'Thinking of You' Ping," and "Clear Chat History."
+4.  **Finalization (Webhook & WebSocket)**:
+    *   Cloudinary finishes its processing and sends a webhook to your backend.
+    *   Your backend updates the message in the database with the final `media_metadata` (containing all the different URLs).
+    *   Your backend broadcasts a `media_processed` event via WebSocket.
+    *   The client's `realtimeService` receives this event and updates the local message in IndexedDB.
+    *   The `MessageBubble` reactively re-renders, replacing the `UploadProgressIndicator` with the final `SecureMediaImage` component, which loads the high-quality, signed image URL.
 
-### 4.2. Message Area
+## 4. Voice Message & Video Flow
 
--   **Layout**: A standard two-column chat layout. The current user's messages are on the right, and the partner's messages are on the left.
--   **Bubbles**: Messages are enclosed in rounded bubbles with a small "tail." The user's bubbles use the primary theme color, while the partner's use a secondary color.
--   **Dynamic Backgrounds**: The chat area background subtly changes based on the combined mood of the two users. This can be disabled in Settings.
--   **Infinite Scroll**: As the user scrolls to the top, a "Load Older Messages" button appears, allowing them to fetch more of the conversation history without loading everything at once.
+This flow is nearly identical to the image flow, with the primary difference being the pre-processing step.
 
-### 4.3. Input Bar
+1.  **Initiation**: The user records audio or selects a video file.
+2.  **Optimistic Creation**: Same as the image flow. An optimistic message is created and `uploadManager.addToQueue` is called.
+3.  **Processing & Upload (`uploadManager.ts`)**:
+    *   The `uploadManager` picks the item from the queue.
+    *   For videos, it first calls `videoCompressor.extractVideoThumbnail()`. It emits a progress update with this thumbnail URL so the UI can show a relevant preview.
+    *   It then calls `videoCompressor.compressVideo()` or `compressAudio()`. This uses FFmpeg.wasm and emits `'compressing'` progress events.
+    *   The rest of the flow (getting a signature, uploading the compressed file directly to Cloudinary) is identical to the image flow.
+4.  **Finalization**: The webhook/WebSocket flow is the same. The `MessageBubble` will render the `VideoPlayer` component instead of an image component.
 
--   **Text Input**: A multi-line textarea that expands vertically as the user types.
--   **Attachment Picker**: A paperclip icon opens a bottom sheet with options to send from Camera, Gallery, or Document.
--   **Emoji/Sticker Picker**: A smiley icon opens another bottom sheet with tabs for Emojis, Stickers, and GIFs.
--   **Send/Record Button**: This button is context-aware. It shows a "Send" icon when there is text, and a "Mic" icon for voice recording when the input is empty.
+## 5. Camera Flow
 
-### 4.4. User Actions & System Feedback Table
+1.  **Initiation (`InputBar.tsx`)**:
+    *   The user clicks the "Camera" button.
+    *   This triggers a hidden `<input type="file" accept="image/*,video/*" capture="environment">`.
+    *   The `capture` attribute signals to mobile OSes to open the camera app.
 
-This table details every interaction within the chat interface.
-
-| Action                    | User Interaction                                                                                                 | System Feedback & UI Updates                                                                                                                                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Send Text**             | Type in the input bar and press the "Send" button.                                                               | The "Send" button appears with a pop animation when text is entered. Upon sending, the message optimistically appears in the chat area with a "sending" status (clock icon). The input field clears.                     |
-| **Send Attachments**      | Tap the paperclip icon to open a bottom sheet. Select camera, gallery, or document.                              | Selected files appear in a "staging area" above the input bar. Upon sending, the message appears with an upload progress indicator before transitioning to the "sending" status. |
-| **Record Voice Note**     | Press and hold the microphone icon.                                                                              | A timer and a pulsing red mic icon appear during recording. Releasing sends the note. The optimistic message bubble shows an audio player UI.                                     |
-| **React to Message**      | Long-press a message bubble and select an emoji from the quick-reaction menu. Or, double-tap to ❤️.                | The selected emoji appears on the message bubble with a counter. The user's own reaction is highlighted. Others in the chat see the reaction appear in real-time. Tapping the reaction shows who reacted.         |
-| **Copy Message Text**     | Long-press a message bubble and select "Copy" from the context menu.                                             | A toast notification confirms that the text has been copied to the clipboard.                                                                                                                                           |
-| **View Media**            | Tap on an image or video thumbnail in the chat.                                                                  | A full-screen, immersive modal opens, displaying the media. Users can pinch-to-zoom on images and use standard video controls. A download button is provided.                                                          |
-| **Swipe to Reply**        | Swipe a message bubble to the right.                                                                             | The message being replied to appears in a preview area above the input bar. Sending the next message will link it as a reply.                                                                                             |
-| **Delete Message**        | Swipe a message bubble to the left, or use the long-press context menu.                                          | A confirmation dialog appears, offering to "Delete for Me" or "Delete for Everyone" (if the user is the sender).                                                                                                        |
-
----
-
-## 5. Message States & Appearance
-
-Message bubbles change their appearance based on their content and delivery status.
-
-### 5.1. Delivery Status (User's own messages)
-
--   **Sending (Clock icon)**: The message is on its way to the server.
--   **Sent (Single check)**: The server has received the message.
--   **Delivered (Double check)**: The message has been delivered to the recipient's device.
--   **Read (Blue double check)**: The recipient has opened the chat and seen the message.
--   **Failed (Red alert triangle)**: The message failed to send. A "Retry" button appears.
-
-### 5.2. Media Message Appearance
-
--   **Image**: Displays a thumbnail. Tapping opens a full-screen viewer. During upload, shows a progress overlay on the blurred thumbnail.
--   **Video**: Displays a thumbnail with a play icon. Tapping plays the video in-line or full-screen.
--   **Voice Note**: Displays a custom audio player UI with a play/pause button and a waveform.
--   **Document**: Displays an icon, the document name, and file size. Tapping opens a preview.
--   **Sticker**: Displays the sticker image directly, with no surrounding bubble.
-
----
-
-## 6. Special Chat Modes
-
--   **Fight Mode**: The background shifts to a reddish hue, and bubbles have a sharper appearance to visually distinguish the conversation.
--   **Incognito Mode**: The background becomes a dark gray. Messages sent in this mode have a dashed border and disappear after 30 seconds. They are not saved to history.
-
-## 7. Accessibility
-
--   **Screen Reader Support**: All interactive elements have `aria-label` attributes for clear screen reader announcements.
--   **Keyboard Navigation**: The entire interface is navigable via the keyboard.
--   **Contrast & Theming**: The color palette meets WCAG AA contrast ratios. A dark mode is also available.
--   **Font Scaling**: The UI respects the user's system-level font size settings.
-
----
-
-This guide provides a comprehensive overview of the intended user experience. All new features should adhere to these principles to maintain a cohesive and high-quality application.
+2.  **File Handling**:
+    *   After the user takes a photo or video, the camera app returns a `File` object.
+    *   From this point, the flow merges with the standard **Image Sending Flow** or **Video/Audio Flow**.
