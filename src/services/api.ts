@@ -7,7 +7,7 @@ import type {
 } from '@/types';
 import type { MoodOption } from '@/config/moods';
 
-const API_BASE_URL = 'https://kuchlu-backend.vercel.app/';
+const API_BASE_URL = 'https://kuchlubackend.onrender.com/';
 let currentAuthToken: string | null = null;
 
 function getAuthToken(): string | null {

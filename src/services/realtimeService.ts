@@ -6,7 +6,7 @@ import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingI
 import { api } from './api';
 import { storageService } from './storageService';
 
-const API_BASE_URL =  'https://kuchlu-backend.vercel.app/';
+const API_BASE_URL =  'https://kuchlubackend.onrender.com/';
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
 const EVENTS_BASE_URL = API_BASE_URL;
 
