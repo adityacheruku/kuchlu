@@ -82,7 +82,11 @@ export default function AccessibilitySettingsPage() {
         if (checked) {
             const granted = await capacitorService.requestOverlayPermission(showPermissionDialog);
             if (granted) {
-                await capacitorService.showFloatingButton({ opacity: idleOpacity[0] / 100, authToken: token || undefined });
+                await capacitorService.showFloatingButton({ 
+                    opacity: idleOpacity[0] / 100, 
+                    authToken: token || undefined,
+                    apiUrl: 'https://kuchlu-backend.vercel.app/',
+                });
                 setAssistiveTouchEnabled(true);
                 toast({ title: "AssistiveTouch Enabled", description: "The floating button is now active." });
             } else {

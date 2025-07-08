@@ -6,7 +6,7 @@ import type { Message, MessageAckEventData, UserPresenceUpdateEventData, TypingI
 import { api } from './api';
 import { storageService } from './storageService';
 
-const API_BASE_URL =  'https://938c-49-43-231-86.ngrok-free.app';
+const API_BASE_URL =  'https://kuchlu-backend.vercel.app/';
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
 const EVENTS_BASE_URL = API_BASE_URL;
 
@@ -63,14 +63,14 @@ class RealtimeService {
   }
   private startConnectionSequence = () => { if (!this.token || (typeof navigator !== 'undefined' && !navigator.onLine)) { this.setProtocol('disconnected'); return; } this.cleanup(); this.setProtocol('connecting'); this.connectWebSocket(); };
   private connectWebSocket() {
-    if (!this.token) return; this.ws = new WebSocket(`${WS_BASE_URL}/ws/connect?token=${encodeURIComponent(this.token)}`);
+    if (!this.token) return; this.ws = new WebSocket(`${WS_BASE_URL}ws/connect?token=${encodeURIComponent(this.token)}`);
     this.ws.onopen = async () => { await this.syncEvents(); this.setProtocol('websocket'); this.resetActivityTimeout(); this.startHeartbeat(); if (this.pendingMessages.size > 0) this.pendingMessages.forEach(p => this.ws?.send(JSON.stringify(p))); };
     this.ws.onmessage = (event) => { this.resetActivityTimeout(); const data = JSON.parse(event.data); if (data.event_type !== 'heartbeat_ack') this.handleEvent(data); };
     this.ws.onerror = () => {};
     this.ws.onclose = (event) => { this.stopHeartbeat(); this.ws = null; if (event.code === 1008) { this.emit('auth-error', { detail: 'Authentication failed' }); this.disconnect(); return; } if (this.token) this.connectSSE(); };
   }
   private connectSSE = async () => {
-    if (!this.token) return; this.setProtocol('fallback'); this.sse = new EventSource(`${EVENTS_BASE_URL}/events/subscribe?token=${encodeURIComponent(this.token)}`);
+    if (!this.token) return; this.setProtocol('fallback'); this.sse = new EventSource(`${EVENTS_BASE_URL}events/subscribe?token=${encodeURIComponent(this.token)}`);
     this.sse.onopen = async () => { await this.syncEvents(); this.setProtocol('sse'); };
     this.sse.onerror = () => { if (this.protocol !== 'disconnected') { this.sse?.close(); this.sse = null; this.scheduleReconnect(); }};
     this.sse.addEventListener("auth_error", () => { this.emit('auth-error', { detail: 'Authentication failed' }); this.disconnect(); });
