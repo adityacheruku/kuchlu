@@ -3,8 +3,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 import random
+from typing import List
 
-from app.auth.schemas import UserLogin, UserUpdate, UserPublic, Token, PhoneSchema, VerifyOtpRequest, VerifyOtpResponse, CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FirebaseSignupRequest, FirebaseLoginRequest
+from app.auth.schemas import UserLogin, UserUpdate, UserPublic, Token, PhoneSchema, VerifyOtpRequest, VerifyOtpResponse, CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FirebaseSignupRequest, FirebaseLoginRequest, ActivityHistoryEvent
 from app.auth.dependencies import get_current_user, get_current_active_user, get_user_from_refresh_token
 from app.utils.security import get_password_hash, verify_password, create_access_token, create_refresh_token, create_registration_token, verify_registration_token
 from app.database import db_manager
@@ -19,6 +20,60 @@ from app.auth.firebase_service import firebase_service
 
 auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
 user_router = APIRouter(prefix="/users", tags=["Users"])
+
+@user_router.get("/me/activity-history", response_model=List[ActivityHistoryEvent], summary="Get user activity history")
+async def get_activity_history(current_user: UserPublic = Depends(get_current_active_user)):
+    """
+    Retrieves a combined history of mood updates and 'Thinking of You' pings
+    for the current user and their partner.
+    """
+    user_id = str(current_user.id)
+    partner_id = str(current_user.partner_id) if current_user.partner_id else None
+
+    if not partner_id:
+        # If there's no partner, only fetch the user's own mood updates
+        mood_updates_resp = await db_manager.admin_client.table("mood_analytics").select("id, created_at, mood_name, source").eq("user_id", user_id).eq("source", "profile_update").execute()
+        mood_events = mood_updates_resp.data or []
+    else:
+        # Fetch events for both user and partner
+        mood_updates_resp = await db_manager.admin_client.table("mood_analytics").select("id, created_at, mood_name, source, user_id").in_("user_id", [user_id, partner_id]).execute()
+        mood_events = mood_updates_resp.data or []
+
+    history_events: List[ActivityHistoryEvent] = []
+
+    for event in mood_events:
+        event_user_id = str(event['user_id'])
+        if event.get('source') == 'profile_update' and event_user_id == user_id:
+            history_events.append(ActivityHistoryEvent(
+                id=str(event['id']),
+                type='mood_update',
+                mood=event.get('mood_name'),
+                timestamp=event['created_at'],
+                user_id=user_id
+            ))
+        elif event.get('source') == 'assistive_touch_ping':
+            if event_user_id == user_id:
+                history_events.append(ActivityHistoryEvent(
+                    id=str(event['id']),
+                    type='ping_sent',
+                    recipient_id=partner_id,
+                    timestamp=event['created_at'],
+                    user_id=user_id
+                ))
+            elif partner_id and event_user_id == partner_id:
+                history_events.append(ActivityHistoryEvent(
+                    id=str(event['id']),
+                    type='ping_received',
+                    sender_id=partner_id,
+                    timestamp=event['created_at'],
+                    user_id=user_id
+                ))
+    
+    # Sort events chronologically descending
+    history_events.sort(key=lambda x: x.timestamp, reverse=True)
+    
+    return history_events
+
 
 @auth_router.post("/firebase/signup", response_model=Token, summary="Sign up with Firebase")
 async def firebase_signup(request_data: FirebaseSignupRequest):
@@ -359,3 +414,5 @@ async def http_ping_thinking_of_you(recipient_user_id: UUID, current_user: UserP
     )
     await notification_service.send_thinking_of_you_notification(sender=current_user, recipient_id=recipient_user_id)
     return {"status": "Ping sent"}
+
+    

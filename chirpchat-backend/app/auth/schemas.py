@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 import re
@@ -88,3 +88,14 @@ class TokenData(BaseModel):
     phone: Optional[str] = None
     user_id: Optional[UUID] = None
     token_type: Optional[str] = None
+
+class ActivityHistoryEvent(BaseModel):
+    id: str
+    type: str
+    timestamp: datetime
+    user_id: str
+    mood: Optional[str] = None
+    recipient_id: Optional[str] = None
+    sender_id: Optional[str] = None
+
+    

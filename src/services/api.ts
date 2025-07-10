@@ -1,4 +1,3 @@
-
 import type {
   AuthResponse, User, UserInToken, Chat, Message, ApiErrorResponse, SupportedEmoji,
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
@@ -310,16 +309,11 @@ export const api = {
     return handleResponse<{ suggestions: MoodOption[] }>(response);
   },
   getActivityHistory: async (): Promise<ActivityHistoryEvent[]> => {
-    // This is a placeholder. The actual backend would implement this endpoint.
-    // For now, returning a mock response.
-    console.warn("API call to getActivityHistory is mocked.");
-    return Promise.resolve([
-      { id: '1', type: 'mood_update', mood: 'Happy', timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(), user_id: '' },
-      { id: '2', type: 'ping_sent', timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(), user_id: '' },
-      { id: '3', type: 'ping_received', timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), user_id: '' },
-      { id: '4', type: 'mood_update', mood: 'Chilling', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), user_id: '' },
-    ]);
+    const response = await fetchWithInterceptor(`${API_BASE_URL}users/me/activity-history`, { headers: getApiHeaders() });
+    return handleResponse<ActivityHistoryEvent[]>(response);
   },
 };
 
 export { API_BASE_URL, getApiHeaders };
+
+    
