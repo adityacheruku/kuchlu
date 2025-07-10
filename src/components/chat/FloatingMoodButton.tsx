@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useLongPress } from '@/hooks/useLongPress';
 import { cn } from '@/lib/utils';
 import type { Mood } from '@/types';
-import { MOOD_OPTIONS } from '@/config/moods';
+import { InfinityIcon } from 'lucide-react';
 
 interface FloatingMoodButtonProps {
   currentMood: Mood;
@@ -23,7 +23,6 @@ const Ripple = ({ onAnimationEnd }: { onAnimationEnd: () => void }) => (
 
 export default function FloatingMoodButton({ currentMood, onClick }: FloatingMoodButtonProps) {
   const [isRippling, setIsRippling] = useState(false);
-  const moodDetails = MOOD_OPTIONS.find(m => m.id === currentMood) || MOOD_OPTIONS.find(m => m.id === 'Neutral');
 
   const longPressEvents = useLongPress(() => {}, { threshold: 200 });
   const { isLongPressing, ...handlers } = longPressEvents;
@@ -41,31 +40,21 @@ export default function FloatingMoodButton({ currentMood, onClick }: FloatingMoo
             <Button
               {...handlers}
               onClick={handleClick}
-              className="relative h-14 w-14 rounded-full bg-card/80 p-0 text-3xl shadow-lg backdrop-blur-sm transition-opacity hover:opacity-100 dark:bg-zinc-800/80"
+              className="relative h-14 w-14 rounded-full bg-background/50 p-0 text-3xl shadow-lg backdrop-blur-sm transition-opacity hover:opacity-100 dark:bg-zinc-900/50"
               aria-label={`Change mood. Current mood: ${currentMood}`}
             >
               {isRippling && <Ripple onAnimationEnd={() => setIsRippling(false)} />}
               <span className="relative z-10 transition-transform group-hover:scale-110">
-                {moodDetails?.emoji}
+                <InfinityIcon className="h-7 w-7 text-foreground/80" />
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right" className="ml-2">
             <p>You're feeling: <strong>{currentMood}</strong></p>
-            <p className="text-xs text-muted-foreground">(Tap to change, hold to check)</p>
+            <p className="text-xs text-muted-foreground">(Tap to change)</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
   );
 }
-
-// Add this to your globals.css or a relevant CSS file
-// @keyframes ripple {
-//   to {
-//     transform: scale(4);
-//     opacity: 0;
-//   }
-// }
-//
-// I'll add this to the tailwind config instead for better encapsulation.
