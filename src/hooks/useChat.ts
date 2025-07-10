@@ -9,7 +9,7 @@ import type { User, Message as MessageType, Mood, MessageMode, DeleteType, ChatH
 import { useToast } from '@/hooks/use-toast';
 import { useThoughtNotification } from '@/hooks/useThoughtNotification';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { THINKING_OF_YOU_DURATION, ENABLE_AI_MOOD_SUGGESTION } from '@/config/app-config';
+import { THINKING_OF_YOU_DURATION, ENABLE_AI_MOOD_SUGGESTION, MOOD_PROMPT_INTERVAL_MS } from '@/config/app-config';
 import { api } from '@/services/api';
 import { useRealtime } from '@/hooks/useRealtime';
 import { uploadManager } from '@/services/uploadManager';
@@ -21,10 +21,11 @@ import { ToastAction } from '@/components/ui/toast';
 import React from 'react';
 import { isEmojiOnly } from '@/utils/isEmojiOnly';
 
-const MOOD_PROMPT_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const FIRST_MESSAGE_SENT_KEY = 'kuchlu_firstMessageSent';
 const MESSAGE_SEND_TIMEOUT_MS = 15000;
 const ACTIVATION_THRESHOLD = 80;
+const LAST_MOOD_PROMPT_KEY = 'kuchlu_lastMoodPromptTimestamp';
+
 
 interface UseChatProps {
     initialCurrentUser: User;
@@ -83,11 +84,6 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         storageService.updateMessage(clientTempId, { status: 'failed' });
         delete pendingMessageTimeouts.current[clientTempId];
     }, []);
-
-    const sendMessageWithTimeout = useCallback((messagePayload: any) => {
-        sendMessage(messagePayload);
-        pendingMessageTimeouts.current[messagePayload.client_temp_id] = setTimeout(() => setMessageAsFailed(messagePayload.client_temp_id), MESSAGE_SEND_TIMEOUT_MS);
-    }, [setMessageAsFailed]);
 
     const handleMessageAck = useCallback(async (data: MessageAckEventData) => {
         if (pendingMessageTimeouts.current[data.client_temp_id]) {
@@ -161,6 +157,11 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
         onMessageStatusUpdate: (data) => storageService.updateMessageByServerId(data.message_id, { status: data.status, read_at: data.read_at }),
     });
 
+    const sendMessageWithTimeout = useCallback((messagePayload: any) => {
+        sendMessage(messagePayload);
+        pendingMessageTimeouts.current[messagePayload.client_temp_id] = setTimeout(() => setMessageAsFailed(messagePayload.client_temp_id), MESSAGE_SEND_TIMEOUT_MS);
+    }, [sendMessage, setMessageAsFailed]);
+
     const performLoadChatData = useCallback(async () => {
         if (!currentUser) return;
         if (!currentUser.partner_id) { router.push('/onboarding/find-partner'); return; }
@@ -181,7 +182,7 @@ export function useChat({ initialCurrentUser }: UseChatProps) {
             await storageService.bulkAddMessages(messagesData.messages);
             setHasMoreMessages(messagesData.messages.length >= 50);
             
-            const lastPromptTime = parseInt(localStorage.getItem('kuchlu_lastMoodPromptTimestamp') || '0', 10);
+            const lastPromptTime = parseInt(localStorage.getItem(LAST_MOOD_PROMPT_KEY) || '0', 10);
             if (Date.now() - lastPromptTime > MOOD_PROMPT_INTERVAL_MS) {
                 setInitialMoodOnLoad(currentUser.mood);
                 setIsMoodModalOpen(true);

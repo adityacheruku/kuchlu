@@ -34,6 +34,7 @@ import ChatModeSelector from './ChatModeSelector';
 import DeleteMessageDialog from './DeleteMessageDialog';
 import { useAuth } from '@/contexts/AuthContext';
 
+const LAST_MOOD_PROMPT_KEY = 'kuchlu_lastMoodPromptTimestamp';
 
 const FullScreenAvatarModal = dynamic(() => import('@/components/chat/FullScreenAvatarModal'), { ssr: false, loading: () => <FullPageLoader /> });
 const FullScreenMediaModal = dynamic(() => import('@/components/chat/FullScreenMediaModal'), { ssr: false, loading: () => <FullPageLoader /> });
@@ -141,8 +142,14 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
     }
   }, [otherUser, setFullScreenUserData, setIsFullScreenAvatarOpen]);
 
+  const updateLastMoodPromptTime = () => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(LAST_MOOD_PROMPT_KEY, Date.now().toString());
+    }
+  };
+
   const handleContinueWithCurrentMood = useCallback(() => {
-    if (typeof window !== 'undefined') localStorage.setItem('kuchlu_lastMoodPromptTimestamp', Date.now().toString());
+    updateLastMoodPromptTime();
     setIsMoodModalOpen(false);
   }, [setIsMoodModalOpen]);
 
@@ -155,8 +162,9 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Update Failed' });
     }
-    handleContinueWithCurrentMood();
-  }, [currentUser, fetchAndUpdateUser, toast, handleContinueWithCurrentMood]);
+    updateLastMoodPromptTime();
+    setIsMoodModalOpen(false);
+  }, [currentUser, fetchAndUpdateUser, toast, setIsMoodModalOpen]);
 
   if (isChatLoading || !currentUser) return <FullPageLoader />;
   if (!otherUser || !activeChatId || !messages) return <div className="flex min-h-screen items-center justify-center bg-background p-4 text-center"><div><FullPageLoader /><p className="text-lg text-foreground">Setting up your chat...</p>{chatSetupErrorMessage && <p className="text-destructive mt-2">{chatSetupErrorMessage}</p>}</div></div>;
