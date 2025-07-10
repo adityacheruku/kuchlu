@@ -33,6 +33,7 @@ import MessageInfoModal from './MessageInfoModal';
 import ChatModeSelector from './ChatModeSelector';
 import DeleteMessageDialog from './DeleteMessageDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import FloatingMoodButton from './FloatingMoodButton';
 
 const LAST_MOOD_PROMPT_KEY = 'kuchlu_lastMoodPromptTimestamp';
 
@@ -231,6 +232,7 @@ export default function ChatView({ initialCurrentUser }: ChatViewProps) {
                 activationThreshold={activationThreshold}
                 viewportRef={viewportRef}
             />
+            <FloatingMoodButton currentMood={currentUser.mood} onClick={() => setIsMoodModalOpen(true)} />
             <InputBar
                 onSendMessage={handleSendMessage}
                 onSendSticker={handleSendSticker}

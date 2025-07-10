@@ -1,3 +1,4 @@
+
 "use client";
 
 import { memo } from 'react';
@@ -85,7 +86,7 @@ const HeaderContent = memo(({
             <h2 className="font-semibold text-lg text-foreground font-headline truncate">{displayNameOrTyping}</h2>
             {isTargetUserBeingThoughtOf && <TooltipProvider><Tooltip><TooltipTrigger><Heart size={16} className="text-red-500 animate-pulse-subtle fill-red-400" /></TooltipTrigger><TooltipContent><p>{currentUser.display_name} is thinking of you!</p></TooltipContent></Tooltip></TooltipProvider>}
           </div>
-          <MoodIndicator mood={otherUser.mood} size={14} />
+          <MoodIndicator mood={otherUser.mood} />
         </div>
       </div>
       <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 justify-end">
