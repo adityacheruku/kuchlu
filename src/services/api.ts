@@ -1,9 +1,10 @@
+
 import type {
   AuthResponse, User, UserInToken, Chat, Message, ApiErrorResponse, SupportedEmoji,
   StickerPackResponse, StickerListResponse, PushSubscriptionJSON,
   NotificationSettings, PartnerRequest, EventPayload, VerifyOtpResponse,
   CompleteRegistrationRequest, PasswordChangeRequest, DeleteAccountRequest, FileAnalyticsPayload,
-  MoodAnalyticsPayload, CloudinaryUploadParams, MediaMessagePayload
+  MoodAnalyticsPayload, CloudinaryUploadParams, MediaMessagePayload, ActivityHistoryEvent
 } from '@/types';
 import type { MoodOption } from '@/config/moods';
 
@@ -14,9 +15,9 @@ let tokenRefreshPromise: Promise<AuthResponse> | null = null;
 
 // Function to get the current tokens safely
 function getTokens() {
-    const accessToken = currentAuthToken || (typeof window !== 'undefined' ? localStorage.getItem('kuchluAccessToken') : null);
-    const refreshToken = currentRefreshToken || (typeof window !== 'undefined' ? localStorage.getItem('kuchluRefreshToken') : null);
-    return { accessToken, refreshToken };
+  const accessToken = currentAuthToken || (typeof window !== 'undefined' ? localStorage.getItem('kuchluAccessToken') : null);
+  const refreshToken = currentRefreshToken || (typeof window !== 'undefined' ? localStorage.getItem('kuchluRefreshToken') : null);
+  return { accessToken, refreshToken };
 }
 
 function getApiHeaders(options: { contentType?: string | null, includeAuth?: boolean } = {}): HeadersInit {
@@ -32,43 +33,43 @@ function getApiHeaders(options: { contentType?: string | null, includeAuth?: boo
 
 // Interceptor function
 async function fetchWithInterceptor(url: string, options: RequestInit): Promise<Response> {
-    let response = await fetch(url, options);
+  let response = await fetch(url, options);
 
-    if (response.status === 401 && !url.includes('/auth/refresh')) {
-        console.log("API: Access token expired. Attempting to refresh.");
-        try {
-            if (!tokenRefreshPromise) {
-              tokenRefreshPromise = api.refreshAuthToken();
-            }
-            const newAuthData = await tokenRefreshPromise;
-            
-            // Set new tokens for subsequent requests
-            localStorage.setItem('kuchluAccessToken', newAuthData.access_token);
-            localStorage.setItem('kuchluRefreshToken', newAuthData.refresh_token);
-            api.setAuthToken(newAuthData.access_token);
-            api.setRefreshToken(newAuthData.refresh_token);
+  if (response.status === 401 && !url.includes('/auth/refresh')) {
+    console.log("API: Access token expired. Attempting to refresh.");
+    try {
+      if (!tokenRefreshPromise) {
+        tokenRefreshPromise = api.refreshAuthToken();
+      }
+      const newAuthData = await tokenRefreshPromise;
 
-            // Retry the original request with the new token
-            const newOptions = {
-                ...options,
-                headers: {
-                    ...options.headers,
-                    'Authorization': `Bearer ${newAuthData.access_token}`,
-                },
-            };
-            console.log("API: Token refreshed. Retrying original request.");
-            response = await fetch(url, newOptions);
+      // Set new tokens for subsequent requests
+      localStorage.setItem('kuchluAccessToken', newAuthData.access_token);
+      localStorage.setItem('kuchluRefreshToken', newAuthData.refresh_token);
+      api.setAuthToken(newAuthData.access_token);
+      api.setRefreshToken(newAuthData.refresh_token);
 
-        } catch (refreshError) {
-            console.error("API: Failed to refresh token. Logging out.", refreshError);
-            // Here you might want to trigger a global logout event
-            // For now, we'll let the original failed response propagate
-            // which should trigger logout logic in the AuthContext.
-        } finally {
-            tokenRefreshPromise = null; // Reset the promise after completion
-        }
+      // Retry the original request with the new token
+      const newOptions = {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${newAuthData.access_token}`,
+        },
+      };
+      console.log("API: Token refreshed. Retrying original request.");
+      response = await fetch(url, newOptions);
+
+    } catch (refreshError) {
+      console.error("API: Failed to refresh token. Logging out.", refreshError);
+      // Here you might want to trigger a global logout event
+      // For now, we'll let the original failed response propagate
+      // which should trigger logout logic in the AuthContext.
+    } finally {
+      tokenRefreshPromise = null; // Reset the promise after completion
     }
-    return response;
+  }
+  return response;
 }
 
 
@@ -107,16 +108,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export const api = {
   setAuthToken: (token: string | null) => { currentAuthToken = token; },
   setRefreshToken: (token: string | null) => { currentRefreshToken = token; },
-  
+
   refreshAuthToken: async (): Promise<AuthResponse> => {
     const { refreshToken } = getTokens();
     if (!refreshToken) throw new Error("No refresh token available.");
     const response = await fetch(`${API_BASE_URL}auth/refresh`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${refreshToken}`
-        }
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${refreshToken}`
+      }
     });
     return handleResponse<AuthResponse>(response);
   },
@@ -308,4 +309,17 @@ export const api = {
     const response = await fetchWithInterceptor(`${API_BASE_URL}analytics/moods/partner-suggestions`, { headers: getApiHeaders() });
     return handleResponse<{ suggestions: MoodOption[] }>(response);
   },
+  getActivityHistory: async (): Promise<ActivityHistoryEvent[]> => {
+    // This is a placeholder. The actual backend would implement this endpoint.
+    // For now, returning a mock response.
+    console.warn("API call to getActivityHistory is mocked.");
+    return Promise.resolve([
+      { id: '1', type: 'mood_update', mood: 'Happy', timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(), user_id: '' },
+      { id: '2', type: 'ping_sent', timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(), user_id: '' },
+      { id: '3', type: 'ping_received', timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString(), user_id: '' },
+      { id: '4', type: 'mood_update', mood: 'Chilling', timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(), user_id: '' },
+    ]);
+  },
 };
+
+export { API_BASE_URL, getApiHeaders };

@@ -2,7 +2,7 @@ apply plugin: 'com.android.library'
 // apply plugin: 'kotlin-android' // If your plugin uses Kotlin
 
 android {
-    namespace "com.kuchlu.plugin.assistivetouch" // Make this unique for your plugin
+    namespace "com.kuchlu.plugin" // Make this unique for your plugin
     compileSdk rootProject.ext.compileSdkVersion
 
     defaultConfig {
@@ -40,7 +40,7 @@ android {
     // }
 
     // Prevent conflicts with the main app's resources if plugin has its own
-    resourcePrefix "assistivetouch_"
+    // resourcePrefix "assistivetouch_"
     // kotlinOptions {
     //     jvmTarget = '11'
     // } // Choose a unique prefix
@@ -54,13 +54,20 @@ repositories {
 
 dependencies {
     implementation "androidx.appcompat:appcompat:$rootProject.ext.androidxAppCompatVersion" // Or other specific AndroidX libs
+    
+    // Security dependencies for EncryptedSharedPreferences
+    implementation "androidx.security:security-crypto:1.1.0-alpha06"
+    
+    // Network dependencies for API calls
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.mockito:mockito-core:3.12.4'
     testImplementation 'androidx.test:core:1.4.0'
     // --- CRUCIAL for a Capacitor plugin ---
     // Make sure the version matches your project's Capacitor version
     // You can use rootProject.ext.capacitorVersion if defined in the root build.gradle
-    implementation project(':capacitor-android')
+    implementation project(':capacitor-app')
     // annotationProcessor "com.getcapacitor:capacitor-annotation:7.3.0"
 
                  // Use 'api' so it's available to app

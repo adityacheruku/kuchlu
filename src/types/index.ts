@@ -1,3 +1,4 @@
+
 import type { UploadError as UploadErrorType } from './uploadErrors';
 import type { NetworkQuality } from '@/services/networkMonitor';
 import { ALL_MOODS as AppMoods } from '@/config/moods';
@@ -218,3 +219,14 @@ export interface CachedMediaBlob {
   blob: Blob; // The actual binary data of the media
   cachedAt: number; // Timestamp for LRU eviction (Date.now())
 }
+
+// New type for Activity History
+export type ActivityHistoryEvent = {
+    id: string;
+    user_id: string;
+    timestamp: string;
+} & (
+    | { type: 'mood_update'; mood: string; }
+    | { type: 'ping_sent'; recipient_id: string; }
+    | { type: 'ping_received'; sender_id: string; }
+);

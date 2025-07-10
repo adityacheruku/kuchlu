@@ -5,7 +5,7 @@ import { memo } from 'react';
 import type { User } from '@/types';
 import MoodIndicator from './MoodIndicator';
 import { Button } from '@/components/ui/button';
-import { UserCircle2, Heart, Phone, MoreHorizontal, Trash2 } from 'lucide-react';
+import { UserCircle2, Heart, Phone, MoreHorizontal, Trash2, History } from 'lucide-react';
 import Image from 'next/image';
 import {
   Tooltip,
@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { differenceInDays, formatDistanceToNowStrict, parseISO } from 'date-fns';
 import SelectionActionBar from './SelectionActionBar';
+import { useRouter } from 'next/navigation';
 
 interface ChatHeaderProps {
   currentUser: User;
@@ -52,6 +53,7 @@ const HeaderContent = memo(({
   onSendThinkingOfYou,
   onClearChat
 }: Pick<ChatHeaderProps, 'otherUser' | 'isOtherUserTyping' | 'isTargetUserBeingThoughtOf' | 'currentUser' | 'onOtherUserAvatarClick' | 'onProfileClick' | 'onSendThinkingOfYou' | 'onClearChat'>) => {
+  const router = useRouter();
   let presenceStatusText = `${otherUser.display_name} is offline.`;
   let formattedLastSeen = "Last seen: N/A";
 
@@ -101,6 +103,19 @@ const HeaderContent = memo(({
               <p>Send "Thinking of You"</p>
             </TooltipContent>
           </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={() => router.push('/history')} className="text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 active:bg-blue-500/20 rounded-full" aria-label="View History">
+                        <History size={22} />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>View Activity History</p>
+                </TooltipContent>
+            </Tooltip>
         </TooltipProvider>
 
         <DropdownMenu>

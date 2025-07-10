@@ -1,0 +1,21 @@
+<plugin id="com.cwithsai.kuchlu.assistivetouch" version="1.0.0">
+  <name>AssistiveTouch</name>
+  <js-module src="dist/esm/index.js" name="AssistiveTouchPlugin">
+    <clobbers target="Capacitor.Plugins.AssistiveTouch" />
+  </js-module>
+  <platform name="android">
+    <source-file src="android/src/main/java/com/kuchlu/plugin/AssistiveTouchPlugin.java" target-dir="app/src/main/java/com/kuchlu/plugin" />
+    <source-file src="android/src/main/java/com/kuchlu/plugin/AssistiveTouchService.java" target-dir="app/src/main/java/com/kuchlu/plugin" />
+    <source-file src="android/src/main/java/com/kuchlu/plugin/BootReceiver.java" target-dir="app/src/main/java/com/kuchlu/plugin" />
+    <resource-file src="android/src/main/res/layout/floating_button.xml" target="res/layout/floating_button.xml" />
+    <resource-file src="android/src/main/res/layout/mood_selector.xml" target="res/layout/mood_selector.xml" />
+    <resource-file src="android/src/main/res/values/strings.xml" target="res/values/strings.xml" />
+    <resource-file src="android/src/main/res/xml/shortcuts.xml" target="res/xml/shortcuts.xml" />
+    <resource-file src="android/src/main/res/drawable/assistivetouch_circle_background.xml" target="res/drawable/assistivetouch_circle_background.xml" />
+    <manifest-file src="android/src/main/AndroidManifest.xml" />
+  </platform>
+  <platform name="ios">
+    <source-file src="ios/Plugin/AssistiveTouchPlugin.swift" />
+    <podspec>Assistivetouch.podspec</podspec>
+  </platform>
+</plugin> 

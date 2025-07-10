@@ -1,5 +1,5 @@
 import { PushNotifications } from '@capacitor/push-notifications';
-import { api } from './api'; // Assuming you have an api service to make backend calls
+import { api, API_BASE_URL, getApiHeaders } from './api';
 
 export async function registerForPushNotifications(): Promise<void> {
   try {
@@ -14,12 +14,25 @@ export async function registerForPushNotifications(): Promise<void> {
 
     await PushNotifications.register();
 
-    PushNotifications.addListener('registration', (token: { value: string }) => {
+    PushNotifications.addListener('registration', async (token: { value: string }) => {
       console.log('Push registration success, token: ', token.value);
-      // Send device token to backend to store against user profile
-      api.post('/api/v1/users/device-token', { token: token.value }).catch((error: any) => {
-        console.error('Failed to send device token to backend', error);
-      });
+      // Send FCM token to backend (as plain text)
+      try {
+        const response = await fetch(
+          API_BASE_URL + 'users/me/fcm-token',
+          {
+            method: 'POST',
+            headers: getApiHeaders({ contentType: 'text/plain' }),
+            body: token.value,
+          }
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        console.log('FCM token sent to backend successfully');
+      } catch (error) {
+        console.error('Failed to send FCM token to backend', error);
+      }
     });
 
     PushNotifications.addListener('registrationError', (error: any) => {
