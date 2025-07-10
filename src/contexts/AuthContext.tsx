@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
@@ -13,6 +14,7 @@ import type { RecaptchaVerifier } from 'firebase/auth';
 interface AuthContextType {
   currentUser: UserInToken | null;
   token: string | null;
+  refreshToken: string | null;
   isLoading: boolean;
   login: (phone: string, password_plaintext: string) => Promise<void>;
   firebaseLogin: (phone: string) => Promise<void>;
@@ -23,6 +25,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   sendFirebaseOTP: (phoneNumber: string) => Promise<any>;
   verifyFirebaseOTP: (confirmationResult: any, otp: string) => Promise<any>;
+  handleAuthSuccess: (data: AuthResponse) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +33,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserInToken | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -38,55 +42,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAuthenticated = !!token && !!currentUser;
 
   const handleAuthSuccess = useCallback(async (data: AuthResponse) => {
-    localStorage.setItem('kuchluToken', data.access_token);
+    localStorage.setItem('kuchluAccessToken', data.access_token);
+    localStorage.setItem('kuchluRefreshToken', data.refresh_token);
     api.setAuthToken(data.access_token);
+    api.setRefreshToken(data.refresh_token);
     setCurrentUser(data.user);
     setToken(data.access_token);
-    // Store user profile in IndexedDB for offline access
+    setRefreshToken(data.refresh_token);
     await storageService.upsertUser(data.user);
-    // Send token to native plugin if available
     await capacitorService.setAuthToken(data.access_token);
   }, []);
 
   const logout = useCallback(async () => {
     setCurrentUser(null);
     setToken(null);
+    setRefreshToken(null);
     api.setAuthToken(null);
-    localStorage.removeItem('kuchluToken');
-    // Clear local database on logout
+    api.setRefreshToken(null);
+    localStorage.removeItem('kuchluAccessToken');
+    localStorage.removeItem('kuchluRefreshToken');
     await storageService.delete();
-    await storageService.open(); // Re-open DB for next user
+    await storageService.open();
     if (pathname !== '/') {
       router.push('/');
     }
     toast({ title: 'Logged Out', description: "You've been successfully logged out." });
-    await auth.signOut();
+    await auth.signOut().catch(e => console.error("Firebase signout error", e));
   }, [router, toast, pathname]);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('kuchluToken');
-    if (storedToken) {
-      const loadUserFromToken = async (tokenToLoad: string) => {
+    const storedToken = localStorage.getItem('kuchluAccessToken');
+    const storedRefreshToken = localStorage.getItem('kuchluRefreshToken');
+
+    if (storedToken && storedRefreshToken) {
+      const loadUserFromToken = async (tokenToLoad: string, refreshTokenToLoad: string) => {
         try {
           api.setAuthToken(tokenToLoad);
+          api.setRefreshToken(refreshTokenToLoad);
+          setToken(tokenToLoad);
+          setRefreshToken(refreshTokenToLoad);
           const userProfile = await api.getCurrentUserProfile();
           setCurrentUser(userProfile);
           await storageService.upsertUser(userProfile);
-          setToken(tokenToLoad);
-          // Also set token for native plugin on initial load
           await capacitorService.setAuthToken(tokenToLoad);
         } catch (error) {
-          console.error("Failed to load user from token", error);
-          logout();
+          console.error("Failed to load user from token, attempting refresh.", error);
+          try {
+              const newAuthData = await api.refreshAuthToken();
+              await handleAuthSuccess(newAuthData);
+          } catch (refreshError) {
+              console.error("Token refresh failed.", refreshError);
+              logout();
+          }
         } finally {
           setIsLoading(false);
         }
       };
-      loadUserFromToken(storedToken);
+      loadUserFromToken(storedToken, storedRefreshToken);
     } else {
       setIsLoading(false);
     }
-  }, [logout]);
+  }, [logout, handleAuthSuccess]);
 
   const login = useCallback(async (phone: string, password_plaintext: string) => {
     setIsLoading(true);
@@ -127,10 +143,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [token, logout]);
 
-  // Firebase OTP methods
   const sendFirebaseOTP = useCallback(async (phoneNumber: string) => {
     try {
-      // Create reCAPTCHA verifier
       const recaptchaVerifier = createRecaptchaVerifier('recaptcha-container');
       const confirmationResult = await sendOTP(phoneNumber, recaptchaVerifier);
       return confirmationResult;
@@ -150,7 +164,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Firebase authentication methods
   const firebaseLogin = useCallback(async (phone: string) => {
     setIsLoading(true);
     try {
@@ -188,32 +201,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const isProtectedPage = !isAuthPage && !isOnboardingPage;
 
     if (isAuthenticated && currentUser) {
-      // --- User is AUTHENTICATED ---
       if (currentUser.partner_id) {
-        // User has a partner. They should be sent to /chat if they land on auth or onboarding pages.
         if (isAuthPage || isOnboardingPage) {
           router.push('/chat');
         }
-        // Otherwise, they are free to navigate between /chat, /settings, etc. No redirect needed here.
       } else {
-        // User has NO partner. They should be on an onboarding page.
         if (!isOnboardingPage) {
           router.push('/onboarding/find-partner');
         }
       }
     } else {
-      // --- User is NOT AUTHENTICATED ---
-      // If they are trying to access a protected page, redirect them to the login page.
       if (isProtectedPage) {
         router.push('/');
       }
-      // Otherwise, they are on a public page (like '/') and can stay there.
     }
   }, [isLoading, isAuthenticated, currentUser, pathname, router]);
 
-
   return (
-    <AuthContext.Provider value={{ currentUser, token, isLoading, login, completeRegistration, logout, fetchAndUpdateUser, isAuthenticated, sendFirebaseOTP, verifyFirebaseOTP, firebaseLogin, firebaseSignup }}>
+    <AuthContext.Provider value={{ currentUser, token, refreshToken, isLoading, login, completeRegistration, logout, fetchAndUpdateUser, isAuthenticated, sendFirebaseOTP, verifyFirebaseOTP, firebaseLogin, firebaseSignup, handleAuthSuccess }}>
+      <div id="recaptcha-container"></div>
       {children}
     </AuthContext.Provider>
   );
